@@ -1,8 +1,4 @@
-import h5py
-import yaml
-
 from .config import Config
-from .loader import NumPyIncludeLoader
 
 from hexrd.core import instrument
 
@@ -29,33 +25,15 @@ class Instrument(Config):
             if self.configuration is None:
                 raise RuntimeError("No instrument file was given")
 
-            try:
-                icfg = h5py.File(self.configuration, 'r')
-            except OSError:
-                with open(self.configuration, 'r') as f:
-                    icfg = yaml.load(f, Loader=NumPyIncludeLoader)
-
-            kwargs = {
-                'instrument_config': icfg,
-                'max_workers': self._max_workers,
-            }
-            self._hedm = instrument.HEDMInstrument(**kwargs)
+            self.hedm = self.configuration
         return self._hedm
 
     @hedm.setter
     def hedm(self, icfg_fname):
         """Set the HEDMInstrument class."""
-        try:
-            icfg = h5py.File(icfg_fname, 'r')
-        except OSError:
-            with open(icfg_fname, 'r') as f:
-                icfg = yaml.load(f, Loader=NumPyIncludeLoader)
-
-        kwargs = {
-            'instrument_config': icfg,
-            'max_workers': self._max_workers,
-        }
-        self._hedm = instrument.HEDMInstrument(**kwargs)
+        self._hedm = instrument.load_instrument(
+            icfg_fname, max_workers=self._max_workers
+        )
 
     @property
     def detector_dict(self):

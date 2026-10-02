@@ -3,7 +3,7 @@ from hexrd.core.utils.compatibility import h5py_read_string
 import numpy as np
 
 
-def unwrap_dict_to_h5(grp, d, asattr=False):
+def unwrap_dict_to_h5(grp, d, asattr=False, **dataset_options):
     """
     Unwraps a dictionary to an HDF5 file of the same structure.
 
@@ -16,40 +16,40 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
     asattr : bool, optional
         Flag to write end member in dictionary tree to an attribute. If False,
         if writes the object to a dataset using numpy.  The default is False.
+    **dataset_options
+        HDF5 dataset options (e.g. compression) for non-scalar numeric arrays.
+        Scalars, strings, and attributes retain their default storage.
 
     Returns
     -------
     None.
 
     """
-    while len(d) > 0:
+    while d:
         key, item = d.popitem()
         if isinstance(item, dict):
             subgrp = grp.create_group(key)
-            unwrap_dict_to_h5(subgrp, item, asattr=asattr)
+            unwrap_dict_to_h5(subgrp, item, asattr=asattr, **dataset_options)
+        elif item is None:
+            continue
+        elif asattr:
+            grp.attrs.create(key, item)
         else:
-            if asattr:
-                try:
-                    grp.attrs.create(key, item)
-                except TypeError:
-                    if item is None:
-                        continue
-                    else:
-                        raise
-            else:
-                try:
-                    grp.create_dataset(key, data=np.atleast_1d(item))
-                except TypeError:
-                    if item is None:
-                        continue
-                    else:
-                        # probably a string badness
-
-                        if isinstance(item, np.ndarray) and np.issubdtype(
-                            item.dtype, 'U'
-                        ):
-                            item = str(item)  # hdf5 files do not support unicode arrays
-                        grp.create_dataset(key, data=item)
+            data = np.atleast_1d(item)
+            options = (
+                dataset_options
+                if np.ndim(item) > 0 and data.dtype.kind in 'biufc'
+                else {}
+            )
+            try:
+                grp.create_dataset(key, data=data, **options)
+            except TypeError:
+                if options:
+                    raise
+                # Preserve the existing Unicode-array representation.
+                if isinstance(item, np.ndarray) and np.issubdtype(item.dtype, 'U'):
+                    item = str(item)
+                grp.create_dataset(key, data=item)
 
 
 def unwrap_h5_to_dict(f, d):

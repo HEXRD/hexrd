@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import yaml
 
@@ -29,3 +31,18 @@ class NumpyToNativeDumper(yaml.SafeDumper):
             return self.represent_data(item)
 
         return super().represent_data(data)
+
+
+class NumPyIncludeLoader(yaml.SafeLoader):
+    """Load YAML with NumPy !include paths relative to the YAML file."""
+
+    def __init__(self, stream):
+        self._basedir = Path(stream.name).parent
+
+        super().__init__(stream)
+
+    def include(self, node):
+        return np.load(self._basedir / self.construct_scalar(node))
+
+
+NumPyIncludeLoader.add_constructor('!include', NumPyIncludeLoader.include)

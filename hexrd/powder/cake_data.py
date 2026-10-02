@@ -5,20 +5,21 @@ from __future__ import annotations
 import glob
 import json
 import logging
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator
 from dataclasses import asdict, dataclass, field, fields
+from itertools import pairwise
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
+from typing import Any, get_args, get_origin, get_type_hints
 
 import h5py
 import numpy as np
 import yaml
 
 from hexrd.core import imageseries
-from hexrd.powder.cake import CakeMatrix, export_cake_matrix
-from hexrd.core.instrument import HEDMInstrument
+from hexrd.core.instrument import load_instrument
 from hexrd.core.instrument.hedm_instrument import pixel_resolution
+from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 
 
 logger = logging.getLogger(__name__)
@@ -38,42 +39,58 @@ def _interval_count(span: float, width: float, name: str) -> int:
     return int(round(count))
 
 
+def _option(default: Any, short: str, help: str) -> Any:
+    """Attach command-line help to a configuration field."""
+    return field(default=default, metadata={"short": short, "help": help})
+
+
 @dataclass
 class CakeDataConfig:
     """Configuration for :func:`cake_data`. Angles are in degrees."""
 
-    data_dir: str | None = None
-    output_dir: str | None = None
-    sample_name: str | None = None
-    instrument: str | None = None
-    matrix: str | None = None
-    par_file: str | None = None
-    output_par: str | None = None
-    tth_start: float | None = None
-    tth_end: float | None = None
-    cake_width: float = 5.0
-    eta_start: float | None = None
-    eta_end: float | None = None
-    ome_start: float = 0.0
-    ome_end: float = 360.0
-    dome: float = 5.0
-    skip_frames: int = 0
-    refinement: float | None = None
-    start_layer: int = 0
-    par_version: int = 5
-    max_input_frames: int | None = None
-    image_pattern: str = "EIG16M_CdTe_*.h5"
-    image_format: str = "eiger-stream-v1"
-    image_options: dict[str, Any] = field(default_factory=dict)
+    data_dir: str | None = _option(None, 'd', 'raw-data directory template')
+    output_dir: str | Path | None = _option(None, 'o', 'directory for the output files')
+    sample_name: str | None = _option(None, 's', 'sample name and output file stem')
+    instrument: str | Path | None = _option(
+        None, 'i', 'HEXRD instrument YAML or HDF5 file'
+    )
+    matrix: str | Path | None = _option(
+        None, 'M', 'saved .hexrdcake matrix (replaces instrument and geometry options)'
+    )
+    par_file: str | Path | None = _option(None, 'p', 'input CHESS par file')
+    output_par: str | None = _option(None, 'P', 'output par filename')
+    tth_start: float | None = _option(None, 'b', 'starting two-theta angle')
+    tth_end: float | None = _option(None, 't', 'ending two-theta angle')
+    cake_width: float = _option(5.0, 'c', 'eta wedge width')
+    eta_start: float | None = _option(None, 'a', 'starting eta angle')
+    eta_end: float | None = _option(None, 'z', 'ending eta angle')
+    ome_start: float = _option(0.0, 'w', 'starting omega angle')
+    ome_end: float = _option(360.0, 'e', 'ending omega angle')
+    dome: float = _option(5.0, 'D', 'omega integration width')
+    skip_frames: int = _option(0, 'f', 'number of initial raw frames to skip')
+    refinement: float | None = _option(None, 'r', 'two-theta pixel refinement factor')
+    start_layer: int = _option(0, 'l', 'first par-file layer to process')
+    par_version: int = _option(5, 'v', 'CHESS par-file version')
+    max_input_frames: int | None = _option(None, 'm', 'maximum raw frames per layer')
+    image_pattern: str = _option(
+        'EIG16M_CdTe_*.h5', 'g', 'glob used to locate an image file'
+    )
+    image_format: str = _option('eiger-stream-v1', 'F', 'HEXRD image-series format')
+    image_options: dict[str, Any] = field(
+        default_factory=dict,
+        metadata={"short": 'O', "help": 'image-series reader options as a JSON object'},
+    )
 
     @classmethod
-    def from_json(cls, path: str | Path) -> CakeDataConfig:
-        values = json.loads(Path(path).read_text(encoding="utf-8"))
+    def from_yaml(cls, path: str | Path) -> CakeDataConfig:
+        values = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
         if not isinstance(values, dict):
-            raise ValueError("cake-data configuration must be a JSON object")
+            raise ValueError("cake-data configuration must be a YAML mapping")
         unknown = set(values) - {field.name for field in fields(cls)}
         if unknown:
-            raise ValueError(f"unknown cake-data parameters: {sorted(unknown)}")
+            raise ValueError(
+                f"unknown cake-data parameters: {sorted(unknown, key=str)}"
+            )
         return cls(**values)
 
     @property
@@ -84,6 +101,19 @@ class CakeDataConfig:
         }
 
     def validate(self) -> None:
+        for name, hint in get_type_hints(CakeDataConfig).items():
+            types = get_args(hint) if type(None) in get_args(hint) else (hint,)
+            types = tuple(get_origin(t) or t for t in types)
+            if float in types:
+                types += (int,)
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, types):
+                expected = (
+                    'a mapping'
+                    if dict in types
+                    else ' or '.join(t.__name__ for t in types)
+                )
+                raise ValueError(f'{name} must be {expected}')
         required = ("data_dir", "output_dir", "sample_name", "par_file")
         missing = [name for name in required if not getattr(self, name)]
         if missing:
@@ -96,11 +126,16 @@ class CakeDataConfig:
                 f"matrix fixes the geometry; remove these parameters: {overrides}"
             )
         geometry = self.geometry
-        if min(self.cake_width, self.dome, geometry['refinement']) <= 0:
-            raise ValueError("cake_width, dome, and refinement must be positive")
-        max_frames = 1 if self.max_input_frames is None else self.max_input_frames
-        if min(self.skip_frames, self.start_layer, max_frames - 1) < 0:
-            raise ValueError("frame and layer counts must be in range")
+        scales = (self.cake_width, self.dome, geometry['refinement'])
+        if not np.isfinite(scales).all() or min(scales) <= 0:
+            raise ValueError(
+                "cake_width, dome, and refinement must be finite and positive"
+            )
+        for name in ('skip_frames', 'start_layer', 'max_input_frames'):
+            value = getattr(self, name)
+            minimum = 1 if name == 'max_input_frames' else 0
+            if value is not None and value < minimum:
+                raise ValueError(f'{name} must be an integer >= {minimum}')
         _interval_count(self.ome_end - self.ome_start, self.dome, "omega")
         if not self.matrix:
             if geometry['tth_start'] >= geometry['tth_end']:
@@ -111,6 +146,8 @@ class CakeDataConfig:
             _interval_count(eta_span, self.cake_width, "eta")
         if self.par_version != 5:
             raise ValueError("cake-data currently supports par version 5 only")
+        if not all(isinstance(key, str) for key in self.image_options):
+            raise ValueError('image_options keys must be strings')
         if 'format' in self.image_options:
             raise ValueError("set image_format separately from image_options")
         if self.image_format not in imageseries.load.Registry.adapter_registry:
@@ -120,25 +157,21 @@ class CakeDataConfig:
             if value and (Path(value).name != value or value in ('.', '..')):
                 raise ValueError(f"{name} must be a filename, without a directory")
 
-    def update(self, values: Mapping[str, Any]) -> None:
-        for name, value in values.items():
-            if value is not None:
-                setattr(self, name, value)
-
-
-def load_instrument(path: str | Path) -> HEDMInstrument:
-    path = Path(path)
-    if h5py.is_hdf5(path):
-        with h5py.File(path) as stream:
-            return HEDMInstrument(stream)
-    with path.open(encoding="utf-8") as stream:
-        return HEDMInstrument(yaml.safe_load(stream))
-
 
 def load_par_file(path: str | Path) -> dict[str, np.ndarray]:
     data = np.loadtxt(path, ndmin=2)
     if data.shape[1] < 25:
         raise ValueError("version-5 par input must contain at least 25 columns")
+    counts = data[:, [3, 6, 24]]
+    if (
+        not np.isfinite(data[:, [3, 6, 7, 8, 9, 24]]).all()
+        or np.any(counts != np.floor(counts))
+        or np.any(counts < 0)
+        or np.any(data[:, 24] == 0)
+    ):
+        raise ValueError(
+            'par scan/image numbers must be integers and frame counts positive'
+        )
     # Optional fly-axis columns are named by numeric keys in a JSON sidecar.
     flips = np.zeros(len(data), dtype=bool)
     json_path = Path(path).with_suffix(".json")
@@ -146,10 +179,20 @@ def load_par_file(path: str | Path) -> dict[str, np.ndarray]:
         names = json.loads(json_path.read_text(encoding="utf-8"))
         columns = {name: int(index) for index, name in names.items()}
         try:
-            rising = data[:, columns["fly_axis0_rising"]]
-            flips = rising > data[:, columns["fly_axis0_falling"]]
+            fly_columns = [
+                columns[name] for name in ('fly_axis0_rising', 'fly_axis0_falling')
+            ]
         except KeyError:
             logger.warning("par JSON has no fly-axis columns; omega order is unchanged")
+        else:
+            if any(index < 0 or index >= data.shape[1] for index in fly_columns):
+                raise ValueError(
+                    'fly-axis columns must refer to columns in the par file'
+                )
+            fly_axis = data[:, fly_columns]
+            if not np.isfinite(fly_axis).all():
+                raise ValueError('fly-axis values must be finite')
+            flips = fly_axis[:, 0] > fly_axis[:, 1]
     return {
         "scan_number": data[:, 3].astype(int),
         "image_number": data[:, 6].astype(int),
@@ -209,7 +252,7 @@ def _read_integrated_frames(
     frame_count: int,
     flip: bool = False,
 ) -> Iterator[tuple[float, np.ndarray]]:
-    """Yield one full-layout omega average at a time; preserve acquisition order."""
+    """Yield floored omega averages, reversing bins when par metadata requires it."""
     series = imageseries.open(
         raw_path, format=config.image_format, **config.image_options
     )
@@ -307,18 +350,22 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
             'start_layer selects a new output; resuming an existing output is not supported'
         )
     outputs = h5_path, par_path
+    if any(path.is_dir() for path in outputs):
+        raise ValueError('output paths must be files, not directories')
     # Keep previous outputs intact until processing and staging finish.
     with TemporaryDirectory(prefix='.cake-data-', dir=output_dir) as directory:
         temporary = Path(directory)
         operator = _load_matrix(config, temporary)
         edges = _wedge_edges(config, operator)
         bounds = np.searchsorted(operator.eta_centers, edges)
+        wedges = [operator[first:last] for first, last in pairwise(bounds)]
         eta = (edges[:-1] + edges[1:]) / 2
         eta_key = np.vstack((np.arange(len(eta)), eta))
         tth = operator.tth_centers
-        h5_path, par_path = temporary / h5_path.name, temporary / par_path.name
+        staged_h5 = temporary / h5_path.name
+        staged_par = temporary / par_path.name
         par_rows = []
-        with h5py.File(h5_path, 'w') as stream:
+        with h5py.File(staged_h5, 'w') as stream:
             stream['XYZ_key'] = metadata['position_key']
             for layer, xyz in enumerate(metadata['position_key'][1:].T):
                 stream[f'Cake/{layer}/xyz'] = xyz
@@ -333,13 +380,11 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
                     metadata["flip"][layer],
                 )
                 for index, (angle, frame) in enumerate(frames):
-                    full, wedges = _profiles(
-                        operator.apply(frame, slice(first, last))
-                        for first, last in zip(bounds[:-1], bounds[1:])
-                    )
+                    full, profiles = _profiles(wedge.apply(frame) for wedge in wedges)
                     full_profiles.append(full)
-                    group[f'Ome/{index}/IvTTH'] = wedges
-                    group[f'Ome/{index}/eta_key'] = eta_key
+                    omega_group = group.create_group(f'Ome/{index}')
+                    omega_group['IvTTH'] = profiles
+                    omega_group['eta_key'] = eta_key
                     omega.append(angle)
                 by_omega = np.asarray(full_profiles)
                 group['tth'] = tth
@@ -350,17 +395,22 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
                 scan = metadata["scan_number"][layer]
                 image = metadata["image_number"][layer]
                 x, y, z = metadata["position_key"][1:, layer]
+                # Preserve the legacy CakeData par column order and placeholders.
                 par_rows.append(
                     [10, 100, 1000, scan, image, image, x, x, y, z, 20, 0.6]
                 )
                 logger.info("processed cake-data layer %d", layer)
         par_format = ["%d"] * 6 + ["%.6f"] * 6
-        np.savetxt(par_path, np.asarray(par_rows), fmt=par_format, newline=" \n")
-        for source, target in zip((h5_path, par_path), outputs):
+        np.savetxt(staged_par, np.asarray(par_rows), fmt=par_format, newline=" \n")
+        for source, target in zip((staged_h5, staged_par), outputs):
             source.replace(target)
     logger.info("wrote CakeData outputs %s and %s", *outputs)
     return outputs
 
 
-def config_as_json(config: CakeDataConfig | None = None) -> str:
-    return json.dumps(asdict(config or CakeDataConfig()), indent=2)
+def config_as_yaml(config: CakeDataConfig | None = None) -> str:
+    values = asdict(config or CakeDataConfig())
+    for name, value in values.items():
+        if isinstance(value, Path):
+            values[name] = str(value)
+    return yaml.safe_dump(values, sort_keys=False)

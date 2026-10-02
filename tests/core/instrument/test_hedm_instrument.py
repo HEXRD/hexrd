@@ -1,5 +1,12 @@
-import numpy as np
+from pathlib import Path
 
+import h5py
+import numpy as np
+import yaml
+
+from hexrd.core.config.root import RootConfig
+from hexrd.core.instrument import HEDMInstrument, PlanarDetector, load_instrument
+from hexrd.core.utils.yaml import NumpyToNativeDumper
 from hexrd.core.instrument.hedm_instrument import (
     _generate_ring_params,
     _run_histograms,
@@ -20,3 +27,44 @@ def test_run_histograms_does_not_overflow_uint16_weights():
     _run_histograms((0, 1), images, tth_ranges, ring_maps, ring_params, None)
 
     assert ring_maps[0, 0, 0] == 80_000
+
+
+def test_shared_instrument_io(tmp_path: Path) -> None:
+    instrument = HEDMInstrument()
+    instrument.detectors.clear()
+    instrument.detectors['panel'] = PlanarDetector(
+        rows=2, cols=3, saturation_level=65535
+    )
+    config = instrument.write_config()
+    buffer = np.array([[True, False, True], [False, True, True]])
+    np.save(tmp_path / 'buffer.npy', buffer)
+    config['detectors']['panel']['buffer'] = 'BUFFER_FILE'
+    path = tmp_path / 'instrument.yml'
+    text = yaml.dump(config, Dumper=NumpyToNativeDumper)
+    path.write_text(text.replace('BUFFER_FILE', '!include buffer.npy'))
+    wrapper = RootConfig({'instrument': str(path), 'multiprocessing': 1}).instrument
+    loaded = wrapper.hedm
+    np.testing.assert_array_equal(loaded.detectors['panel'].panel_buffer, buffer)
+    assert loaded.max_workers == 1
+
+    loaded.beam_dict['secondary'] = dict(loaded.active_beam, energy=80)
+    loaded.active_beam_name = 'secondary'
+    path = tmp_path / 'instrument.h5'
+    loaded.write_config(path, style='hdf5', compression='gzip', fletcher32=True)
+    with h5py.File(path, 'r+') as stream:
+        assert stream['instrument/detectors/panel/buffer'].compression == 'gzip'
+        # Loading must only read the instrument, not unrelated archive contents.
+        stream['unrelated'] = h5py.ExternalLink('missing.h5', '/data')
+        assert HEDMInstrument(stream['instrument']).beam_energy == 80
+    wrapper.hedm = path
+    assert wrapper.hedm.active_beam_name == 'secondary'
+    np.testing.assert_array_equal(wrapper.hedm.detectors['panel'].panel_buffer, buffer)
+    primary = next(iter(loaded.beam_dict))
+    assert load_instrument(path, active_beam_name=primary).active_beam_name == primary
+
+    # A renamed single beam must not acquire an extra default beam on reload.
+    del loaded.beam_dict[primary]
+    loaded.write_config(path, style='hdf5')
+    single = load_instrument(path)
+    assert single.beam_names == ['secondary']
+    assert single.beam_energy == 80

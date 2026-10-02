@@ -1,6 +1,7 @@
 from copy import deepcopy
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pytest
 
@@ -9,6 +10,11 @@ from hexrd.core.projections.polar import PolarView
 from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 
 GRID = dict(tth_range=(0, 3), eta_range=(-180, 180), pixel_size=(0.2, 10))
+
+
+def assert_same_cake(actual: np.ma.MaskedArray, expected: np.ma.MaskedArray) -> None:
+    np.testing.assert_array_equal(actual.mask, expected.mask)
+    np.testing.assert_allclose(actual.compressed(), expected.compressed(), atol=1e-14)
 
 
 @pytest.fixture
@@ -49,19 +55,8 @@ def test_matrix_matches_polar_view(
         (0, 3), instrument, eta_min=-180, eta_max=180, pixel_size=(0.2, 10)
     ).warp_image(images)
     actual = matrix.apply(frame if composite else images)
-    np.testing.assert_array_equal(actual.mask, expected.mask)
-    np.testing.assert_allclose(actual.compressed(), expected.compressed(), atol=1e-14)
-    np.testing.assert_allclose(
-        matrix.apply(images).filled(np.nan), actual.filled(np.nan), equal_nan=True
-    )
-    chunks = np.ma.concatenate(
-        [
-            matrix.apply(images, rows)
-            for rows in (slice(0, 0), slice(0, 7), slice(7, None))
-        ]
-    )
-    np.testing.assert_array_equal(chunks.mask, actual.mask)
-    np.testing.assert_allclose(chunks.data, actual.data)
+    assert_same_cake(actual, expected)
+    assert_same_cake(matrix.apply(images), expected)
     # The stored CSR also works directly on raw pixels in the documented order.
     pixels = (
         frame.ravel()
@@ -69,6 +64,21 @@ def test_matrix_matches_polar_view(
         else np.concatenate([images[name].ravel() for name in sorted(images)])
     )
     np.testing.assert_array_equal(matrix.matrix @ pixels, actual.data.ravel())
+
+
+def test_eta_views_share_storage(tmp_path: Path, instrument: HEDMInstrument) -> None:
+    path = tmp_path / 'matrix.hexrdcake'
+    export_cake_matrix(path, instrument, **GRID)
+    matrix = CakeMatrix(path)
+    frame = np.random.default_rng(123).random(matrix.input_shape)
+    expected = matrix.apply(frame)
+    for rows in (slice(0, 0), slice(0, 7), slice(7, None)):
+        wedge = matrix[rows]
+        assert_same_cake(wedge.apply(frame), expected[rows])
+        np.testing.assert_allclose(wedge.eta_centers, matrix.eta_centers[rows])
+        if wedge.matrix.nnz:
+            assert np.shares_memory(wedge.matrix.data, matrix.matrix.data)
+            assert np.shares_memory(wedge.matrix.indices, matrix.matrix.indices)
 
 
 def test_buffered_export_is_independent_of_chunk_size(
@@ -83,10 +93,12 @@ def test_buffered_export_is_independent_of_chunk_size(
     small, whole = tmp_path / 'small.hexrdcake', tmp_path / 'whole.hexrdcake'
     export_cake_matrix(small, instrument, **GRID, eta_chunk_rows=7)
     export_cake_matrix(whole, instrument, **GRID, eta_chunk_rows=36)
-    a, b = CakeMatrix.load(small), CakeMatrix.load(whole)
-    actual, expected = a.apply(frame), b.apply(frame)
-    np.testing.assert_array_equal(actual.mask, expected.mask)
-    np.testing.assert_array_equal(actual.data, expected.data)
+    matrix, whole_matrix = CakeMatrix(small), CakeMatrix(whole)
+    for name in ('data', 'indices', 'indptr'):
+        np.testing.assert_array_equal(
+            getattr(matrix.matrix, name), getattr(whole_matrix.matrix, name)
+        )
+    actual = matrix.apply(frame)
     # The other panel still contributes where z is buffered; NaNs stay excluded.
     assert np.isfinite(actual.compressed()).all()
     reference = PolarView(
@@ -94,9 +106,8 @@ def test_buffered_export_is_independent_of_chunk_size(
     ).warp_image({'z': frame[2:34, 3:35], 'a': frame[2:34, 35:67]})
     # Where interpolation touches a NaN, only the second panel contributes 1.
     reference.data[np.isnan(reference.data)] = 1
-    np.testing.assert_array_equal(actual.mask, reference.mask)
-    np.testing.assert_allclose(actual.compressed(), reference.compressed())
-    np.testing.assert_array_equal(a.instrument.detectors['z'].panel_buffer, buffer)
+    assert_same_cake(actual, reference)
+    np.testing.assert_array_equal(matrix.instrument.detectors['z'].panel_buffer, buffer)
     np.testing.assert_array_equal(panel.panel_buffer, buffer)
 
 
@@ -113,5 +124,56 @@ def test_cancelled_export_preserves_existing_file(
         export_cake_matrix(
             path, instrument, **GRID, overwrite=True, update_progress=cancel
         )
+    with pytest.raises(ValueError, match='eta_chunk_rows'):
+        export_cake_matrix(path, instrument, **GRID, overwrite=True, eta_chunk_rows=-1)
     assert path.read_bytes() == b'previous file'
     assert list(tmp_path.iterdir()) == [path]
+
+
+def test_invalid_grid_is_rejected(tmp_path: Path, instrument: HEDMInstrument) -> None:
+    path = tmp_path / 'matrix.hexrdcake'
+    for invalid in (
+        dict(tth_range=(0, 0.01)),  # Rounds to zero two-theta bins.
+        dict(eta_range=(0, 0.01)),  # Rounds to zero eta bins.
+        dict(tth_range=(0, np.nan)),
+        dict(eta_range=(-np.inf, 180)),
+        dict(pixel_size=(np.nan, 10)),
+        dict(pixel_size=(0.2, np.inf)),
+    ):
+        with pytest.raises(ValueError, match='grid requires'):
+            export_cake_matrix(path, instrument, **(GRID | invalid))
+        assert not path.exists()
+    export_cake_matrix(path, instrument, **GRID)
+    with h5py.File(path, 'r+') as f:
+        f['grid/tth'][2] += 0.5  # Must not silently truncate the saved bin count.
+    with pytest.raises(ValueError, match='grid requires'):
+        CakeMatrix(path)
+
+
+@pytest.mark.parametrize(
+    'name, corruption',
+    [
+        ('data', 'nan'),
+        ('indices', 'fraction'),
+        ('indptr', 'fraction'),
+        ('indptr', 'short-tail'),
+    ],
+)
+def test_corrupt_csr_is_rejected(tmp_path, instrument, name, corruption):
+    path = tmp_path / 'matrix.hexrdcake'
+    export_cake_matrix(path, instrument, **GRID)
+    with h5py.File(path, 'r+') as stream:
+        matrix = stream['matrix']
+        values = matrix[name][:]
+        if corruption == 'nan':
+            values[0] = np.nan
+        elif corruption == 'fraction':
+            values = values.astype(float)
+            values[0] += 0.5
+        else:
+            # SciPy silently trims unreferenced coefficients without this check.
+            values = np.minimum(values, values[-1] - 4)
+        del matrix[name]
+        matrix[name] = values
+    with pytest.raises(ValueError, match='CSR arrays'):
+        CakeMatrix(path)

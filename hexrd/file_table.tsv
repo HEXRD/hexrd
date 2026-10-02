@@ -14,14 +14,14 @@ hexrd/gridutil.py	hexrd/core/gridutil.py
 hexrd/resources/__init__.py	hexrd/core/resources/__init__.py
 hexrd/resources/detector_templates/__init__.py	hexrd/core/resources/detector_templates/__init__.py
 hexrd/resources/instrument_templates/__init__.py	hexrd/core/resources/instrument_templates/__init__.py
-hexrd/cli/help.py	hexrd/hedm/cli/help.py
+hexrd/cli/help.py	hexrd/cli/help.py
 hexrd/cli/find_orientations.py	hexrd/hedm/cli/find_orientations.py
 hexrd/cli/fit_grains.py	hexrd/hedm/cli/fit_grains.py
-hexrd/cli/__init__.py	hexrd/hedm/cli/__init__.py
-hexrd/cli/main.py	hexrd/hedm/cli/main.py
-hexrd/cli/test.py	hexrd/hedm/cli/test.py
-hexrd/cli/pickle23.py	hexrd/hedm/cli/pickle23.py
-hexrd/cli/documentation.py	hexrd/hedm/cli/documentation.py
+hexrd/cli/__init__.py	hexrd/cli/__init__.py
+hexrd/cli/main.py	hexrd/cli/main.py
+hexrd/cli/test.py	hexrd/cli/test.py
+hexrd/cli/pickle23.py	hexrd/cli/pickle23.py
+hexrd/cli/documentation.py	hexrd/cli/documentation.py
 hexrd/config/fitgrains.py	hexrd/hedm/config/fitgrains.py
 hexrd/config/material.py	hexrd/core/config/material.py
 hexrd/config/root.py	hexrd/core/config/root.py
@@ -517,7 +517,7 @@ hexrd\core\valunits.py	hexrd\core\valunits.py
 hexrd\hed\instrument\hedm_instrument.py	hexrd\hed\instrument\hedm_instrument.py
 hexrd\hed\xrdutil\phutil.py	hexrd\hed\xrdutil\phutil.py
 hexrd\hed\xrdutil\utils.py	hexrd\hed\xrdutil\utils.py
-hexrd\cli\preprocess.py	hexrd\hedm\cli\preprocess.py
+hexrd/cli/preprocess.py	hexrd/hedm/cli/preprocess.py
 hexrd\module_map.py	hexrd\module_map.py
 hexrd\preprocess\argument_classes_factory.py	hexrd\hedm\preprocess\argument_classes_factory.py
 hexrd\preprocess\preprocessors.py	hexrd\hedm\preprocess\preprocessors.py
@@ -536,3 +536,7 @@ hexrd\transforms\cpp_sublibrary\src\transforms.cpp	hexrd\core\transforms\cpp_sub
 hexrd\utils\panel_buffer.py	hexrd\core\utils\panel_buffer.py
 tests\test_distortion.py	tests\test_distortion.py
 tests\transforms\test_make_binary_rmat.py	tests\transforms\test_make_binary_rmat.py
+hexrd/hedm/cli/help.py	hexrd/cli/help.py
+hexrd/hedm/cli/test.py	hexrd/cli/test.py
+hexrd/hedm/cli/documentation.py	hexrd/cli/documentation.py
+hexrd/hedm/cli/pickle23.py	hexrd/cli/pickle23.py

@@ -4,6 +4,7 @@ from .hedm_instrument import (
     centers_of_edge_vec,
     GrainDataWriter,
     HEDMInstrument,
+    load_instrument as load_instrument,
     max_tth,
     switch_xray_source,
     unwrap_dict_to_h5,

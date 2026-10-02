@@ -1,8 +1,7 @@
-import argparse
+import sys
 import json
 from dataclasses import replace
 from pathlib import Path
-import warnings
 
 import h5py
 import numpy as np
@@ -10,13 +9,12 @@ import pytest
 
 from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument, PlanarDetector
-from hexrd.core.projections.polar import PolarView
-from hexrd.powder.cake_data import CakeDataConfig, _profiles, cake_data, config_as_json
-from hexrd.powder.cli.cake_data import configure_parser
+from hexrd.powder.cake_data import CakeDataConfig, _profiles, cake_data, config_as_yaml
+from hexrd.cli.main import main
 
 
 @pytest.fixture
-def small_scan(tmp_path: Path) -> tuple[CakeDataConfig, HEDMInstrument, np.ndarray]:
+def small_scan(tmp_path: Path) -> CakeDataConfig:
     instrument = HEDMInstrument()
     instrument.detectors.clear()
     instrument.detectors['panel'] = PlanarDetector(
@@ -49,7 +47,7 @@ def small_scan(tmp_path: Path) -> tuple[CakeDataConfig, HEDMInstrument, np.ndarr
     (tmp_path / 'input.json').write_text(
         json.dumps({'11': 'fly_axis0_falling', '10': 'fly_axis0_rising'})
     )
-    config = CakeDataConfig(
+    return CakeDataConfig(
         data_dir=str(tmp_path),
         output_dir=str(tmp_path / 'out'),
         sample_name='sample',
@@ -62,82 +60,92 @@ def small_scan(tmp_path: Path) -> tuple[CakeDataConfig, HEDMInstrument, np.ndarr
         ome_end=2,
         dome=1,
         skip_frames=1,
-        cake_width=90,
+        cake_width=45,
     )
-    return config, instrument, raw
 
 
-def test_saved_matrix_command_matches_polar_lineouts(
-    tmp_path: Path, small_scan: tuple[CakeDataConfig, HEDMInstrument, np.ndarray]
+@pytest.mark.parametrize(
+    'frame_limit, intensities, omegas',
+    [(None, [11, 4], [0.5, 1.5]), (2, [4], [1.5])],
+    ids=['complete-scan', 'truncated-scan'],
+)
+def test_command_integrates_frames(
+    tmp_path: Path,
+    monkeypatch,
+    small_scan: CakeDataConfig,
+    frame_limit: int | None,
+    intensities: list[int],
+    omegas: list[float],
 ) -> None:
-    config, instrument, raw = small_scan
-    config_path = tmp_path / 'cake.json'
-    config_path.write_text(config_as_json(config))
-    parser = argparse.ArgumentParser()
-    configure_parser(parser.add_subparsers())
-    args = parser.parse_args(['cake-data', '--config', str(config_path), '-c', '90'])
-    args.func(args, parser)
-
-    view = PolarView(
-        (0, 3), instrument, eta_min=-180, eta_max=180, pixel_size=(0.2, 10)
+    config = replace(
+        small_scan, max_input_frames=frame_limit, matrix=Path(small_scan.matrix)
     )
-    # Average and floor two frames, then reverse omega as the par metadata asks.
-    images = raw[1:].astype(float)
-    images[images >= np.iinfo(np.uint32).max] = np.nan
-    integrated = np.floor(images.reshape(2, 2, 32, 32).mean(axis=1))[::-1]
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore', RuntimeWarning)
-        cakes = np.array(
-            [
-                view.warp_image({'panel': image}, pad_with_nans=True)
-                for image in integrated
-            ]
-        )
-        expected_wedges = np.nanmean(cakes.reshape(2, 4, 9, -1), axis=2)
-        expected_full = np.nanmean(expected_wedges, axis=1)
-    with h5py.File(tmp_path / 'out/sample.h5') as f:
-        g = f['Cake/0']
-        np.testing.assert_allclose(g['IvTTHvW'][:], expected_full, equal_nan=True)
+    config_path = tmp_path / 'cake.yml'
+    config_path.write_text(config_as_yaml(config))
+    monkeypatch.setattr(
+        sys, 'argv', ['hexrd', 'cake-data', '--config', str(config_path), '-c', '90']
+    )
+    main()
+
+    # Skip 99; floor the pair means (3, 6) -> 4 and (9, 14) -> 11.
+    # Reversal changes bin order; truncation keeps the original omega labels.
+    with h5py.File(tmp_path / 'out/sample.h5') as output:
+        layer = output['Cake/0']
+        np.testing.assert_allclose(layer['ome_key'][1], omegas)
+        assert layer['nFrames'][()] == len(intensities)
+        for index, intensity in enumerate(intensities):
+            wedges = layer[f'Ome/{index}/IvTTH'][:]
+            assert wedges.shape == (4, 15)  # CLI overrides 45-degree wedges.
+            np.testing.assert_allclose(wedges[np.isfinite(wedges)], intensity)
+        full = layer['IvTTHvW'][:]
+        covered = np.isfinite(full).all(axis=0)
+        assert covered.sum() > 5  # One bad raw pixel must not spoil the lineout.
+        for profile, intensity in zip(full, intensities):
+            np.testing.assert_allclose(profile[covered], intensity)
         np.testing.assert_allclose(
-            g['IvTTH_Full'][:], expected_full.mean(axis=0), equal_nan=True
+            layer['IvTTH_Full'][:][covered], np.mean(intensities)
         )
-        np.testing.assert_allclose(
-            g['Ome/0/IvTTH'][:], expected_wedges[0], equal_nan=True
-        )
-        np.testing.assert_allclose(g['ome_key'][1], [0.5, 1.5])
-        np.testing.assert_allclose(g['tth'][:], np.degrees(view.angular_grid[1][0]))
-        assert g['nFrames'][()] == 2
-        assert np.isfinite(g['IvTTH_Full'][:]).sum() > 5
+        np.testing.assert_allclose(layer['tth'][:], np.arange(15) * 0.2 + 0.1)
     assert np.loadtxt(tmp_path / 'out/sample.par').shape == (12,)
-    # Limiting input frames truncates the acquisition; it must not rescale omega.
-    cake_data(replace(config, max_input_frames=2))
-    with h5py.File(tmp_path / 'out/sample.h5') as f:
-        np.testing.assert_allclose(f['Cake/0/ome_key'][1], [1.5])
-        np.testing.assert_allclose(
-            f['Cake/0/IvTTHvW'][:], expected_full[1:], equal_nan=True
-        )
 
 
-def test_invalid_scan_keeps_previous_outputs(
-    tmp_path: Path, small_scan: tuple[CakeDataConfig, HEDMInstrument, np.ndarray]
+@pytest.mark.parametrize('options', [None, [], 'reader options', 1])
+def test_reader_options_must_be_an_object(
+    small_scan: CakeDataConfig, options: object
 ) -> None:
-    config, _, _ = small_scan
-    cake_data(config)
-    output = tmp_path / 'out/sample.h5'
-    original = output.read_bytes()
-    # A typo in output settings must never replace the raw data or par input.
-    for overrides in (
-        dict(output_dir=str(tmp_path), sample_name='raw'),
-        dict(output_dir=str(tmp_path), output_par='input.par'),
-        dict(output_par='sample.h5'),
-    ):
-        with pytest.raises(ValueError, match='output paths must differ'):
-            cake_data(replace(config, **overrides))
-    with h5py.File(tmp_path / 'raw.h5', 'w') as f:
-        f['entry/data/data'] = np.ones((5, 16, 64))
-    with pytest.raises(ValueError, match='input image shape'):
+    with pytest.raises(ValueError, match='image_options must be a mapping'):
+        replace(small_scan, image_options=options).validate()
+
+
+@pytest.mark.parametrize('count', [0, 3.9])
+def test_invalid_frame_count(small_scan: CakeDataConfig, count: float) -> None:
+    metadata = np.loadtxt(small_scan.par_file, ndmin=2)
+    metadata[0, 24] = count
+    np.savetxt(small_scan.par_file, metadata)
+    with pytest.raises(ValueError, match='frame counts'):
+        cake_data(small_scan)
+
+
+@pytest.mark.parametrize('filename', ['raw.h5', 'input.par', 'sample.h5', 'directory'])
+def test_invalid_output_path(
+    tmp_path: Path, small_scan: CakeDataConfig, filename: str
+) -> None:
+    (tmp_path / 'directory').mkdir()
+    config = replace(small_scan, output_dir=str(tmp_path), output_par=filename)
+    with pytest.raises(ValueError, match='output paths must'):
         cake_data(config)
-    assert output.read_bytes() == original
+
+
+def test_failed_processing_preserves_outputs(
+    tmp_path: Path, small_scan: CakeDataConfig
+) -> None:
+    outputs = cake_data(small_scan)
+    originals = [path.read_bytes() for path in outputs]
+    with h5py.File(tmp_path / 'raw.h5', 'w') as stream:
+        stream['entry/data/data'] = np.ones((5, 16, 64))  # Wrong detector shape.
+    with pytest.raises(ValueError, match='input image shape'):
+        cake_data(small_scan)
+    assert [path.read_bytes() for path in outputs] == originals
     assert not list((tmp_path / 'out').glob('.cake-data-*'))
 
 
@@ -152,3 +160,50 @@ def test_combined_lineout_weights_wedges_equally() -> None:
         wedges, [[10, 0, np.nan], [20, 4, np.nan], [np.nan] * 3], equal_nan=True
     )
     np.testing.assert_allclose(full, [15, 2, np.nan], equal_nan=True)
+
+
+@pytest.mark.parametrize('contents', ['', '[]', 'cake_width: [', 'unknown: 1\n2: bad'])
+def test_invalid_yaml_config(tmp_path, monkeypatch, capsys, contents):
+    path = tmp_path / 'invalid.yml'
+    path.write_text(contents)
+    monkeypatch.setattr(sys, 'argv', ['hexrd', 'cake-data', '-y', str(path)])
+    with pytest.raises(SystemExit) as exc:
+        main()
+    assert exc.value.code == 2
+    assert 'error:' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    'name, value',
+    [
+        ('skip_frames', None),
+        ('skip_frames', True),
+        ('start_layer', None),
+        ('dome', '1e-3'),
+        ('sample_name', 123),
+        ('image_format', []),
+        ('image_options', {1: 'path'}),
+    ],
+)
+def test_invalid_parameter_type(small_scan, name, value):
+    with pytest.raises(ValueError, match=name):
+        replace(small_scan, **{name: value}).validate()
+
+
+@pytest.mark.parametrize('column', [-1, 25, 10])
+def test_invalid_fly_axis_metadata(small_scan, column):
+    path = Path(small_scan.par_file)
+    path.with_suffix('.json').write_text(
+        json.dumps(
+            {
+                str(column): 'fly_axis0_rising',
+                '11': 'fly_axis0_falling',
+            }
+        )
+    )
+    if column == 10:
+        data = np.loadtxt(path, ndmin=2)
+        data[0, column] = np.nan
+        np.savetxt(path, data)
+    with pytest.raises(ValueError, match='fly-axis'):
+        cake_data(small_scan)

@@ -1,6 +1,5 @@
 """Convert python 2 hexrd pickles to hexrd3"""
 
-import sys
 import shutil
 
 descr = r"""modify old material files (pickles) to be compatible with hexrd3;
@@ -22,7 +21,6 @@ def execute(args, p):
     shutil.copy(fname, fback)
     with open(fname, "w") as fnew:
         with open(fback, "r") as f:
-            for l in f:
-                l = l.replace('hexrd.xrd.', 'hexrd.')
-                fnew.write(l)
+            for line in f:
+                fnew.write(line.replace('hexrd.xrd.', 'hexrd.'))
     return

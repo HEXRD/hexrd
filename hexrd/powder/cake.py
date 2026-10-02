@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from copy import deepcopy
+from copy import copy
 from dataclasses import dataclass
+from itertools import combinations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -14,7 +15,6 @@ from scipy.sparse import csr_matrix
 
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.projections.polar import PolarView
-from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
 from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
 
 FORMAT = 'HEXRD cake matrix'
@@ -41,8 +41,7 @@ def _input_layout(
             a is not None
             and b is not None
             and all(a[k][0] < b[k][1] and b[k][0] < a[k][1] for k in (0, 1))
-            for i, a in enumerate(rois)
-            for b in rois[i + 1 :]
+            for a, b in combinations(rois, 2)
         )
         composite = len(panels) == 1 or (
             None not in rois and len({p.group for p in panels.values()}) == 1
@@ -56,7 +55,7 @@ def _input_layout(
             for n, p in panels.items()
         }
         shape = tuple(
-            max(o[k] + p.shape[k] for o, p in zip(origins.values(), panels.values()))
+            max(origins[name][k] + panel.shape[k] for name, panel in panels.items())
             for k in (0, 1)
         )
         columns = {n: (r * shape[1] + c, shape[1]) for n, (r, c) in origins.items()}
@@ -79,7 +78,7 @@ class CakeMatrix:
     frame directly: ``matrix @ frame.ravel()``.
     """
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path) -> None:
         self.path = Path(path).expanduser().resolve()
         with h5py.File(self.path) as f:
             if f.attrs.get('format') != FORMAT or f.attrs.get('version') not in (
@@ -87,26 +86,44 @@ class CakeMatrix:
                 'draft-csr-2',
             ):
                 raise ValueError('unsupported cake matrix format or version')
+            grids = [f['grid/tth'][()], f['grid/eta'][()]]
+            for start, step, count in grids:
+                if (
+                    not np.isfinite([start, step, count]).all()
+                    or step <= 0
+                    or count < 1
+                    or count != int(count)
+                ):
+                    raise ValueError(
+                        'grid requires finite bounds, positive steps and integer counts'
+                    )
             self.tth, self.eta = (
-                (float(start), float(step), int(count))
-                for start, step, count in (f['grid/tth'][()], f['grid/eta'][()])
+                (float(start), float(step), int(count)) for start, step, count in grids
             )
             self.shape = (self.eta[2], self.tth[2])
-            config: dict = {}
-            unwrap_h5_to_dict(f['instrument'], config)
-            self.instrument = HEDMInstrument(
-                config, active_beam_name=f['instrument'].attrs.get('active_beam')
-            )
+            self.instrument = HEDMInstrument(f['instrument'])
             m = f['matrix']
             self.input_layout, self.input_shape, self.columns = _input_layout(
                 self.instrument, m.attrs['input_layout']
             )
             shape = (int(np.prod(self.shape)), int(np.prod(self.input_shape)))
-            if tuple(m.attrs['shape']) != shape:
+            if m.attrs['format'] != 'csr' or tuple(m.attrs['shape']) != shape:
                 raise ValueError('CSR shape must match the grid and input layout')
-            self.matrix = csr_matrix(
-                (m['data'][:], m['indices'][:], m['indptr'][:]), shape=shape
+            data, indices, indptr = (
+                m[name][:] for name in ('data', 'indices', 'indptr')
             )
+            # Check before SciPy can cast indices or trim trailing entries.
+            if (
+                indices.dtype.kind not in 'iu'
+                or indptr.dtype.kind not in 'iu'
+                or not np.isfinite(data).all()
+                or indptr.size == 0
+                or indptr[-1] != len(data)
+            ):
+                raise ValueError(
+                    'CSR arrays require integer indices, finite weights, and complete pointers'
+                )
+            self.matrix = csr_matrix((data, indices, indptr), shape=shape)
         self.matrix.check_format(full_check=True)
         self.mask = (np.diff(self.matrix.indptr) == 0).reshape(self.shape)
 
@@ -142,31 +159,36 @@ class CakeMatrix:
             )[...] = image
         return pixels
 
-    def apply(
-        self,
-        images: np.ndarray | Mapping[str, np.ndarray],
-        eta_rows: slice = slice(None),
-    ) -> np.ma.MaskedArray:
-        """Cake complete input images, optionally computing only some eta rows."""
+    def __getitem__(self, eta_rows: slice) -> CakeMatrix:
+        """Return an eta view sharing weights, indices and instrument geometry."""
+        first, last, step = eta_rows.indices(self.shape[0])
+        if step != 1:
+            raise ValueError('eta rows must be contiguous')
+        last = max(first, last)
+        result = copy(self)
+        start, spacing, _ = self.eta
+        result.eta = (start + first * spacing, spacing, last - first)
+        result.shape = (last - first, self.shape[1])
+        result.mask = self.mask[first:last]
+        row_start, row_stop = first * self.shape[1], last * self.shape[1]
+        entry_start, entry_stop = self.matrix.indptr[[row_start, row_stop]]
+        entries = slice(entry_start, entry_stop)
+        # SciPy's tuple constructor can copy small views even with copy=False.
+        result.matrix = csr_matrix((row_stop - row_start, self.matrix.shape[1]))
+        result.matrix.data = self.matrix.data[entries]
+        result.matrix.indices = self.matrix.indices[entries]
+        result.matrix.indptr = (
+            self.matrix.indptr[row_start : row_stop + 1] - entry_start
+        )
+        return result
+
+    def apply(self, images: np.ndarray | Mapping[str, np.ndarray]) -> np.ma.MaskedArray:
+        """Cake a complete raw frame or a mapping of complete panel images."""
         pixels = self.assemble(images) if isinstance(images, Mapping) else images
         if np.shape(pixels) != self.input_shape:
             raise ValueError(f'input shape must be {self.input_shape}')
-        matrix = self.matrix
-        if eta_rows != slice(None):
-            first, last, step = eta_rows.indices(self.shape[0])
-            if step != 1:
-                raise ValueError('eta rows must be contiguous')
-            first, last = first * self.shape[1], max(first, last) * self.shape[1]
-            start, stop = matrix.indptr[[first, last]]
-            # Assign shared CSR arrays directly: SciPy's tuple constructor can
-            # copy small views even with copy=False. Only indptr needs a copy.
-            matrix = csr_matrix((last - first, self.matrix.shape[1]))
-            matrix.data = self.matrix.data[start:stop]
-            matrix.indices = self.matrix.indices[start:stop]
-            matrix.indptr = self.matrix.indptr[first : last + 1] - start
-        mask = self.mask[eta_rows]
-        values = matrix @ np.ravel(pixels)
-        return np.ma.array(values.reshape(mask.shape), mask=mask)
+        values = self.matrix @ np.ravel(pixels)
+        return np.ma.array(values.reshape(self.shape), mask=self.mask)
 
 
 @dataclass(frozen=True)
@@ -243,11 +265,16 @@ def export_cake_matrix(
     if path.exists() and not overwrite:
         raise FileExistsError(path)
     if (
-        tth_range[0] >= tth_range[1]
+        not np.isfinite([*tth_range, *eta_range, *pixel_size]).all()
+        or tth_range[0] >= tth_range[1]
         or eta_range[0] >= eta_range[1]
         or min(pixel_size) <= 0
     ):
-        raise ValueError('grid requires increasing ranges and positive pixel sizes')
+        raise ValueError(
+            'grid requires finite increasing ranges and positive pixel sizes'
+        )
+    if eta_chunk_rows <= 0:
+        raise ValueError('eta_chunk_rows must be positive')
     view = PolarView(
         tth_range,
         instrument,
@@ -256,6 +283,8 @@ def export_cake_matrix(
         pixel_size=pixel_size,
         cache_coordinate_map=False,
     )
+    if min(view.shape) < 1:
+        raise ValueError('grid requires at least one bin on each axis')
     output_size = view.neta * view.ntth
     panels = instrument.detectors
     input_layout, input_shape, columns = _input_layout(instrument, input_layout)
@@ -268,21 +297,7 @@ def export_cake_matrix(
         result = Path(temporary) / path.name
         with h5py.File(result, 'w') as f:
             f.attrs.update(format=FORMAT, version=VERSION)
-            snapshot = f.create_group('instrument')
-            # Compress array buffers, which can be as large as the detector.
-            config = deepcopy(instrument.write_config(style='hdf5'))
-            buffers = {
-                name: panel.pop('buffer')
-                for name, panel in config['detectors'].items()
-                if np.ndim(panel.get('buffer')) == 2
-            }
-            unwrap_dict_to_h5(snapshot, config)
-            for name, buffer in buffers.items():
-                snapshot['detectors'][name].create_dataset(
-                    'buffer', data=buffer, **STORAGE
-                )
-            if instrument.active_beam_name is not None:
-                snapshot.attrs['active_beam'] = instrument.active_beam_name
+            instrument.write_config(f, style='hdf5', **STORAGE)
             f['grid/tth'] = [tth_range[0], pixel_size[0], view.ntth]
             f['grid/eta'] = [eta_range[0], pixel_size[1], view.neta]
             matrix = f.create_group('matrix')

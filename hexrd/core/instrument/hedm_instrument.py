@@ -79,7 +79,7 @@ from hexrd.core import distortion as distortion_pkg
 from hexrd.core.utils.concurrent import distribute_tasks
 from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
 from hexrd.core.utils.panel_buffer import panel_buffer_from_str
-from hexrd.core.utils.yaml import NumpyToNativeDumper
+from hexrd.core.utils.yaml import NumPyIncludeLoader, NumpyToNativeDumper
 from hexrd.core.valunits import valWUnit
 from hexrd.powder.wppf import LeBail
 
@@ -524,6 +524,16 @@ class InstrumentConfig(TypedDict):
     physics_package: NotRequired[object]
 
 
+def load_instrument(path: str | Path, **kwargs: Any) -> 'HEDMInstrument':
+    """Load a YAML or HDF5 instrument, resolving YAML includes beside the file."""
+    if h5py.is_hdf5(path):
+        with h5py.File(path, 'r') as stream:
+            return HEDMInstrument(stream, **kwargs)
+    with open(path, 'r') as stream:
+        config = yaml.load(stream, Loader=NumPyIncludeLoader)
+    return HEDMInstrument(config, **kwargs)
+
+
 class HEDMInstrument(object):
     """
     Abstraction of XRD instrument.
@@ -534,7 +544,7 @@ class HEDMInstrument(object):
 
     def __init__(
         self,
-        instrument_config: Optional[InstrumentConfig] = None,
+        instrument_config: Optional[InstrumentConfig | h5py.File | h5py.Group] = None,
         image_series=None,
         eta_vector=None,
         instrument_name=None,
@@ -562,13 +572,17 @@ class HEDMInstrument(object):
 
         if instrument_config is not None:
             if isinstance(instrument_config, h5py.File):
+                instrument_config = instrument_config['instrument']
+            if isinstance(instrument_config, h5py.Group):
+                if active_beam_name is None:
+                    self._active_beam_name = instrument_config.attrs.get('active_beam')
                 tmp: dict[Any, Any] = {}
                 unwrap_h5_to_dict(instrument_config, tmp)
-                instrument_config = tmp['instrument']
+                instrument_config = tmp
             elif not isinstance(instrument_config, dict):
                 raise RuntimeError(
-                    "instrument_config must be either an HDF5 file object"
-                    + "or a dictionary.  You gave a %s" % type(instrument_config)
+                    "instrument_config must be an HDF5 file, instrument group, "
+                    "or dictionary. You gave a %s" % type(instrument_config)
                 )
             assert instrument_config is not None
             if instrument_name is None:
@@ -822,7 +836,7 @@ class HEDMInstrument(object):
         return self._beam_dict
 
     def _create_default_beam(self):
-        name = 'XRS1'
+        name = 'XRS1' if self._active_beam_name is None else self._active_beam_name
         self._beam_dict[name] = {
             'energy': beam_energy_DFLT,
             'vector': beam_vec_DFLT.copy(),
@@ -968,8 +982,10 @@ class HEDMInstrument(object):
     # METHODS
     # =========================================================================
 
-    def write_config(self, file=None, style='yaml', calibration_dict={}):
-        """WRITE OUT YAML FILE"""
+    def write_config(
+        self, file=None, style='yaml', calibration_dict={}, **dataset_options
+    ):
+        """Write YAML or HDF5, forwarding dataset options for numeric HDF5 arrays."""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
             raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
@@ -1031,10 +1047,12 @@ class HEDMInstrument(object):
 
                 def _write_group(file):
                     instr_grp = file.create_group('instrument')
-                    unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+                    unwrap_dict_to_h5(instr_grp, par_dict, **dataset_options)
+                    if self.active_beam_name is not None:
+                        instr_grp.attrs['active_beam'] = self.active_beam_name
 
                 # hdf5
-                if isinstance(file, str):
+                if isinstance(file, (str, Path)):
                     with h5py.File(file, 'w') as f:
                         _write_group(f)
                 elif isinstance(file, h5py.File):
