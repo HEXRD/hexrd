@@ -60,6 +60,10 @@ def test_exp1():
     mask = ~np.isnan(got)
     assert np.allclose(got[mask], scipy_got[mask], rtol=1e-6, atol=1e-6)
 
+    # E1(z) * exp(z) stays finite and approaches 1 / z for large |z|
+    vals = np.array([-700.0 - 2.76j, -744.47 - 2.76j, -6997.59 + 9.58j, 1500.0 + 4.0j])
+    assert np.allclose(sp.exp1exp(vals) * vals, 1.0, rtol=2e-3)
+
 
 # ----------------- 1D Gaussian -----------------
 
