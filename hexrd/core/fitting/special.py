@@ -190,7 +190,12 @@ def exp1exp(z: np.ndarray) -> np.ndarray:
     The exp(z) factor cancels the exponential growth of E1, keeping the
     result well-behaved across the peak.
     """
-    return np.exp(z) * exp1_complex_numba(z)
+    out = np.exp(z) * exp1_complex_numba(z)
+
+    # exp(z) and E1(z) leave float64 range here, but their product does
+    # not, so use its asymptotic series instead
+    series = (1 - 1 / z + 2 / z**2 - 6 / z**3 + 24 / z**4 - 120 / z**5) / z
+    return np.where(np.abs(z.real) > _MAX_LOG, series, out)
 
 
 @njit(cache=True, nogil=True)
