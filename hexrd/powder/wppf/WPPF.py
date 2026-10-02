@@ -20,6 +20,7 @@ from scipy.special import roots_legendre
 # hexrd imports
 # -------------
 from hexrd.core import constants
+from hexrd.core.fitting import stick_breaking
 from hexrd.core.imageutil import snip1d_quad
 from hexrd.core.material import Material
 from hexrd.core.transforms.xfcapi import angles_to_gvec
@@ -2252,9 +2253,13 @@ class Rietveld(AbstractWPPF):
                 "jac": "2-point",
             }
 
-            fitter = lmfit.Minimizer(self.calcRwp, self.params)
+            # Keep fractions of a whole, like the phase fractions, physical
+            groups = wppfsupport.fraction_groups(self.params)
+            fit_params = stick_breaking.add_params(self.params, groups)
+            fitter = lmfit.Minimizer(self.calcRwp, fit_params)
 
             self.res = fitter.least_squares(**fdict)
+            self.res.params = stick_breaking.strip_params(self.res.params, self.params)
 
             self.update_parameters()
 
