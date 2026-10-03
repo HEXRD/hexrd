@@ -21,9 +21,11 @@ def N_valid(pv):
     '''
     if isinstance(pv, np.ndarray):
         if isinstance(pv, np.ma.masked_array):
-            N_v = (~pv.mask).astype(float).sum(axis=0)
+            mask = np.ma.getmaskarray(pv)
+            valid = ~mask & ~np.isnan(pv.data)
         else:
-            N_v = (~np.isnan(pv)).sum(axis=0).astype(float)
+            valid = ~np.isnan(pv)
+        N_v = valid.sum(axis=0).astype(float)
     N_valid = np.ma.masked_equal(N_v, 0.0)
     return N_valid
 
