@@ -492,17 +492,56 @@ class AbstractWPPF(ABC):
             03/08/2021 SS everything is a list now
             """
             self._weights = []
-            for s in self._spectrum_expt:
+            for ii, s in enumerate(self._spectrum_expt):
                 mask = s.y <= 0.0
                 ww = np.zeros(s.y.shape)
                 """also initialize statistical weights
                 for the error calculation"""
-                ww[~mask] = 1.0 / s.y[~mask]
+                if isinstance(self.N_sampling, list):
+                    # this should never have negative values so sqrt is ok
+                    nvals = np.sqrt(self.N_sampling[ii][~mask])
+                elif self.N_sampling is None:
+                    nvals = 1.0
+                ww[~mask] = nvals / s.y[~mask]
                 self._weights.append(ww)
 
             self.initialize_bkg()
         else:
             raise RuntimeError("expt_spectrum setter: spectrum is None")
+
+    @property
+    def N_sampling(self):
+        return self._N_sampling
+
+    @N_sampling.setter
+    def N_sampling(self, N_vals):
+
+        if N_vals is None:
+            self._N_sampling = N_vals
+
+        elif isinstance(N_vals, np.ndarray):
+            """
+            initialize class using a nx1 array
+            """
+            self._N_sampling = []
+            if np.ma.is_masked(N_vals):
+                """
+                @date 03/05/2021 SS 1.0 original
+                this is an instance of masked array where there are
+                nans in the spectrum. this will have to be handled with
+                a lot of care. steps are as follows:
+                1. if array is masked array, then check if any values are
+                   masked or not.
+                2. if they are then the N_sampling is a list of
+                   individual islands of the values
+                3. If the shapes don't match with expt_spectrum for some reason
+                then behavior is undefined
+                """
+                N_sampling_list, _ = separate_regions(N_vals)
+                for s in N_sampling_list:
+                    self._N_sampling.append(s)
+            else:
+                self._N_sampling.append(N_vals)
 
     @property
     def background(self):
@@ -955,6 +994,8 @@ class LeBail(AbstractWPPF):
     >> @PARAMETERS:
         expt_spectrum: name of file or numpy array or Spectrum
                        class of experimental intensity
+        N_sampling: number of points averaged over in obtaining the
+        azimuthally averaged lineout from 2D polar plot
         params: yaml file or dictionary or Parameter class
         phases: yaml file or dictionary or Phases_Lebail class
         wavelength: dictionary of wavelengths
@@ -971,6 +1012,7 @@ class LeBail(AbstractWPPF):
     def __init__(
         self,
         expt_spectrum=None,
+        N_sampling=None,
         params=None,
         phases=None,
         wavelength={
@@ -986,6 +1028,8 @@ class LeBail(AbstractWPPF):
         self.peakshape = peakshape
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
+
+        self.N_sampling = N_sampling
 
         # self.initialize_expt_spectrum(expt_spectrum)
         self.spectrum_expt = expt_spectrum
@@ -1278,7 +1322,7 @@ class LeBail(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.Rwpb, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.chi2, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
@@ -1463,7 +1507,7 @@ class LeBail(AbstractWPPF):
         # When nothing was refined, Refine() already printed the metrics
         if print_to_screen and self.res is not None:
             logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
     def Refine(self, print_to_screen=True):
@@ -1501,7 +1545,7 @@ class LeBail(AbstractWPPF):
             if print_to_screen:
                 logger.info(
                     f"nothing to refine. updating intensities."
-                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
                 )
             return None
 
@@ -1597,12 +1641,15 @@ class Rietveld(AbstractWPPF):
                     2. Background   contains the background extracted from
                                     spectrum
                     3. Refine       contains all the machinery for refinement
+        N_sampling: number of points averaged over in obtaining the
+        azimuthally averaged lineout from 2D polar plot.
     ============================================================================
     """
 
     def __init__(
         self,
         expt_spectrum=None,
+        N_sampling=None,
         params=None,
         phases=None,
         wavelength={
@@ -1627,6 +1674,7 @@ class Rietveld(AbstractWPPF):
         self.particle_size = particle_size
         self.phi = phi
         self.peakshape = peakshape
+        self.N_sampling = N_sampling
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
         self.tds_model = tds_model
@@ -2103,7 +2151,7 @@ class Rietveld(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.Rwpb, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.chi2, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
@@ -2268,13 +2316,13 @@ class Rietveld(AbstractWPPF):
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
             logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
         else:
             self.computespectrum()
             logger.info(
                 "Nothing to refine.\n"
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
     def RefineTexture(self):
@@ -2304,7 +2352,7 @@ class Rietveld(AbstractWPPF):
         logger.info(
             "Finished iteration. "
             f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % "
-            f"and chi^2: {self.gofF:.2f}"
+            f"and S (goodness-of-fit): {self.gofF:.2f}"
         )
 
     def texture_parameters_vary(self, vary=False):
@@ -2671,12 +2719,20 @@ def separate_regions(masked_spec_array):
     https://stackoverflow.com/questions/43385877/
     efficient-numpy-subarrays-extraction-from-a-mask
     """
-    array = masked_spec_array.data
-    mask = ~masked_spec_array.mask[:, 1]
-    m0 = np.concatenate(([False], mask, [False]))
-    idx = np.flatnonzero(m0[1:] != m0[:-1])
-    gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
-    return [array[idx[i] : idx[i + 1], :] for i in range(0, len(idx), 2)], gidx
+    if masked_spec_array.ndim == 2:
+        array = masked_spec_array.data
+        mask = ~masked_spec_array.mask[:, 1]
+        m0 = np.concatenate(([False], mask, [False]))
+        idx = np.flatnonzero(m0[1:] != m0[:-1])
+        gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
+        return [array[idx[i] : idx[i + 1], :] for i in range(0, len(idx), 2)], gidx
+    elif masked_spec_array.ndim == 1:
+        array = masked_spec_array.data
+        mask = ~masked_spec_array.mask
+        m0 = np.concatenate(([False], mask, [False]))
+        idx = np.flatnonzero(m0[1:] != m0[:-1])
+        gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
+        return [array[idx[i] : idx[i + 1]] for i in range(0, len(idx), 2)], gidx
 
 
 def join_regions(vector_list, global_index, global_shape):

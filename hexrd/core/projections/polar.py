@@ -5,11 +5,29 @@ import numpy as np
 from hexrd.core import constants
 from hexrd.core.instrument.detector import _interpolate_bilinear_in_place
 from hexrd.core.material.crystallography import PlaneData
+from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
 from hexrd.hed.xrdutil.utils import (
     _project_on_detector_cylinder,
     _project_on_detector_plane,
 )
-from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
+
+
+def N_valid(pv):
+    '''this function returns the number of valid azimuthal
+    pixels in the dewarped polar view. this gives us the
+    number of pixels over which the azimuthally averaged
+    lineout was avergaed over and can be used to compensate
+    for the artificially low chi^2 values in our wppf refinement
+    '''
+    if isinstance(pv, np.ndarray):
+        if isinstance(pv, np.ma.masked_array):
+            mask = np.ma.getmaskarray(pv)
+            valid = ~mask & ~np.isnan(pv.data)
+        else:
+            valid = ~np.isnan(pv)
+        N_v = valid.sum(axis=0).astype(float)
+    N_valid = np.ma.masked_equal(N_v, 0.0)
+    return N_valid
 
 
 class PolarView:
@@ -323,7 +341,7 @@ class PolarView:
         respective arrays as the values.
         """
         angpts = self.angular_grid
-        dummy_ome = np.zeros((self.ntth * self.neta))
+        dummy_ome = np.zeros(self.ntth * self.neta)
 
         mapping = {}
         for detector_id, panel in self.detectors.items():
