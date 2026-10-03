@@ -1869,6 +1869,13 @@ class Rietveld(AbstractWPPF):
                 if atominfo_vary:
                     updated_atominfo = True
 
+            texture_model = self.texture_model.get(p)
+            pname = f"{p}_p_md"
+            if pname in params and hasattr(texture_model, 'P_MD'):
+                val = params[pname].value
+                self.params[pname].value = val
+                self.texture_model[p].P_MD = val
+
         if updated_lp:
             self.calctth()
 
