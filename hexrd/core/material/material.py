@@ -438,15 +438,17 @@ class Material(object):
         '''calculate volume at high
         temperature
         '''
-        alpha0 = self.thermal_expansion
-        alpha1 = self.thermal_expansion_dt
+        return self.calc_volume(temperature=temperature)
+
+    def thermal_pressure(self, temperature: float | None = None) -> float:
+        '''calculate the thermal pressure alpha_T * K_T * (T - 298)
+        of the JCPDS equation of state (as in Dioptas)
+        '''
         if temperature is None:
-            vt = self.v0
-        else:
-            delT = temperature - 298
-            delT2 = temperature**2 - 298**2
-            vt = self.v0 * np.exp(alpha0 * delT + 0.5 * alpha1 * delT2)
-        return vt
+            return 0.0
+        delT = temperature - 298
+        alpha = self.thermal_expansion + self.thermal_expansion_dt * delT
+        return alpha * self.kt(temperature=temperature) * delT
 
     def kt(self, temperature=None):
         '''calculate bulk modulus for
@@ -493,24 +495,28 @@ class Material(object):
         if volume is None:
             return 0
         else:
-            vt = self.vt(temperature=temperature)
             kt = self.kt(temperature=temperature)
             ktp = self.ktp(temperature=temperature)
-            f = 0.5 * ((vt / volume) ** (2.0 / 3.0) - 1)
+            f = 0.5 * ((self.v0 / volume) ** (2.0 / 3.0) - 1)
 
-            return 3.0 * kt * f * (1 - 1.5 * (4 - ktp) * f) * (1 + 2 * f) ** 2.5
+            p = 3.0 * kt * f * (1 - 1.5 * (4 - ktp) * f) * (1 + 2 * f) ** 2.5
+            return p + self.thermal_pressure(temperature=temperature)
 
     def calc_volume(self, pressure=None, temperature=None):
         '''solve for volume in the birch-murnaghan EoS to
         compute the volume. this number will be propagated
         to the Material object as updated lattice constants.
         '''
-        vt = self.vt(temperature=temperature)
         kt = self.kt(temperature=temperature)
         ktp = self.ktp(temperature=temperature)
 
         if pressure is None:
-            return vt
+            pressure = 0
+        # JCPDS convention (as in Dioptas): remove the thermal pressure and
+        # solve the isotherm about the room temperature volume
+        pressure = pressure - self.thermal_pressure(temperature=temperature)
+        if pressure == 0:
+            return self.v0
         else:
             alpha = 0.75 * (ktp - 4)
             p = np.zeros(
@@ -526,12 +532,18 @@ class Material(object):
             res = res[np.isreal(res)]
             res = 1 / np.real(res) ** 3
 
-            mask = np.logical_and(res >= 0.0, res <= 1.0 + 1e-8)
+            # the physical root is the one closest to 1, compressed for a
+            # positive pressure and expanded for a negative one
+            if pressure > 0:
+                mask = np.logical_and(res >= 0.0, res <= 1.0 + 1e-8)
+            else:
+                mask = res >= 1.0 - 1e-8
             res = res[mask]
             if len(res) == 0:
-                return vt
+                msg = 'No solution of the equation of state at this P and T'
+                raise ValueError(msg)
             else:
-                return min(np.nanmax(res), 1.0) * vt
+                return res[np.argmin(np.abs(res - 1))] * self.v0
 
     def calc_lp_factor(self, pressure=None, temperature=None):
         '''calculate the factor to multiply the lattice
