@@ -31,7 +31,7 @@ import copy
 from hexrd.core import constants
 from numba import vectorize, float64, njit, prange
 
-from hexrd.core.fitting.special import erfc, exp1exp, wofz
+from hexrd.core.fitting.special import _MIN_EXP, erfc, exp1exp, wofz
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.0
@@ -366,7 +366,18 @@ def _mixing_factor_pv(fwhm_g, fwhm_l):
 
 
 @njit(cache=True, nogil=True)
-def pvoight_wppf(uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list):
+def pvoight_wppf(
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: float,
+    shkl: NDArray,
+    eta_mixing: float,
+    tth: float,
+    dsp: float,
+    hkl: NDArray,
+    tth_list: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/22/2021 SS 1.0 original
@@ -380,11 +391,19 @@ def pvoight_wppf(uvw, p, xy, xy_sf, shkl, eta_mixing, tth, dsp, hkl, tth_list):
 
     Ag = 0.9394372787 / fwhm  # normalization factor for unit area
     Al = 1.0 / np.pi  # normalization factor for unit area
+    sigma = fwhm / gauss_width_fact
+    gamma = fwhm / lorentz_width_fact
 
-    g = Ag * _unit_gaussian(np.array([tth, fwhm]), tth_list)
-    l_val = Al * _unit_lorentzian(np.array([tth, fwhm]), tth_list)
-
-    return n * l_val + (1.0 - n) * g
+    # one loop instead of many array temporaries, and skip exp() where it
+    # underflows to zero anyway (most of the grid for a narrow peak)
+    res = np.empty_like(tth_list)
+    for i in range(tth_list.size):
+        dx2 = (tth_list[i] - tth) ** 2
+        arg = dx2 / (2.0 * sigma**2)
+        g = Ag * np.exp(-arg) if -arg > _MIN_EXP else 0.0
+        l_val = Al * gamma / (dx2 + gamma**2)
+        res[i] = n * l_val + (1.0 - n) * g
+    return res
 
 
 @njit(cache=True, nogil=True)
@@ -997,26 +1016,26 @@ def computespectrum_pvheating(
     return spec
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvfcj(
-    uvw,
-    p,
-    xy,
-    xy_sf,
-    shkl,
-    eta_mixing,
-    HL,
-    SL,
-    xn,
-    wn,
-    tth,
-    dsp,
-    hkl,
-    tth_list,
-    Icalc,
-    spectrum_expt,
-    spectrum_sim,
-):
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: NDArray,
+    shkl: NDArray,
+    eta_mixing: float,
+    HL: float,
+    SL: float,
+    xn: NDArray,
+    wn: NDArray,
+    tth: NDArray,
+    dsp: NDArray,
+    hkl: NDArray,
+    tth_list: NDArray,
+    Icalc: NDArray,
+    spectrum_expt: NDArray,
+    spectrum_sim: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1036,7 +1055,7 @@ def calc_Iobs_pvfcj(
     tth_list_mask = spectrum_expt[:, 0]
     tth_list_mask = tth_list_mask[mask]
 
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -1061,29 +1080,28 @@ def calc_Iobs_pvfcj(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvtch(
-    uvw,
-    p,
-    xy,
-    xy_sf,
-    shkl,
-    eta_mixing,
-    tth,
-    dsp,
-    hkl,
-    tth_list,
-    Icalc,
-    spectrum_expt,
-    spectrum_sim,
-):
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: NDArray,
+    shkl: NDArray,
+    eta_mixing: float,
+    tth: NDArray,
+    dsp: NDArray,
+    hkl: NDArray,
+    tth_list: NDArray,
+    Icalc: NDArray,
+    spectrum_expt: NDArray,
+    spectrum_sim: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1103,7 +1121,7 @@ def calc_Iobs_pvtch(
     tth_list_mask = spectrum_expt[:, 0]
     tth_list_mask = tth_list_mask[mask]
 
-    for ii in np.arange(nref):
+    for ii in prange(nref):
         Ic = Icalc[ii]
         t = tth[ii]
         d = dsp[ii]
@@ -1113,31 +1131,30 @@ def calc_Iobs_pvtch(
         pv = pvoight_wppf(uvw, p, xy, xs, shkl, eta_mixing, t, d, g, tth_list_mask)
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvpink(
-    alpha,
-    beta,
-    uvw,
-    p,
-    xy,
-    xy_sf,
-    shkl,
-    eta_mixing,
-    tth,
-    dsp,
-    hkl,
-    tth_list,
-    Icalc,
-    spectrum_expt,
-    spectrum_sim,
-):
+    alpha: NDArray,
+    beta: NDArray,
+    uvw: NDArray,
+    p: float,
+    xy: NDArray,
+    xy_sf: NDArray,
+    shkl: NDArray,
+    eta_mixing: float,
+    tth: NDArray,
+    dsp: NDArray,
+    hkl: NDArray,
+    tth_list: NDArray,
+    Icalc: NDArray,
+    spectrum_expt: NDArray,
+    spectrum_sim: NDArray,
+) -> NDArray:
     """
     @author Saransh Singh, Lawrence Livermore National Lab
     @date 03/31/2021 SS 1.0 original
@@ -1180,14 +1197,13 @@ def calc_Iobs_pvpink(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvexponential(
     tau: NDArray,
     uvw: NDArray,
@@ -1245,14 +1261,13 @@ def calc_Iobs_pvexponential(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
     return Iobs
 
 
-@njit(cache=True, nogil=True)
+@njit(cache=True, nogil=True, parallel=True)
 def calc_Iobs_pvheating(
     sigma: NDArray,
     uvw: NDArray,
@@ -1310,7 +1325,6 @@ def calc_Iobs_pvheating(
         )
 
         y = Ic * pv
-        y = y[mask]
 
         Iobs[ii] = np.trapezoid(yo * y / yc, tth_list_mask)
 
