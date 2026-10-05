@@ -551,12 +551,13 @@ class AbstractWPPF(ABC):
         """
         number of pixels averaged into each point of the expt_spectrum,
         e.g. from hexrd.projections.polar.num_valid_azimuthal_pixels.
-        masked values are set to zero, which gives those points zero
-        weight. this must be set before expt_spectrum, which computes the
-        weights.
+        masked or non-finite values are set to zero, which gives those
+        points zero weight. this must be set before expt_spectrum, which
+        computes the weights.
         """
         if num_pixels is not None:
-            num_pixels = np.ma.filled(np.ma.asarray(num_pixels, dtype=float), 0.0)
+            num_pixels = np.ma.masked_invalid(np.ma.asarray(num_pixels, dtype=float))
+            num_pixels = np.ma.filled(num_pixels, 0.0)
         self._num_averaged_pixels = num_pixels
 
     @property
@@ -1028,7 +1029,6 @@ class LeBail(AbstractWPPF):
     def __init__(
         self,
         expt_spectrum=None,
-        num_averaged_pixels=None,
         params=None,
         phases=None,
         wavelength={
@@ -1040,6 +1040,7 @@ class LeBail(AbstractWPPF):
         peakshape="pvfcj",
         amorphous_model=None,
         reset_background_params=True,
+        num_averaged_pixels=None,
     ):
         self.peakshape = peakshape
         self.bkgmethod = bkgmethod
@@ -1678,7 +1679,6 @@ class Rietveld(AbstractWPPF):
     def __init__(
         self,
         expt_spectrum=None,
-        num_averaged_pixels=None,
         params=None,
         phases=None,
         wavelength={
@@ -1697,6 +1697,7 @@ class Rietveld(AbstractWPPF):
         eta_min=-180,
         eta_max=180,
         eta_step=5.0,
+        num_averaged_pixels=None,
     ):
         self.bkgmethod = bkgmethod
         self.shape_factor = shape_factor
