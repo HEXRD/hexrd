@@ -516,17 +516,22 @@ class AbstractWPPF(ABC):
             weight
             03/08/2021 SS everything is a list now
             """
+            if self.N_sampling is not None and len(self.N_sampling) != len(
+                self._tth_list_global
+            ):
+                raise ValueError("N_sampling and expt_spectrum lengths differ")
+
             self._weights = []
-            for ii, s in enumerate(self._spectrum_expt):
+            for s, (i0, i1) in zip(self._spectrum_expt, self.global_index):
                 mask = s.y <= 0.0
                 ww = np.zeros(s.y.shape)
                 """also initialize statistical weights
-                for the error calculation"""
-                if isinstance(self.N_sampling, list):
-                    # this should never have negative values so sqrt is ok
-                    nvals = np.sqrt(self.N_sampling[ii][~mask])
-                elif self.N_sampling is None:
+                for the error calculation. the weights are 1/variance, and
+                a mean over N pixels has variance I/N, so the weight is N/I"""
+                if self.N_sampling is None:
                     nvals = 1.0
+                else:
+                    nvals = self.N_sampling[i0:i1][~mask]
                 ww[~mask] = nvals / s.y[~mask]
                 self._weights.append(ww)
 
@@ -540,33 +545,15 @@ class AbstractWPPF(ABC):
 
     @N_sampling.setter
     def N_sampling(self, N_vals):
-
-        if N_vals is None:
-            self._N_sampling = N_vals
-
-        elif isinstance(N_vals, np.ndarray):
-            """
-            initialize class using a nx1 array
-            """
-            self._N_sampling = []
-            if np.ma.is_masked(N_vals):
-                """
-                @date 03/05/2021 SS 1.0 original
-                this is an instance of masked array where there are
-                nans in the spectrum. this will have to be handled with
-                a lot of care. steps are as follows:
-                1. if array is masked array, then check if any values are
-                   masked or not.
-                2. if they are then the N_sampling is a list of
-                   individual islands of the values
-                3. If the shapes don't match with expt_spectrum for some reason
-                then behavior is undefined
-                """
-                N_sampling_list, _ = separate_regions(N_vals)
-                for s in N_sampling_list:
-                    self._N_sampling.append(s)
-            else:
-                self._N_sampling.append(N_vals)
+        """
+        number of pixels averaged into each point of the expt_spectrum,
+        e.g. from hexrd.projections.polar.N_valid. masked values are set
+        to zero, which gives those points zero weight. this must be set
+        before expt_spectrum, which computes the weights.
+        """
+        if N_vals is not None:
+            N_vals = np.ma.filled(np.ma.asarray(N_vals, dtype=float), 0.0)
+        self._N_sampling = N_vals
 
     @property
     def background(self):
@@ -2760,20 +2747,12 @@ def separate_regions(masked_spec_array):
     https://stackoverflow.com/questions/43385877/
     efficient-numpy-subarrays-extraction-from-a-mask
     """
-    if masked_spec_array.ndim == 2:
-        array = masked_spec_array.data
-        mask = ~masked_spec_array.mask[:, 1]
-        m0 = np.concatenate(([False], mask, [False]))
-        idx = np.flatnonzero(m0[1:] != m0[:-1])
-        gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
-        return [array[idx[i] : idx[i + 1], :] for i in range(0, len(idx), 2)], gidx
-    elif masked_spec_array.ndim == 1:
-        array = masked_spec_array.data
-        mask = ~masked_spec_array.mask
-        m0 = np.concatenate(([False], mask, [False]))
-        idx = np.flatnonzero(m0[1:] != m0[:-1])
-        gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
-        return [array[idx[i] : idx[i + 1]] for i in range(0, len(idx), 2)], gidx
+    array = masked_spec_array.data
+    mask = ~masked_spec_array.mask[:, 1]
+    m0 = np.concatenate(([False], mask, [False]))
+    idx = np.flatnonzero(m0[1:] != m0[:-1])
+    gidx = [(idx[i], idx[i + 1]) for i in range(0, len(idx), 2)]
+    return [array[idx[i] : idx[i + 1], :] for i in range(0, len(idx), 2)], gidx
 
 
 def join_regions(vector_list, global_index, global_shape):
