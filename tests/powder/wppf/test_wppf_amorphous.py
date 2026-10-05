@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 from hexrd.material import load_materials_hdf5
 from hexrd.valunits import _angstrom, _kev, _nm
 from hexrd.wppf import LeBail, Rietveld

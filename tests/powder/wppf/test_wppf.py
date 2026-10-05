@@ -421,8 +421,11 @@ def test_rietveld_phase_fractions_stay_physical(
     assert rietveld.Rwp < 1e-4
 
 
+@pytest.mark.parametrize('wppf_class', [LeBail, Rietveld])
 def test_statistical_weights(
-    expt_spectrum: np.ndarray, ceo2_material: Material
+    expt_spectrum: np.ndarray,
+    ceo2_material: Material,
+    wppf_class: type[LeBail] | type[Rietveld],
 ) -> None:
     rng = np.random.default_rng(0)
     n = len(expt_spectrum)
@@ -437,29 +440,32 @@ def test_statistical_weights(
     model = np.maximum(expt_spectrum[:, 1], 1.0)
     n_pixels = rng.integers(10, 1000, n).astype(float)
     y = rng.poisson(n_pixels * model) / n_pixels
-    lebail = LeBail(
+    wppf = wppf_class(
         expt_spectrum=np.column_stack((expt_spectrum[:, 0], y)),
         num_averaged_pixels=n_pixels,
         **kwargs,
     )
-    weights = lebail.weights.data_array
+    weights = wppf.weights.data_array
     np.testing.assert_allclose(weights[:, 1], n_pixels / y)
     sim = np.column_stack((expt_spectrum[:, 0], model))
-    chi2 = calc_rwp(sim, lebail.spectrum_expt.data_array, weights, sim, 0)[3]
+    chi2 = calc_rwp(sim, wppf.spectrum_expt.data_array, weights, sim, 0)[3]
     assert chi2 == pytest.approx(1.0, abs=0.1)
 
     # a masked spectrum is split into regions; num_averaged_pixels stays
-    # full length and its masked values get zero weight
+    # full length and its masked or NaN values get zero weight
     mask = np.zeros(n, dtype=bool)
     mask[n // 3 : n // 2] = True
     spectrum = np.column_stack((expt_spectrum[:, 0], y))
     spectrum = np.ma.masked_array(spectrum, np.column_stack((mask, mask)))
-    n_masked = np.ma.masked_array(n_pixels, mask | (np.arange(n) == 0))
-    lebail = LeBail(expt_spectrum=spectrum, num_averaged_pixels=n_masked, **kwargs)
-    weights = lebail.weights.y
+    n_bad = n_pixels.copy()
+    n_bad[1] = np.nan
+    n_masked = np.ma.masked_array(n_bad, mask | (np.arange(n) == 0))
+    wppf = wppf_class(expt_spectrum=spectrum, num_averaged_pixels=n_masked, **kwargs)
+    weights = wppf.weights.y
     expected = np.where(n_masked.mask, 0.0, n_pixels / y)
+    expected[1] = 0.0
     np.testing.assert_allclose(weights[~mask], expected[~mask])
-    assert weights[0] == 0.0
+    assert weights[0] == weights[1] == 0.0
 
     with pytest.raises(ValueError):
-        LeBail(expt_spectrum=spectrum, num_averaged_pixels=n_pixels[:-1], **kwargs)
+        wppf_class(expt_spectrum=spectrum, num_averaged_pixels=n_pixels[:-1], **kwargs)
