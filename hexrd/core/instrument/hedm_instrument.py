@@ -1342,8 +1342,11 @@ class HEDMInstrument(object):
         instr_cfgs = [make_instr_cfg(x) for x in panels]
         pbp_array = np.arange(self.num_panels)
         iter_args = zip(panels, instr_cfgs, images, pbp_array)
+        # Never spawn more processes than max_workers. Instruments with many
+        # subpanels would otherwise exhaust memory (notably on Windows).
         with ProcessPoolExecutor(
-            mp_context=constants.mp_context, max_workers=self.num_panels
+            mp_context=constants.mp_context,
+            max_workers=min(self.num_panels, self.max_workers),
         ) as executor:
             results = list(pbar_dets(executor.map(func, iter_args)))
 
@@ -2630,6 +2633,10 @@ def _extract_detector_line_positions(
     }
     func = partial(_extract_ring_line_positions, **kwargs)
     iter_arg = zip(pow_angs, pow_xys, tth_tols, tth0)
+    if max_workers == 1:
+        # Already in a worker process; a one-process pool only adds overhead
+        return list(pbar_rings(map(func, iter_arg)))
+
     with ProcessPoolExecutor(
         mp_context=constants.mp_context, max_workers=max_workers
     ) as executor:
