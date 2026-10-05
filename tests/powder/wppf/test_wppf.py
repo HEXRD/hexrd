@@ -8,6 +8,7 @@ import pytest
 
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
 from hexrd.powder.wppf import LeBail, Rietveld
+from hexrd.powder.wppf.peakfunctions import calc_rwp
 
 
 @pytest.fixture
@@ -418,3 +419,45 @@ def test_rietveld_phase_fractions_stay_physical(
     fractions = refine(rietveld, ['B_phase_fraction'])
     assert np.allclose(fractions, [0.95, 0.05, 0], atol=1e-4)
     assert rietveld.Rwp < 1e-4
+
+
+def test_statistical_weights(expt_spectrum, ceo2_material):
+    rng = np.random.default_rng(0)
+    n = len(expt_spectrum)
+    kwargs = {
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        'bkgmethod': {'chebyshev': 3},
+    }
+
+    # a lineout averaged over N pixels has variance I/N, so for the true
+    # model the weighted chi^2 is 1 when the weights are N/I
+    model = np.maximum(expt_spectrum[:, 1], 1.0)
+    N_sampling = rng.integers(10, 1000, n).astype(float)
+    y = rng.poisson(N_sampling * model) / N_sampling
+    lebail = LeBail(
+        expt_spectrum=np.column_stack((expt_spectrum[:, 0], y)),
+        N_sampling=N_sampling,
+        **kwargs,
+    )
+    weights = lebail.weights.data_array
+    np.testing.assert_allclose(weights[:, 1], N_sampling / y)
+    sim = np.column_stack((expt_spectrum[:, 0], model))
+    chi2 = calc_rwp(sim, lebail.spectrum_expt.data_array, weights, sim, 0)[3]
+    assert chi2 == pytest.approx(1.0, abs=0.1)
+
+    # a masked spectrum is split into regions; N_sampling stays full length
+    # and masked values of N_sampling get zero weight
+    mask = np.zeros(n, dtype=bool)
+    mask[n // 3 : n // 2] = True
+    spectrum = np.column_stack((expt_spectrum[:, 0], y))
+    spectrum = np.ma.masked_array(spectrum, np.column_stack((mask, mask)))
+    N_masked = np.ma.masked_array(N_sampling, mask | (np.arange(n) == 0))
+    lebail = LeBail(expt_spectrum=spectrum, N_sampling=N_masked, **kwargs)
+    weights = lebail.weights.y
+    expected = np.where(N_masked.mask, 0.0, N_sampling / y)
+    np.testing.assert_allclose(weights[~mask], expected[~mask])
+    assert weights[0] == 0.0
+
+    with pytest.raises(ValueError):
+        LeBail(expt_spectrum=spectrum, N_sampling=N_sampling[:-1], **kwargs)

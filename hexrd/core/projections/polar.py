@@ -19,15 +19,8 @@ def N_valid(pv):
     lineout was avergaed over and can be used to compensate
     for the artificially low chi^2 values in our wppf refinement
     '''
-    if isinstance(pv, np.ndarray):
-        if isinstance(pv, np.ma.masked_array):
-            mask = np.ma.getmaskarray(pv)
-            valid = ~mask & ~np.isnan(pv.data)
-        else:
-            valid = ~np.isnan(pv)
-        N_v = valid.sum(axis=0).astype(float)
-    N_valid = np.ma.masked_equal(N_v, 0.0)
-    return N_valid
+    valid = ~np.ma.getmaskarray(np.ma.masked_invalid(pv))
+    return np.ma.masked_equal(valid.sum(axis=0).astype(float), 0.0)
 
 
 class PolarView:

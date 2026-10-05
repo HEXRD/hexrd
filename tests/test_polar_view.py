@@ -7,7 +7,7 @@ import pytest
 from hexrd.core import imageseries
 from hexrd.core.imageseries.process import ProcessedImageSeries
 from hexrd.core.instrument import HEDMInstrument
-from hexrd.core.projections.polar import PolarView
+from hexrd.core.projections.polar import N_valid, PolarView
 
 
 @pytest.fixture
@@ -90,3 +90,13 @@ def test_polar_view(
     # This should also be identical
     fast_img = fast_img.filled(np.nan)
     assert np.allclose(fast_img, ref, equal_nan=True)
+
+
+def test_n_valid():
+    pv = np.ma.masked_array(
+        [[1.0, np.nan, 3.0, np.nan], [4.0, 5.0, 6.0, np.nan]],
+        mask=[[False, False, True, False], [False, False, True, False]],
+    )
+    n = N_valid(pv)
+    np.testing.assert_array_equal(n.filled(-1), [2.0, 1.0, -1, -1])
+    np.testing.assert_array_equal(N_valid(pv.filled(np.nan)), n)
