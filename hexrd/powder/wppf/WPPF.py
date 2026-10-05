@@ -516,10 +516,13 @@ class AbstractWPPF(ABC):
             weight
             03/08/2021 SS everything is a list now
             """
-            if self.N_sampling is not None and len(self.N_sampling) != len(
+            num_pixels = self.num_averaged_pixels
+            if num_pixels is not None and len(num_pixels) != len(
                 self._tth_list_global
             ):
-                raise ValueError("N_sampling and expt_spectrum lengths differ")
+                raise ValueError(
+                    "num_averaged_pixels and expt_spectrum lengths differ"
+                )
 
             self._weights = []
             for s, (i0, i1) in zip(self._spectrum_expt, self.global_index):
@@ -528,10 +531,10 @@ class AbstractWPPF(ABC):
                 """also initialize statistical weights
                 for the error calculation. the weights are 1/variance, and
                 a mean over N pixels has variance I/N, so the weight is N/I"""
-                if self.N_sampling is None:
+                if num_pixels is None:
                     nvals = 1.0
                 else:
-                    nvals = self.N_sampling[i0:i1][~mask]
+                    nvals = num_pixels[i0:i1][~mask]
                 ww[~mask] = nvals / s.y[~mask]
                 self._weights.append(ww)
 
@@ -540,20 +543,21 @@ class AbstractWPPF(ABC):
             raise RuntimeError("expt_spectrum setter: spectrum is None")
 
     @property
-    def N_sampling(self):
-        return self._N_sampling
+    def num_averaged_pixels(self) -> np.ndarray | None:
+        return self._num_averaged_pixels
 
-    @N_sampling.setter
-    def N_sampling(self, N_vals):
+    @num_averaged_pixels.setter
+    def num_averaged_pixels(self, num_pixels: np.ndarray | None) -> None:
         """
         number of pixels averaged into each point of the expt_spectrum,
-        e.g. from hexrd.projections.polar.N_valid. masked values are set
-        to zero, which gives those points zero weight. this must be set
-        before expt_spectrum, which computes the weights.
+        e.g. from hexrd.projections.polar.num_valid_azimuthal_pixels.
+        masked values are set to zero, which gives those points zero
+        weight. this must be set before expt_spectrum, which computes the
+        weights.
         """
-        if N_vals is not None:
-            N_vals = np.ma.filled(np.ma.asarray(N_vals, dtype=float), 0.0)
-        self._N_sampling = N_vals
+        if num_pixels is not None:
+            num_pixels = np.ma.filled(np.ma.asarray(num_pixels, dtype=float), 0.0)
+        self._num_averaged_pixels = num_pixels
 
     @property
     def background(self):
@@ -1006,7 +1010,7 @@ class LeBail(AbstractWPPF):
     >> @PARAMETERS:
         expt_spectrum: name of file or numpy array or Spectrum
                        class of experimental intensity
-        N_sampling: number of points averaged over in obtaining the
+        num_averaged_pixels: number of points averaged over in obtaining the
         azimuthally averaged lineout from 2D polar plot
         params: yaml file or dictionary or Parameter class
         phases: yaml file or dictionary or Phases_Lebail class
@@ -1024,7 +1028,7 @@ class LeBail(AbstractWPPF):
     def __init__(
         self,
         expt_spectrum=None,
-        N_sampling=None,
+        num_averaged_pixels=None,
         params=None,
         phases=None,
         wavelength={
@@ -1041,7 +1045,7 @@ class LeBail(AbstractWPPF):
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
 
-        self.N_sampling = N_sampling
+        self.num_averaged_pixels = num_averaged_pixels
 
         # self.initialize_expt_spectrum(expt_spectrum)
         self.spectrum_expt = expt_spectrum
@@ -1666,7 +1670,7 @@ class Rietveld(AbstractWPPF):
                     2. Background   contains the background extracted from
                                     spectrum
                     3. Refine       contains all the machinery for refinement
-        N_sampling: number of points averaged over in obtaining the
+        num_averaged_pixels: number of points averaged over in obtaining the
         azimuthally averaged lineout from 2D polar plot.
     ============================================================================
     """
@@ -1674,7 +1678,7 @@ class Rietveld(AbstractWPPF):
     def __init__(
         self,
         expt_spectrum=None,
-        N_sampling=None,
+        num_averaged_pixels=None,
         params=None,
         phases=None,
         wavelength={
@@ -1699,7 +1703,7 @@ class Rietveld(AbstractWPPF):
         self.particle_size = particle_size
         self.phi = phi
         self.peakshape = peakshape
-        self.N_sampling = N_sampling
+        self.num_averaged_pixels = num_averaged_pixels
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
         self.tds_model = tds_model
