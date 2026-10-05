@@ -12,11 +12,11 @@ from hexrd.hed.xrdutil.utils import (
 )
 
 
-def N_valid(pv):
+def num_valid_azimuthal_pixels(pv: np.ndarray) -> np.ma.MaskedArray:
     '''this function returns the number of valid azimuthal
     pixels in the dewarped polar view. this gives us the
     number of pixels over which the azimuthally averaged
-    lineout was avergaed over and can be used to compensate
+    lineout was averaged over and can be used to compensate
     for the artificially low chi^2 values in our wppf refinement
     '''
     valid = ~np.ma.getmaskarray(np.ma.masked_invalid(pv))
