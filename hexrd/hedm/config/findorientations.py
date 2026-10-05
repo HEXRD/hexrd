@@ -149,7 +149,8 @@ class OmegaConfig(Config):
         temp = self._cfg.get(key, [-180.0, 180])
         range = np.abs(temp[1] - temp[0])
         logger.warning('omega period specification is deprecated')
-        if range != 360:
+        # Allow roundoff from converting the period between degrees and radians.
+        if not np.isclose(range, 360, rtol=0, atol=1e-8):
             raise RuntimeError(
                 '"%s": range must be 360 degrees, range of %s is %g'
                 % (key, temp, range)

@@ -3,6 +3,8 @@ from pathlib import Path
 
 import numpy as np
 
+from hexrd.core.config.root import RootConfig
+
 from .common import TestConfig, test_data
 
 
@@ -172,6 +174,21 @@ class TestOmegaConfig(TestConfig):
             self.cfgs[3].find_orientations.omega,
             'period',
         )
+
+    def test_period_roundoff(self):
+        # HEDM calibration converts the overlay period back to degrees.
+        period = np.degrees(np.radians([-0.125, 359.875]))
+        for value in (period, period[::-1], [-0.125, np.nextafter(359.875, -np.inf)]):
+            with self.subTest(period=value):
+                cfg = RootConfig({'find_orientations': {'omega': {'period': value}}})
+                np.testing.assert_array_equal(cfg.find_orientations.omega.period, value)
+
+    def test_period_invalid(self):
+        for end in (359.999, 360.001, np.nan, np.inf):
+            with self.subTest(end=end):
+                cfg = RootConfig({'find_orientations': {'omega': {'period': [0, end]}}})
+                with self.assertRaises(RuntimeError):
+                    cfg.find_orientations.omega.period
 
     def test_tolerance(self):
         self.assertEqual(self.cfgs[0].find_orientations.omega.tolerance, 0.5)
