@@ -2361,7 +2361,8 @@ class Rietveld(AbstractWPPF):
     def RefineTexture(self):
         final_result = None
         for name, model in self.texture_model.items():
-            if model is None:
+            if not hasattr(model, 'calculate_harmonic_coefficients'):
+                # No model, or one without harmonics (e.g., March-Dollase)
                 continue
 
             logger.info(f'Refining texture parameters for "{name}"')
