@@ -201,7 +201,6 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
         'Programming Language :: Python :: 3.12',
         'Programming Language :: Python :: 3.13',
@@ -212,6 +211,6 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={'': ['Anomalous.h5', 'file_table.tsv']},
-    python_requires='>=3.10',
+    python_requires='>=3.11',
     install_requires=install_reqs,
 )
