@@ -291,6 +291,9 @@ def test_wppf_march_dollase_texture(texture_instrument, texture_img_dict):
     assert not np.isclose(R.params['Ni_p_md'].value, 1.0)
     assert R.Rwp < rwp_before_pmd - 0.01
 
+    # Harmonic texture refinement skips March-Dollase models
+    R.RefineTexture()
+
     # Test texture_index (polymorphic interface)
     ti = R.texture_index
     assert 'Ni' in ti
