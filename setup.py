@@ -14,6 +14,7 @@ np_include_dir = numpy.get_include()
 install_reqs = [
     'appdirs',
     'chemparse',
+    'dectris-compression',
     'fabio>=0.11',
     'h5py',
     'hdf5plugin',
