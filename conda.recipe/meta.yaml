@@ -41,6 +41,8 @@ requirements:
   run:
     - appdirs
     - chemparse
+    # Needed for the eiger-stream imageseries formats
+    - dectris-compression
     - fabio >=0.11
     # fabio uses lxml, and lxml 4.9.1 has some crashing issue on Windows
     # so, make sure lxml >= 4.9.2 is being used
@@ -67,6 +69,13 @@ requirements:
 test:         # [build_platform == target_platform]
   imports:
     - hexrd
+    - hexrd.core.convolution.convolve
+    - hexrd.core.extensions.inverse_distortion
+    - hexrd.core.extensions.transforms
+    - hexrd.core.extensions.transforms_c_api
+    - hexrd.core.imageseries.load.eiger_stream_v2
+  commands:
+    - hexrd --help
 
 about:
   home: https://github.com/HEXRD/hexrd
