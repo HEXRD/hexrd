@@ -287,8 +287,9 @@ def test_wppf_march_dollase_texture(texture_instrument, texture_img_dict):
 
     R.Refine()
 
-    # P_MD refinement should not make Rwp worse
-    assert R.Rwp <= rwp_before_pmd + 1e-4
+    # P_MD should refine away from random and improve the fit
+    assert not np.isclose(R.params['Ni_p_md'].value, 1.0)
+    assert R.Rwp < rwp_before_pmd - 0.01
 
     # Test texture_index (polymorphic interface)
     ti = R.texture_index
@@ -359,7 +360,7 @@ def test_march_dollase_texture_factors(texture_instrument, texture_img_dict):
         'eta_step': 5,
     }
     R = Rietveld(**kwargs)
-    R.params['Ni_p_md'].value = 1.5
+    assert R.params['Ni_p_md'].value == 1.5  # taken from P_MD
 
     # calc_pf_rings should produce constant rings matching texture_factors
     md.calc_pf_rings(R.params)

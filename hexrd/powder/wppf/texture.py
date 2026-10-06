@@ -740,7 +740,7 @@ class MarchDollaseModel:
 
         pname = f'{self.material.name}_p_md'
 
-        params.add(pname, value=1.0, vary=False)
+        params.add(pname, value=self.P_MD, min=1e-3, vary=vary)
 
         return params
 

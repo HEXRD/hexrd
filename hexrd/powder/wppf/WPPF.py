@@ -1873,23 +1873,16 @@ class Rietveld(AbstractWPPF):
             pname = f"{p}_p_md"
             if pname in params and hasattr(texture_model, 'P_MD'):
                 val = params[pname].value
+                # computespectrum() reads P_MD from self.params
                 self.params[pname].value = val
-                self.texture_model[p].P_MD = val
+                if texture_model.P_MD != val:
+                    texture_model.P_MD = val
 
         if updated_lp:
             self.calctth()
 
         if updated_lp or updated_atominfo:
             self.calcsf()
-
-        """
-        In case March-Dollase texture parameters were used, we can
-        update those here
-        """
-        name = f"{pre}p_md"
-        if name in params:
-            val = params[name].value
-            self.texture_model[p].P_MD = val
 
         self.phases.phase_fraction = pf / np.sum(pf)
 
