@@ -25,13 +25,14 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # ============================================================
 
-import numpy as np
-from numpy.typing import NDArray
-import copy
-from hexrd.core import constants
-from numba import vectorize, float64, njit, prange
 
+import numpy as np
+from numba import njit, prange
+from numpy.typing import NDArray
+
+from hexrd.core import constants
 from hexrd.core.fitting.special import _MIN_EXP, erfc, exp1exp, wofz
+
 
 gauss_width_fact = constants.sigma_to_fwhm
 lorentz_width_fact = 2.0
@@ -461,12 +462,12 @@ def pvfcj(
     tth_r = np.radians(tth)
     ctth = np.cos(tth_r)
 
-    arg = ctth * np.sqrt(((HoL + SoL) ** 2 + 1.0))
+    arg = ctth * np.sqrt((HoL + SoL) ** 2 + 1.0)
     cinv = np.arccos(arg)
     tau_min = tth_r - cinv
 
     # two theta of inflection point
-    arg = ctth * np.sqrt(((HoL - SoL) ** 2 + 1.0))
+    arg = ctth * np.sqrt((HoL - SoL) ** 2 + 1.0)
     cinv = np.arccos(arg)
     tau_infl = tth_r - cinv
 
@@ -1395,8 +1396,9 @@ def calc_rwp(spectrum_sim, spectrum_expt, weights, background, P):
     N = np.count_nonzero(weights[:, 1])
 
     if N > P:
-        gofF = wss / (N - P)
+        chi2 = wss / (N - P)
+        gofF = np.sqrt(chi2)
     else:
-        gofF = np.inf
+        chi2 = gofF = np.inf
 
-    return errvec, Rwp, Rwpb, gofF
+    return errvec, Rwp, Rwpb, chi2, gofF

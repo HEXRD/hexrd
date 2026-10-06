@@ -516,18 +516,49 @@ class AbstractWPPF(ABC):
             weight
             03/08/2021 SS everything is a list now
             """
+            num_pixels = self.num_averaged_pixels
+            if num_pixels is not None and len(num_pixels) != len(
+                self._tth_list_global
+            ):
+                raise ValueError(
+                    "num_averaged_pixels and expt_spectrum lengths differ"
+                )
+
             self._weights = []
-            for s in self._spectrum_expt:
+            for s, (i0, i1) in zip(self._spectrum_expt, self.global_index):
                 mask = s.y <= 0.0
                 ww = np.zeros(s.y.shape)
                 """also initialize statistical weights
-                for the error calculation"""
-                ww[~mask] = 1.0 / s.y[~mask]
+                for the error calculation. the weights are 1/variance, and
+                a mean over N pixels has variance I/N, so the weight is N/I"""
+                if num_pixels is None:
+                    nvals = 1.0
+                else:
+                    nvals = num_pixels[i0:i1][~mask]
+                ww[~mask] = nvals / s.y[~mask]
                 self._weights.append(ww)
 
             self.initialize_bkg()
         else:
             raise RuntimeError("expt_spectrum setter: spectrum is None")
+
+    @property
+    def num_averaged_pixels(self) -> np.ndarray | None:
+        return self._num_averaged_pixels
+
+    @num_averaged_pixels.setter
+    def num_averaged_pixels(self, num_pixels: np.ndarray | None) -> None:
+        """
+        number of pixels averaged into each point of the expt_spectrum,
+        e.g. from hexrd.projections.polar.num_valid_azimuthal_pixels.
+        masked or non-finite values are set to zero, which gives those
+        points zero weight. this must be set before expt_spectrum, which
+        computes the weights.
+        """
+        if num_pixels is not None:
+            num_pixels = np.ma.masked_invalid(np.ma.asarray(num_pixels, dtype=float))
+            num_pixels = np.ma.filled(num_pixels, 0.0)
+        self._num_averaged_pixels = num_pixels
 
     @property
     def background(self):
@@ -980,6 +1011,8 @@ class LeBail(AbstractWPPF):
     >> @PARAMETERS:
         expt_spectrum: name of file or numpy array or Spectrum
                        class of experimental intensity
+        num_averaged_pixels: number of points averaged over in obtaining the
+        azimuthally averaged lineout from 2D polar plot
         params: yaml file or dictionary or Parameter class
         phases: yaml file or dictionary or Phases_Lebail class
         wavelength: dictionary of wavelengths
@@ -1007,10 +1040,13 @@ class LeBail(AbstractWPPF):
         peakshape="pvfcj",
         amorphous_model=None,
         reset_background_params=True,
+        num_averaged_pixels=None,
     ):
         self.peakshape = peakshape
         self.bkgmethod = bkgmethod
         self.intensity_init = intensity_init
+
+        self.num_averaged_pixels = num_averaged_pixels
 
         # self.initialize_expt_spectrum(expt_spectrum)
         self.spectrum_expt = expt_spectrum
@@ -1308,7 +1344,7 @@ class LeBail(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.Rwpb, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.chi2, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
@@ -1501,7 +1537,7 @@ class LeBail(AbstractWPPF):
         # When nothing was refined, Refine() already printed the metrics
         if print_to_screen and self.res is not None:
             logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
     def Refine(self, print_to_screen=True):
@@ -1539,7 +1575,7 @@ class LeBail(AbstractWPPF):
             if print_to_screen:
                 logger.info(
                     f"nothing to refine. updating intensities."
-                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                    f" Rwp: {self.Rwp * 100:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
                 )
             return None
 
@@ -1635,6 +1671,8 @@ class Rietveld(AbstractWPPF):
                     2. Background   contains the background extracted from
                                     spectrum
                     3. Refine       contains all the machinery for refinement
+        num_averaged_pixels: number of points averaged over in obtaining the
+        azimuthally averaged lineout from 2D polar plot.
     ============================================================================
     """
 
@@ -1659,12 +1697,14 @@ class Rietveld(AbstractWPPF):
         eta_min=-180,
         eta_max=180,
         eta_step=5.0,
+        num_averaged_pixels=None,
     ):
         self.bkgmethod = bkgmethod
         self.shape_factor = shape_factor
         self.particle_size = particle_size
         self.phi = phi
         self.peakshape = peakshape
+        self.num_averaged_pixels = num_averaged_pixels
         self.spectrum_expt = expt_spectrum
         self.amorphous_model = amorphous_model
         self.tds_model = tds_model
@@ -2144,7 +2184,7 @@ class Rietveld(AbstractWPPF):
 
         self._spectrum_sim = Spectrum(x=x, y=y)
 
-        errvec, self.Rwp, self.Rwpb, self.gofF = calc_rwp(
+        errvec, self.Rwp, self.Rwpb, self.chi2, self.gofF = calc_rwp(
             self.spectrum_sim.data_array,
             self.spectrum_expt.data_array,
             self.weights.data_array,
@@ -2309,13 +2349,13 @@ class Rietveld(AbstractWPPF):
             self.gofFlist = np.append(self.gofFlist, self.gofF)
 
             logger.info(
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
         else:
             self.computespectrum()
             logger.info(
                 "Nothing to refine.\n"
-                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and chi^2: {self.gofF:.2f}\n"
+                f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
     def RefineTexture(self):
@@ -2345,7 +2385,7 @@ class Rietveld(AbstractWPPF):
         logger.info(
             "Finished iteration. "
             f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % "
-            f"and chi^2: {self.gofF:.2f}"
+            f"and S (goodness-of-fit): {self.gofF:.2f}"
         )
 
     def texture_parameters_vary(self, vary=False):

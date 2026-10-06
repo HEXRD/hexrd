@@ -122,7 +122,7 @@ def test_wppf_amorphous_rietveld(wppf_amorphous_kwargs: dict):
 
     # Verify that the goodness of fit and chi-squared are below expected values
     assert obj.Rwp < 0.057
-    assert obj.gofF < 0.27
+    assert obj.gofF < 0.3
 
 
 def test_wppf_amorphous_lebail(wppf_amorphous_kwargs: dict):
