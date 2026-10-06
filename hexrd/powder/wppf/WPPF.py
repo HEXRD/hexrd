@@ -2146,6 +2146,35 @@ class Rietveld(AbstractWPPF):
             )
         return self.computespectrum_fcn(*args)
 
+    def phase_texture_factors(self, p: str, k: str) -> np.ndarray | None:
+        """Texture factors for the hkls of phase p in the tth range
+
+        The texture model computes a factor for every hkl of its material,
+        so select the in-range ones with the same masks as self.hkls.
+        Returns None if the phase has no texture model.
+        """
+        model = self.texture_model[p]
+        if model is None:
+            return None
+
+        phase = self._get_phase(p, k)
+        if not np.array_equal(model.material.hkls, phase.hkls):
+            msg = f'The texture model hkls do not match those of phase "{p}"'
+            raise ValueError(msg)
+
+        eta_mask = self.eta_mask
+        if eta_mask is not None:
+            eta_mask = eta_mask[p][k]
+
+        texture_factor = model.calc_texture_factor(
+            self.params,
+            eta_min=self.eta_min,
+            eta_max=self.eta_max,
+            eta_step=self.eta_step,
+            eta_mask=eta_mask,
+        )
+        return texture_factor[phase.wavelength_allowed_hkls][self.limit[p][k]]
+
     def computespectrum(self):
         """
         >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab
@@ -2159,19 +2188,7 @@ class Rietveld(AbstractWPPF):
         Icomputed = self.compute_intensities()
         for iph, p in enumerate(self.phases):
             for k, l in self.phases.wavelength.items():
-                if self.texture_model[p] is None:
-                    texture_factor = None
-                else:
-                    eta_mask = self.eta_mask
-                    if eta_mask is not None:
-                        eta_mask = eta_mask[p][k]
-                    texture_factor = self.texture_model[p].calc_texture_factor(
-                        self.params,
-                        eta_min=self.eta_min,
-                        eta_max=self.eta_max,
-                        eta_step=self.eta_step,
-                        eta_mask=eta_mask,
-                    )
+                texture_factor = self.phase_texture_factors(p, k)
                 y += self.computespectrum_phase(
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
