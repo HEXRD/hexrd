@@ -250,6 +250,38 @@ class UnimodalODF(ODFArithmetic):
         else:
             return results.reshape(output_shape)
 
+    def pole_density(self, crystal_direction, specimen_directions,
+                     antipodal=True):
+        """
+        Pole density for one crystal direction, in MRD.
+
+        Evaluates the Radon transform of the ODF in closed form (see
+        :mod:`hexrd.phase_transition.texture.pole_figure`), which requires
+        the kernel to provide a Radon transform.
+
+        Parameters
+        ----------
+        crystal_direction : array_like
+            Cartesian crystal direction, shape (3,), in the same crystal
+            frame as the modal orientations.
+        specimen_directions : array_like
+            Cartesian specimen directions, shape (..., 3).
+        antipodal : bool, optional
+            Treat h and -h as equivalent, default True.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Pole density in MRD, shape matching the leading dimensions of
+            ``specimen_directions``.
+        """
+        from .pole_figure import unimodal_pole_density
+
+        return unimodal_pole_density(
+            self, crystal_direction, specimen_directions,
+            antipodal=antipodal,
+        )
+
     def estimated_max_value(self):
         """
         Estimate the maximum ODF value, in MRD.
