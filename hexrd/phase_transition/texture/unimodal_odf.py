@@ -11,10 +11,11 @@ from typing import Optional
 import numpy as np
 from scipy.special import beta as beta_fn
 
+from .arithmetic import ODFArithmetic
 from .kernels import SO3Kernel
 
 
-class UnimodalODF:
+class UnimodalODF(ODFArithmetic):
     """
     Unimodal orientation distribution function.
 
@@ -154,6 +155,16 @@ class UnimodalODF:
     def sample_symmetry(self):
         """str or None: Sample symmetry label, delegated from the kernel."""
         return self._kernel.sample_symmetry
+
+    @property
+    def crystal_symmetry_quats(self):
+        """ndarray or None: Crystal symmetry operators, from the kernel."""
+        return self._kernel.crystal_symmetry_quats
+
+    @property
+    def sample_symmetry_quats(self):
+        """ndarray or None: Sample symmetry operators, from the kernel."""
+        return self._kernel.sample_symmetry_quats
 
     @property
     def n_components(self):
@@ -315,7 +326,7 @@ class UnimodalODF:
 
     def norm(self, n_orientations=100000, seed=None):
         """
-        L2 norm ||f|| = sqrt(J) of the ODF (MTEX ``norm``), in MRD.
+        L2 norm ||f|| = sqrt(J) of the ODF, in MRD.
 
         Uses the exact closed form when available; otherwise estimates the
         norm by Monte Carlo over Haar-uniform orientations.
