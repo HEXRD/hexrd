@@ -7,10 +7,10 @@ figure is a polar axes carrying a 20-level contour plot of intensity
 against azimuth and projected radius, laid out three to a row.
 """
 
-from typing import Optional, Sequence, Union
+from collections.abc import Sequence
 
-from matplotlib import pyplot as plt
 import numpy as np
+from matplotlib import pyplot as plt
 
 DEFAULT_CMAP = 'jet'
 DEFAULT_COLORBAR_LABEL = 'm.r.d.'
@@ -74,7 +74,7 @@ def create_axes(
     n_figures: int,
     n_columns: int = DEFAULT_N_COLUMNS,
     tight_layout: bool = False,
-    window_title: Optional[str] = None,
+    window_title: str | None = None,
 ):
     """
     Create a blank grid of polar axes to draw pole figures on.
@@ -181,13 +181,13 @@ def draw(
     azimuth: np.ndarray,
     radius: np.ndarray,
     intensities: np.ndarray,
-    label: Optional[str] = None,
+    label: str | None = None,
     filled: bool = False,
     grid: bool = False,
     cmap: str = DEFAULT_CMAP,
     colorbar: bool = True,
     colorbar_label: str = DEFAULT_COLORBAR_LABEL,
-    levels: Union[int, Sequence[float]] = DEFAULT_N_LEVELS,
+    levels: int | Sequence[float] = DEFAULT_N_LEVELS,
 ):
     """
     Draw one pole figure onto a polar axes.
@@ -222,9 +222,7 @@ def draw(
     matplotlib.contour.ContourSet
         The contour set that was drawn.
     """
-    azimuth, radius, intensities = close_azimuth_seam(
-        azimuth, radius, intensities
-    )
+    azimuth, radius, intensities = close_azimuth_seam(azimuth, radius, intensities)
 
     # Remove any artists left by a previous draw on this axes.
     for attribute in ('_hexrd_pf_colorbar', '_hexrd_pf_contours'):
@@ -234,12 +232,12 @@ def draw(
             setattr(ax, attribute, None)
 
     contour = ax.tricontourf if filled else ax.tricontour
-    contours = contour(azimuth, radius, intensities, levels=levels,
-                       cmap=cmap)
+    contours = contour(azimuth, radius, intensities, levels=levels, cmap=cmap)
     ax._hexrd_pf_contours = contours
 
     ax.set_yticklabels([])
     ax.grid(grid)
+
     if label is not None:
         ax.set_title(label)
 
@@ -248,11 +246,17 @@ def draw(
             contours, ax=ax, label=colorbar_label
         )
 
+    if not filled:
+        ax.set_axis_on()
+        ax.grid(False)
+        ax.spines["polar"].set_linewidth(1)
+        ax.spines["polar"].set_edgecolor("black")
+
     return contours
 
 
 def plot_pole_figures(
-    labels: Sequence[Optional[str]],
+    labels: Sequence[str | None],
     azimuths: Sequence[np.ndarray],
     radii: Sequence[np.ndarray],
     intensities: Sequence[np.ndarray],
@@ -263,7 +267,7 @@ def plot_pole_figures(
     colorbar_label: str = DEFAULT_COLORBAR_LABEL,
     n_columns: int = DEFAULT_N_COLUMNS,
     tight_layout: bool = False,
-    window_title: Optional[str] = None,
+    window_title: str | None = None,
 ):
     """
     Lay out and draw a set of pole figures, one panel each.
@@ -301,9 +305,7 @@ def plot_pole_figures(
     ValueError
         If the sequences do not all have the same length.
     """
-    lengths = {
-        len(labels), len(azimuths), len(radii), len(intensities)
-    }
+    lengths = {len(labels), len(azimuths), len(radii), len(intensities)}
     if len(lengths) != 1:
         raise ValueError(
             f"labels, azimuths, radii and intensities must have the same "

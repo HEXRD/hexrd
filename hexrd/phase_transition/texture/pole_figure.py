@@ -33,8 +33,6 @@ entirely, so the result is exact to floating point and non-negative by
 construction, the kernel's Radon transform being non-negative itself.
 """
 
-from typing import Optional
-
 import numpy as np
 
 from hexrd.phase_transition.texture import plotting as pf_plotting
@@ -47,7 +45,7 @@ def regular_s2_grid(
     Regular grid of specimen directions over the upper hemisphere.
 
     Both endpoints are included in each direction: the pole is therefore
-    repeated `n_azimuth` times and the 0 / 2*pi meridian appears twice.
+    repeated `n_azimuth` times and the -pi / pi meridian appears twice.
     That redundancy is harmless for evaluation and is what makes the
     contour plots close cleanly at the seam.
 
@@ -56,7 +54,7 @@ def regular_s2_grid(
     n_polar : int, optional
         Number of polar angles from 0 to pi/2 inclusive, default 30.
     n_azimuth : int, optional
-        Number of azimuths from 0 to 2*pi inclusive, default 72.
+        Number of azimuths from -pi to pi inclusive, default 72.
 
     Returns
     -------
@@ -64,15 +62,13 @@ def regular_s2_grid(
         Polar and azimuthal angles in radians, each of length
         `n_polar * n_azimuth`, with the polar angle varying fastest.
     """
-    azimuth = np.linspace(0.0, 2.0 * np.pi, n_azimuth)
+    azimuth = np.linspace(-np.pi, np.pi, n_azimuth)
     polar = np.linspace(0.0, 0.5 * np.pi, n_polar)
     grid_azimuth, grid_polar = np.meshgrid(azimuth, polar)
     return grid_polar.ravel(order='F'), grid_azimuth.ravel(order='F')
 
 
-def directions_from_angles(
-    polar: np.ndarray, azimuth: np.ndarray
-) -> np.ndarray:
+def directions_from_angles(polar: np.ndarray, azimuth: np.ndarray) -> np.ndarray:
     """
     Unit vectors from polar and azimuthal angles.
 
@@ -90,8 +86,7 @@ def directions_from_angles(
     azimuth = np.asarray(azimuth, dtype=float)
     sin_polar = np.sin(polar)
     return np.stack(
-        [sin_polar * np.cos(azimuth), sin_polar * np.sin(azimuth),
-         np.cos(polar)],
+        [sin_polar * np.cos(azimuth), sin_polar * np.sin(azimuth), np.cos(polar)],
         axis=-1,
     )
 
@@ -122,9 +117,7 @@ def _unit_vectors(vectors: np.ndarray) -> np.ndarray:
     """Normalize an array of vectors of shape (..., 3)."""
     vectors = np.atleast_2d(np.asarray(vectors, dtype=float))
     if vectors.shape[-1] != 3:
-        raise ValueError(
-            f"Directions must have shape (..., 3), got {vectors.shape}"
-        )
+        raise ValueError(f"Directions must have shape (..., 3), got {vectors.shape}")
     norms = np.linalg.norm(vectors, axis=-1, keepdims=True)
     if np.any(norms == 0.0):
         raise ValueError("Directions must be non-zero vectors")
@@ -167,9 +160,7 @@ def equivalent_directions(
 
     distinct: list[np.ndarray] = []
     for candidate in candidates:
-        if not any(
-            np.linalg.norm(candidate - kept) < tol for kept in distinct
-        ):
+        if not any(np.linalg.norm(candidate - kept) < tol for kept in distinct):
             distinct.append(candidate)
     return np.array(distinct)
 
@@ -218,9 +209,7 @@ def pole_density(
             f"{type(odf).__name__} does not support pole figure "
             f"calculation; it provides no pole_density() method"
         )
-    return method(
-        crystal_direction, specimen_directions, antipodal=antipodal
-    )
+    return method(crystal_direction, specimen_directions, antipodal=antipodal)
 
 
 def unimodal_pole_density(
@@ -327,16 +316,14 @@ class PoleFigures:
         crystal_directions: np.ndarray,
         specimen_directions: np.ndarray,
         intensities: np.ndarray,
-        hkls: Optional[np.ndarray] = None,
+        hkls: np.ndarray | None = None,
     ) -> None:
         self._crystal_directions = _unit_vectors(crystal_directions)
         self._specimen_directions = _unit_vectors(specimen_directions)
         self._values = np.atleast_2d(np.asarray(intensities, dtype=float))
 
         n_figures = len(self._crystal_directions)
-        if self._values.shape != (
-            n_figures, len(self._specimen_directions)
-        ):
+        if self._values.shape != (n_figures, len(self._specimen_directions)):
             raise ValueError(
                 f"intensities must have shape ({n_figures}, "
                 f"{len(self._specimen_directions)}), got {self._values.shape}"
@@ -370,7 +357,7 @@ class PoleFigures:
         return self._specimen_directions.copy()
 
     @property
-    def hkls(self) -> Optional[np.ndarray]:
+    def hkls(self) -> np.ndarray | None:
         """numpy.ndarray or None: Miller indices, if labels were given."""
         return None if self._hkls is None else self._hkls.copy()
 
@@ -409,9 +396,7 @@ class PoleFigures:
     def pfdata(self) -> dict:
         """dict: (x, y, z, intensity) per figure, as WPPF lays it out."""
         return {
-            k: np.column_stack(
-                (self._specimen_directions, self._values[i])
-            )
+            k: np.column_stack((self._specimen_directions, self._values[i]))
             for i, k in enumerate(self._keys)
         }
 
@@ -429,7 +414,7 @@ class PoleFigures:
         colorbar: bool = True,
         colorbar_label: str = pf_plotting.DEFAULT_COLORBAR_LABEL,
         show: bool = True,
-        window_title: Optional[str] = None,
+        window_title: str | None = None,
     ):
         """
         Plot the pole figures, one panel each.
@@ -496,17 +481,16 @@ class PoleFigures:
         for i, key in enumerate(self._keys):
             values = self._values[i]
             lines.append(
-                f"  {self.label(i)}: "
-                f"{values.min():.3f} - {values.max():.3f} MRD"
+                f"  {self.label(i)}: {values.min():.3f} - {values.max():.3f} MRD"
             )
         return '\n'.join(lines)
 
 
 def calc_pole_figure(
     odf,
-    crystal_directions: Optional[np.ndarray] = None,
-    specimen_directions: Optional[np.ndarray] = None,
-    hkls: Optional[np.ndarray] = None,
+    crystal_directions: np.ndarray | None = None,
+    specimen_directions: np.ndarray | None = None,
+    hkls: np.ndarray | None = None,
     material=None,
     antipodal: bool = True,
 ) -> PoleFigures:
@@ -567,9 +551,7 @@ def calc_pole_figure(
 
     if crystal_directions is None:
         if hkls is None:
-            raise ValueError(
-                "Provide either crystal_directions or hkls"
-            )
+            raise ValueError("Provide either crystal_directions or hkls")
         if material is not None:
             crystal_directions = np.array(
                 [material.TransSpace(h, 'r', 'c') for h in hkls]
@@ -595,11 +577,11 @@ def calc_pole_figure(
         specimen_directions = directions_from_angles(polar, azimuth)
     specimen_directions = _unit_vectors(specimen_directions)
 
-    values = np.array([
-        pole_density(odf, h, specimen_directions, antipodal=antipodal)
-        for h in crystal_directions
-    ])
-
-    return PoleFigures(
-        crystal_directions, specimen_directions, values, hkls=hkls
+    values = np.array(
+        [
+            pole_density(odf, h, specimen_directions, antipodal=antipodal)
+            for h in crystal_directions
+        ]
     )
+
+    return PoleFigures(crystal_directions, specimen_directions, values, hkls=hkls)
