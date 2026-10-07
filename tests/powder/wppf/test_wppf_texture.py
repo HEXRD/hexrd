@@ -378,6 +378,23 @@ def test_march_dollase_texture_factors(texture_instrument, texture_img_dict):
     tf = md.calc_texture_factor(R.params)
     assert np.allclose(tf, expected_texture_factors, rtol=1e-6)
 
+    # With the first peaks outside the tth range, each factor must still
+    # go to its own hkl
+    first_peaks = np.sort(R.tth['Ni']['XFEL'])[:2]
+    kwargs['expt_spectrum'] = expt_spec[expt_spec[:, 0] > first_peaks[-1] + 0.1]
+    R = Rietveld(**kwargs)
+    hkls = R.hkls['Ni']['XFEL']
+    assert len(hkls) < len(md.material.hkls)
+    expected = [
+        md.texture_factors[np.all(md.material.hkls == h, axis=1)][0] for h in hkls
+    ]
+    assert np.allclose(R.phase_texture_factors('Ni', 'XFEL'), expected)
+
+    # A texture model whose hkls differ from the phase's is rejected
+    md.material.hkls = md.material.hkls[::-1]
+    with pytest.raises(ValueError):
+        R.phase_texture_factors('Ni', 'XFEL')
+
 
 def test_march_dollase_validation():
     """Test property validation on MarchDollaseModel."""
