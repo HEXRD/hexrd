@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import numpy as np
 
@@ -31,6 +32,7 @@ class GrainCalibrator(AbstractGrainCalibrator):
         default_refinements=None,
         calibration_picks=None,
         euler_convention=DEFAULT_EULER_CONVENTION,
+        ome_step: Optional[float] = None,
     ):
         super().__init__(
             instr,
@@ -41,6 +43,7 @@ class GrainCalibrator(AbstractGrainCalibrator):
             euler_convention,
         )
         self.ome_period = ome_period
+        self.ome_step = ome_step
         self.index = index
 
     @property
@@ -80,6 +83,7 @@ class GrainCalibrator(AbstractGrainCalibrator):
             pick_hkls_dict,
             self.bmatx,
             self.ome_period,
+            ome_step=self.ome_step,
         )
 
     def model(self):
@@ -92,13 +96,21 @@ class GrainCalibrator(AbstractGrainCalibrator):
             pick_hkls_dict,
             self.bmatx,
             self.ome_period,
+            ome_step=self.ome_step,
             sim_only=True,
         )
 
 
 # Objective function for multigrain fitting
 def sxcal_obj_func(
-    grain_params, instr, xyo_det, hkls_idx, bmat, ome_period, sim_only=False
+    grain_params,
+    instr,
+    xyo_det,
+    hkls_idx,
+    bmat,
+    ome_period,
+    ome_step: Optional[float] = None,
+    sim_only=False,
 ):
     ngrains = len(grain_params)
 
@@ -216,5 +228,10 @@ def sxcal_obj_func(
 
         diff_vecs_xy = calc_xy_all - meas_xy_all
         diff_ome = angularDifference(calc_omes_all, meas_omes_all)
+        if ome_step is not None:
+            # Weight omega so a one-frame error counts the same as a one-pixel xy error
+            # (pixel_size / omega_step); else omega (rad) is ~100x under-weighted vs xy (mm).
+            panel = next(iter(instr.detectors.values()))
+            diff_ome = diff_ome * (panel.pixel_size_row / ome_step)
         retval = np.hstack([diff_vecs_xy, diff_ome.reshape(npts_tot, 1)]).flatten()
     return retval
