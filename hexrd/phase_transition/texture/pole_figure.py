@@ -554,7 +554,7 @@ def calc_pole_figure(
             raise ValueError("Provide either crystal_directions or hkls")
         if material is not None:
             crystal_directions = np.array(
-                [material.TransSpace(h, 'r', 'c') for h in hkls]
+                [material.unitcell.TransSpace(h, 'r', 'c') for h in hkls]
             )
         elif hkls.shape[-1] == 3:
             # Only a cubic-like frame makes (h, k, l) directly cartesian,
