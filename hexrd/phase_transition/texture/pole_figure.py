@@ -549,6 +549,12 @@ def calc_pole_figure(
     if hkls is not None:
         hkls = np.atleast_2d(np.asarray(hkls))
 
+        # check if hkls is 4-index, in that case ignore the third index
+        # the third index, i = -(h+k), so its redundant
+        # if this is not done, the unitcell.TransSpace will not work
+        if hkls.shape[1] == 4:
+            hkls = hkls[:, [0, 1, 3]]
+
     if crystal_directions is None:
         if hkls is None:
             raise ValueError("Provide either crystal_directions or hkls")
