@@ -1,8 +1,8 @@
 import logging
 
+import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
-import numpy as np
 
 from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
@@ -191,7 +191,7 @@ def getPhaseTransformationVariants(
     mat2: Material,
     parallel_planes: np.ndarray,
     parallel_directions: np.ndarray,
-    rmat_parent: np.ndarray | None = None,
+    rmat_parent: list[np.ndarray] | None = None,
     plot: bool = False,
     verbose: bool = False,
 ) -> tuple[np.ndarray, int]:
@@ -210,7 +210,8 @@ def getPhaseTransformationVariants(
     parallel_planes : np.ndarray
         list of numpy arrays with parallel directions, length=2
     rmat_parent : np.ndarray
-        ???, default is np.array([np.eye(3)])
+        starting orientation of parent, default is np.array([np.eye(3)])
+        which corresponds to X || a, Y || c* x a, Z || c*
     plot : boolean
         plot the data in stereographic projection if true
     """
