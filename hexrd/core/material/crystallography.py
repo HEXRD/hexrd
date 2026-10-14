@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2012, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -27,32 +26,32 @@
 # =============================================================================
 from __future__ import annotations
 
-import re
-import logging
 import copy
 import csv
+import logging
 import os
+import re
+from collections.abc import Sequence
 from math import pi
-from typing import Literal, Sequence, Optional, Union, List, Tuple, TypedDict, overload
+from typing import Literal, TypedDict, overload
 
 import numpy as np
 from numpy.typing import NDArray
 
-from hexrd.core.material.unitcell import unitcell
+from hexrd.core import constants, valunits
+from hexrd.core.constants import d2r, epsf, r2d, sqrt3by2, sqrt_epsf
 from hexrd.core.deprecation import deprecated
-from hexrd.core import constants
+from hexrd.core.material.unitcell import unitcell
 from hexrd.core.matrixutil import unitVector
 from hexrd.core.rotations import (
-    rotMatOfExpMap,
-    mapAngle,
-    rotMatOfQuat,
     ltypeOfLaueGroup,
+    mapAngle,
     quatOfLaueGroup,
+    rotMatOfExpMap,
+    rotMatOfQuat,
 )
 from hexrd.core.transforms import xfcapi
-from hexrd.core import valunits
 from hexrd.core.valunits import toFloat
-from hexrd.core.constants import d2r, r2d, sqrt3by2, epsf, sqrt_epsf
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +156,7 @@ def cosineXform(
     return cosar, sinar
 
 
-def processWavelength(arg: Union[valunits.valWUnit, float]) -> float:
+def processWavelength(arg: valunits.valWUnit | float) -> float:
     """
     Convert an energy value to a wavelength.  If argument has units of length
     or energy, will convert to globally specified unit type for wavelength
@@ -210,7 +209,7 @@ def latticePlanes(
     lparms: NDArray[np.float64],
     ltype: str = 'cubic',
     wavelength: float = 1.54059292,
-    strainMag: Optional[float] = None,
+    strainMag: float | None = None,
 ) -> LatPlaneData:
     """
     Generates lattice plane data in the direct lattice for a given set
@@ -289,7 +288,7 @@ def latticePlanes(
 
     """
     if hkls.shape[0] != 3:
-        raise ValueError(f"hkls must be column vectors of shape (3, n)")
+        raise ValueError("hkls must be column vectors of shape (3, n)")
 
     # get B
     L = latticeVectors(lparms, ltype)
@@ -705,7 +704,7 @@ def convert_MillerBravias_direction_to_Miller(UVW):
     return np.vstack([2 * U + V, 2 * V + U, W])
 
 
-class PlaneData(object):
+class PlaneData:
     """
     Careful with ordering: Outputs are ordered by the 2-theta for the
     hkl unless you get self._hkls directly, and this order can change
@@ -720,7 +719,7 @@ class PlaneData(object):
     tThWidth
     """
 
-    def __init__(self, hkls: Optional[np.ndarray], *args, **kwargs) -> None:
+    def __init__(self, hkls: np.ndarray | None, *args, **kwargs) -> None:
         """
         Constructor for PlaneData
 
@@ -769,7 +768,7 @@ class PlaneData(object):
         self._laueGroup = laueGroup
         self._hkls: NDArray[np.int_] = copy.deepcopy(hkls)
         self._strainMag = strainMag
-        self._structFact: Optional[NDArray[np.float64]] = np.ones(self._hkls.shape[1])
+        self._structFact: NDArray[np.float64] | None = np.ones(self._hkls.shape[1])
         self.tThWidth: float | None = tThWidth
 
         # ... need to implement tThMin too
@@ -823,9 +822,9 @@ class PlaneData(object):
     def __str__(self):
         s = '========== plane data ==========\n'
         s += 'lattice parameters:\n   ' + str(self.lparms) + '\n'
-        s += f'two theta width: ({str(self.tThWidth)})\n'
-        s += f'strain magnitude: ({str(self.strainMag)})\n'
-        s += f'beam energy ({str(self.wavelength)})\n'
+        s += f'two theta width: ({self.tThWidth!s})\n'
+        s += f'strain magnitude: ({self.strainMag!s})\n'
+        s += f'beam energy ({self.wavelength!s})\n'
         s += 'hkls: (%d)\n' % self.nHKLs
         s += str(self.getHKLs())
         return s
@@ -875,7 +874,7 @@ class PlaneData(object):
         raise NotImplementedError('for now, not allowing hkls to be reset')
 
     @property
-    def tThMax(self) -> Optional[float]:
+    def tThMax(self) -> float | None:
         """
         Maximum 2-theta value of the plane data.
 
@@ -884,7 +883,7 @@ class PlaneData(object):
         return self._tThMax
 
     @tThMax.setter
-    def tThMax(self, t_th_max: Union[float, valunits.valWUnit]) -> None:
+    def tThMax(self, t_th_max: float | valunits.valWUnit) -> None:
         self._tThMax = toFloat(t_th_max, 'radians')
 
     @property
@@ -908,14 +907,14 @@ class PlaneData(object):
         return retval
 
     @exclusions.setter
-    def exclusions(self, new_exclusions: Optional[np.ndarray]) -> None:
+    def exclusions(self, new_exclusions: np.ndarray | None) -> None:
         excl = np.zeros(len(self.hklDataList), dtype=bool)
         if new_exclusions is not None:
             exclusions = np.atleast_1d(new_exclusions)
             if len(exclusions) == len(self.hklDataList):
-                assert (
-                    exclusions.dtype == 'bool'
-                ), 'Exclusions should be bool if full length'
+                assert exclusions.dtype == 'bool', (
+                    'Exclusions should be bool if full length'
+                )
                 # convert from current hkl ordering to _hkl ordering
                 excl[:] = exclusions[self.tThSortInv]
             else:
@@ -933,14 +932,14 @@ class PlaneData(object):
 
     def exclude(
         self,
-        dmin: Optional[float] = None,
-        dmax: Optional[float] = None,
-        tthmin: Optional[float] = None,
-        tthmax: Optional[float] = None,
-        sfacmin: Optional[float] = None,
-        sfacmax: Optional[float] = None,
-        pintmin: Optional[float] = None,
-        pintmax: Optional[float] = None,
+        dmin: float | None = None,
+        dmax: float | None = None,
+        tthmin: float | None = None,
+        tthmax: float | None = None,
+        sfacmin: float | None = None,
+        sfacmax: float | None = None,
+        pintmin: float | None = None,
+        pintmax: float | None = None,
     ) -> None:
         """
         Set exclusions according to various parameters
@@ -1006,9 +1005,7 @@ class PlaneData(object):
 
         self.exclusions = excl
 
-    def _parseLParms(
-        self, lparms: List[Union[valunits.valWUnit, float]]
-    ) -> List[float]:
+    def _parseLParms(self, lparms: list[valunits.valWUnit | float]) -> list[float]:
         lparmsDUnit = []
         for lparmThis in lparms:
             if isinstance(lparmThis, valunits.valWUnit):
@@ -1025,7 +1022,7 @@ class PlaneData(object):
         return lparmsDUnit
 
     @property
-    def lparms(self) -> List[float]:
+    def lparms(self) -> list[float]:
         """
         Lattice parameters of the plane data.
 
@@ -1035,12 +1032,12 @@ class PlaneData(object):
         return self._lparms
 
     @lparms.setter
-    def lparms(self, lparms: List[Union[valunits.valWUnit, float]]) -> None:
+    def lparms(self, lparms: list[valunits.valWUnit | float]) -> None:
         self._lparms = self._parseLParms(lparms)
         self._calc()
 
     @property
-    def strainMag(self) -> Optional[float]:
+    def strainMag(self) -> float | None:
         """
         Strain magnitude of the plane data.
 
@@ -1066,7 +1063,7 @@ class PlaneData(object):
         return self._wavelength
 
     @wavelength.setter
-    def wavelength(self, wavelength: Union[float, valunits.valWUnit]) -> None:
+    def wavelength(self, wavelength: float | valunits.valWUnit) -> None:
         wavelength = processWavelength(wavelength)
         # Do not re-compute if it is almost the same
         if np.isclose(self._wavelength, wavelength):
@@ -1124,6 +1121,12 @@ class PlaneData(object):
 
         powderI = hedm_intensity * multiplicity
 
+        '''we need the powder intensity on an absolute scale in case
+        multiple phases need to be shown together in the sam plot.
+        so save a copy before rescaling
+        '''
+        self._powder_intensity_absolute = powderI.copy()
+
         # Now scale them
         hedm_intensity = 100.0 * hedm_intensity / np.nanmax(hedm_intensity)
         powderI = 100.0 * powderI / np.nanmax(powderI)
@@ -1139,6 +1142,15 @@ class PlaneData(object):
         self._compute_sf_if_needed()
         assert self._powder_intensity is not None
         return self._powder_intensity[~self.exclusions]
+
+    @property
+    def powder_intensity_absolute(self) -> np.ndarray:
+        """
+        Absolute powder intensity for each hkl in atomic units.
+        """
+        self._compute_sf_if_needed()
+        assert self._powder_intensity_absolute is not None
+        return self._powder_intensity_absolute[~self.exclusions]
 
     @property
     def hedm_intensity(self) -> np.ndarray:
@@ -1157,7 +1169,7 @@ class PlaneData(object):
         symmGroup,
         strainMag,
         wavelength,
-    ) -> Tuple[LatPlaneData, LatVecOps, List[HKLData]]:
+    ) -> tuple[LatPlaneData, LatVecOps, list[HKLData]]:
         """
         Generate lattice plane data from inputs.
 
@@ -1253,7 +1265,7 @@ class PlaneData(object):
         self._calc()
 
     def set_laue_and_lparms(
-        self, laueGroup: str, lparms: List[Union[valunits.valWUnit, float]]
+        self, laueGroup: str, lparms: list[valunits.valWUnit | float]
     ) -> None:
         """
         Set the Laue group and lattice parameters simultaneously
@@ -1283,7 +1295,7 @@ class PlaneData(object):
         """
         return self._q_sym  # rotations.quatOfLaueGroup(self._laueGroup)
 
-    def getPlaneSpacings(self) -> List[float]:
+    def getPlaneSpacings(self) -> list[float]:
         """
         Plane spacings for each hkl.
 
@@ -1321,7 +1333,7 @@ class PlaneData(object):
                 return False
         return True
 
-    def _getTThRange(self, iHKLr: int) -> Tuple[float, float]:
+    def _getTThRange(self, iHKLr: int) -> tuple[float, float]:
         hklData = self.hklDataList[iHKLr]
         if self.tThWidth is not None:  # tThHi-tThLo < self.tThWidth
             tTh = hklData['tTheta']
@@ -1332,7 +1344,7 @@ class PlaneData(object):
             tThLo = hklData['tThetaLo']
         return (tThLo, tThHi)
 
-    def getTThRanges(self, strainMag: Optional[float] = None) -> NDArray[np.float64]:
+    def getTThRanges(self, strainMag: float | None = None) -> NDArray[np.float64]:
         """
         Get the 2-theta ranges for included hkls
 
@@ -1365,8 +1377,8 @@ class PlaneData(object):
         return np.array(tThRanges, dtype=np.float64)
 
     def getMergedRanges(
-        self, cullDupl: Optional[bool] = False
-    ) -> Tuple[List[List[int]], List[List[float]]]:
+        self, cullDupl: bool | None = False
+    ) -> tuple[list[list[int]], list[list[float]]]:
         """
         Return indices and ranges for specified planeData, merging where
         there is overlap based on the tThWidth and line positions
@@ -1413,7 +1425,7 @@ class PlaneData(object):
                 hklsCur = []
         return iHKLLists, mergedRanges
 
-    def getTTh(self, allHKLs: Optional[bool] = False) -> np.ndarray:
+    def getTTh(self, allHKLs: bool | None = False) -> np.ndarray:
         """
         Get the 2-theta values for each hkl.
 
@@ -1435,7 +1447,7 @@ class PlaneData(object):
             tTh.append(hklData['tTheta'])
         return np.array(tTh)
 
-    def getMultiplicity(self, allHKLs: Optional[bool] = False) -> np.ndarray:
+    def getMultiplicity(self, allHKLs: bool | None = False) -> np.ndarray:
         """
         Get the multiplicity for each hkl (number of symHKLs).
 
@@ -1461,7 +1473,7 @@ class PlaneData(object):
         self,
         hkl: int | Sequence[int, int, int] | NDArray[np.int_],
         master: bool = False,
-    ) -> List[int] | int:
+    ) -> list[int] | int:
         """
         Return the unique ID of a list of hkls.
 
@@ -1531,9 +1543,9 @@ class PlaneData(object):
         self,
         *hkl_ids: int,
         asStr: bool = False,
-        thisTTh: Optional[float] = None,
+        thisTTh: float | None = None,
         allHKLs: bool = False,
-    ) -> Union[List[str], np.ndarray]:
+    ) -> list[str] | np.ndarray:
         """
         Returns the powder HKLs subject to specified options.
 
@@ -1615,7 +1627,7 @@ class PlaneData(object):
         self,
         asStr: Literal[True],
         withID: bool = ...,
-        indices: Optional[list[int]] = ...,
+        indices: list[int] | None = ...,
     ) -> list[list[str]]: ...
 
     @overload
@@ -1623,7 +1635,7 @@ class PlaneData(object):
         self,
         asStr: Literal[False] = ...,
         withID: Literal[False] = ...,
-        indices: Optional[list[int]] = ...,
+        indices: list[int] | None = ...,
     ) -> list[NDArray[np.float64]]: ...
 
     @overload
@@ -1631,14 +1643,14 @@ class PlaneData(object):
         self,
         asStr: Literal[False] = ...,
         withID: Literal[True] = ...,
-        indices: Optional[list[int]] = ...,
+        indices: list[int] | None = ...,
     ) -> list[NDArray[np.float64]]: ...
 
     def getSymHKLs(
         self,
         asStr: bool = False,
         withID: bool = False,
-        indices: Optional[list[int]] = None,
+        indices: list[int] | None = None,
     ) -> list[list[str]] | list[NDArray[np.float64]]:
         """
         Return all symmetry HKLs.
@@ -1697,8 +1709,8 @@ class PlaneData(object):
         rMat_c: np.ndarray,
         bMat: np.ndarray,
         wavelength: float,
-        chiTilt: Optional[float] = None,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        chiTilt: float | None = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Static method for calculating g-vectors and scattering vector angles
         for specified hkls, subject to the bragg conditions specified by
@@ -1754,9 +1766,9 @@ class PlaneData(object):
     def _makeScatteringVectors(
         self,
         rMat: np.ndarray,
-        bMat: Optional[np.ndarray] = None,
-        chiTilt: Optional[float] = None,
-    ) -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+        bMat: np.ndarray | None = None,
+        chiTilt: float | None = None,
+    ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
         """
         modeled after QFromU.m
         """
@@ -2220,10 +2232,10 @@ def lorentz_factor(tth: np.ndarray) -> np.ndarray:
 
 def polarization_factor(
     tth: NDArray[np.float64],
-    unpolarized: Optional[bool] = True,
-    eta: Optional[NDArray[np.float64]] = None,
-    f_hor: Optional[float] = None,
-    f_vert: Optional[float] = None,
+    unpolarized: bool | None = True,
+    eta: NDArray[np.float64] | None = None,
+    f_hor: float | None = None,
+    f_vert: float | None = None,
 ) -> NDArray[np.float64]:
     """
     06/14/2021 SS adding lorentz polarization factor computation
