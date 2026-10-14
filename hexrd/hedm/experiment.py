@@ -131,10 +131,15 @@ class SeedSearch:
 @dataclass(frozen=True)
 class Omega:
     tolerance: float           # radians
+    period: np.ndarray         # radians
 
     @classmethod
     def from_dict(cls, d: dict) -> 'Omega':
-        return cls(np.radians(d.get('tolerance', 0.5)))
+        period = np.radians(d.get('period', [-180.0, 180.0]))
+        if not np.isclose(abs(period[1] - period[0]), 2 * np.pi,
+                          rtol=0, atol=1e-8):
+            raise ValueError('omega period range must be 360 degrees')
+        return cls(np.radians(d.get('tolerance', 0.5)), period)
 
 
 @dataclass(frozen=True)

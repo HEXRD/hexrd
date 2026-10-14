@@ -22,7 +22,7 @@ from hexrd.core.transforms import xfcapi
 def _prefetch_heavy_imports():
     """Import peak-finding and clustering dependencies in a worker thread."""
     from scipy import ndimage  # noqa: F401
-    from sklearn.cluster import dbscan  # noqa: F401
+    from scipy.spatial.transform import Rotation  # noqa: F401
 
 
 @dataclass
@@ -596,18 +596,19 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
             lambda i: _find_peaks(maps.ring_maps[i].copy(), fo.seed_search),
             seed_ids))
 
-        centers = []
-        for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
-            for ispot in range(num_spots):
-                com = coms[ispot]
-                if np.isnan(com[0]):
-                    continue
-                ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
-                eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
-                centers.append((hkl, tth, eta_c, ome_c))
-        q_fibers = list(pool.map(
-            lambda c: _fiber(*c, chi, plane_data.B, fiber_ndiv, csym),
-            centers))
+    centers = []
+    for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
+        for ispot in range(num_spots):
+            com = coms[ispot]
+            if np.isnan(com[0]):
+                continue
+            ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
+            eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
+            centers.append((hkl, tth, eta_c, ome_c))
+    q_fibers = [
+        _fiber(*center, chi, plane_data.B, fiber_ndiv, csym)
+        for center in centers
+    ]
     return np.hstack(q_fibers) if q_fibers else np.empty((4, 0))
 
 
@@ -715,7 +716,7 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
         np.vstack([s.T for s in symm_hkls_per_ring]), dtype=np.float64)
 
     eta_ranges = fo.eta.range
-    ome_offset = maps.omega_period.min()
+    ome_offset = fo.omega.period.min()
     valid_eta = normalize_ranges(eta_ranges[:, 0], eta_ranges[:, 1], -np.pi)
     valid_ome = normalize_ranges(
         np.array([maps.omega_edges.min()]),
@@ -1065,6 +1066,37 @@ def _clip_to_panel(detector, xy: np.ndarray) -> np.ndarray:
                 & (np.abs(xy[:, 1]) <= half_y - buf_y))
 
 
+def _dbscan(points: np.ndarray, eps: float, min_samples: int) -> np.ndarray:
+    """DBSCAN for the small candidate sets produced by orientation scoring."""
+    n = len(points)
+    if n <= 1024:
+        distance = np.zeros((n, n))
+        for coordinate in points.T:
+            distance += (coordinate[:, None] - coordinate[None, :]) ** 2
+        neighbors = distance <= eps * eps
+        core = neighbors.sum(axis=1) >= min_samples
+        labels = np.full(n, -1, dtype=int)
+        cluster = 0
+        for i in range(n):
+            if labels[i] >= 0 or not core[i]:
+                continue
+            pending = [i]
+            while pending:
+                j = pending.pop()
+                if labels[j] >= 0:
+                    continue
+                labels[j] = cluster
+                if core[j]:
+                    pending.extend(np.flatnonzero(neighbors[j] & (labels < 0)))
+            cluster += 1
+        return labels
+
+    from sklearn.cluster import dbscan
+
+    return dbscan(points, eps=eps, min_samples=min_samples,
+                  metric='minkowski', p=2, n_jobs=1)[1]
+
+
 def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
                    q_fibers: np.ndarray, completeness: np.ndarray,
                    min_samples: int = 1) -> np.ndarray:
@@ -1120,9 +1152,8 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
                               criterion='distance', metric=quat_distance)
         labels = np.asarray(labels, dtype=int)  # already 1..N, no noise
     else:
-        from sklearn.cluster import dbscan
-
         if algorithm is Algo.SPH_DBSCAN:
+            from sklearn.cluster import dbscan
             from sklearn.metrics.pairwise import pairwise_distances
             pdist = pairwise_distances(keep.T, metric=quat_distance, n_jobs=1)
             _, labels = dbscan(pdist, eps=np.radians(radius),
@@ -1132,8 +1163,7 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
                 pts, eps = keep[1:, :].T, 0.25 * np.radians(radius)
             else:
                 pts, eps = keep.T, 0.5 * np.radians(radius)
-            _, labels = dbscan(pts, eps=eps, min_samples=min_samples,
-                               metric='minkowski', p=2, n_jobs=1)
+            labels = _dbscan(pts, eps, min_samples)
 
         # relabel: clusters 1..N, noise -1
         labels = np.asarray(labels, dtype=int)

@@ -34,8 +34,6 @@ import numpy as np
 from numba import njit
 from numpy.typing import NDArray
 from typing import Literal, Optional, Sequence
-from scipy.optimize import leastsq
-from scipy.spatial.transform import Rotation as R
 
 from hexrd.core.deprecation import deprecated
 from hexrd.core import constants as cnst
@@ -47,6 +45,16 @@ from hexrd.core.matrixutil import (
     nullSpace,
 )
 from hexrd.core.utils.warnings import ignore_warnings
+
+
+class _LazyRotation:
+    def __getattr__(self, name):
+        from scipy.spatial.transform import Rotation
+
+        return getattr(Rotation, name)
+
+
+R = _LazyRotation()
 
 
 # =============================================================================
@@ -485,6 +493,8 @@ def quatAverage(q_in, qsym):
         else:
             n = unitVector(q_in[1:, 0].reshape(3, 1))
             x0 = phi * n.flatten()
+        from scipy.optimize import leastsq
+
         results = leastsq(quatAverage_obj, x0, args=(q_in, qsym))
         phi = np.sqrt(sum(results[0] * results[0]))
         if phi <= np.finfo(float).eps:
