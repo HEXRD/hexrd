@@ -11,7 +11,6 @@ import hexrd.core.resources
 import warnings
 import h5py
 from pathlib import Path
-from scipy.interpolate import interp1d
 import time
 
 eps = constants.sqrt_epsf
@@ -22,6 +21,23 @@ MU_ID = 3
 COH_INCOH_ID = 4
 MU_K_ID = 6
 WAV_ID = 7
+
+
+class _LinearInterpolator:
+    def __init__(self, x, y):
+        order = np.argsort(x, kind="mergesort")
+        self.x = np.asarray(x)[order]
+        self.y = np.asarray(y)[order]
+
+    def __call__(self, value):
+        value = np.asarray(value)
+        if np.any(value < self.x[0]) or np.any(value > self.x[-1]):
+            raise ValueError("interpolation value is outside the data range")
+        hi = np.searchsorted(self.x, value)
+        hi = np.clip(hi, 1, len(self.x) - 1)
+        lo = hi - 1
+        slope = (self.y[hi] - self.y[lo]) / (self.x[hi] - self.x[lo])
+        return slope * (value - self.x[lo]) + self.y[lo]
 
 """ calculate dot product of two vectors in any space 'd' 'r' or 'c' """
 
@@ -774,7 +790,7 @@ class unitcell:
                 if Z <= 92:
                     gid = fid.get("/" + elem)
                     data = np.array(gid.get("data"))
-                    self.pe_cs[elem] = interp1d(
+                    self.pe_cs[elem] = _LinearInterpolator(
                         data[:, WAV_ID], data[:, MU_ID] + data[:, COH_INCOH_ID]
                     )
                     data = data[:, [WAV_ID, REAL_F1_ID, IMAG_F2_ID]]
@@ -785,7 +801,7 @@ class unitcell:
                     zs = np.ones_like(wav) * Z
                     zrs = np.zeros_like(wav)
                     data_zs = np.vstack((wav, zs, zrs)).T
-                    self.pe_cs[elem] = interp1d(wav, zrs)
+                    self.pe_cs[elem] = _LinearInterpolator(wav, zrs)
                     f_anomalous_data.append(data_zs)
 
         n = max([x.shape[0] for x in f_anomalous_data])
