@@ -85,6 +85,8 @@ class OrientationMaps:
     @classmethod
     def from_dict(cls, d: dict) -> 'OrientationMaps':
         filter_maps = d.get('filter_maps', False)
+        if filter_maps is None:
+            filter_maps = False
         if not isinstance(filter_maps, (bool, int, float)):
             raise ValueError(
                 'filter_maps must be a boolean or a numeric LoG width in pixels')

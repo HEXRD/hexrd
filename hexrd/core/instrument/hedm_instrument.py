@@ -2520,53 +2520,6 @@ class GrainDataWriter_h5(object):
 
 
 def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
-    # mark pixels in the spec'd tth range
-    pixels_in_tthr = np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
-
-    # catch case where ring isn't on detector
-    if not np.any(pixels_in_tthr):
-        return None
-
-    pixel_ids = np.where(pixels_in_tthr)
-
-    # grab relevant eta coords using histogram
-    pixel_etas = peta[pixel_ids]
-    reta_hist = histogram(pixel_etas, bins=eta_edges)[0]
-    bins_on_detector = np.where(reta_hist)[0]
-
-    return pixel_etas, eta_edges, pixel_ids, bins_on_detector
-
-
-def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
-    for i_row in range(*rows):
-        image = ims[i_row]
-
-        # handle threshold if specified
-        if threshold is not None:
-            # !!! NaNs get preserved
-            image = np.array(image)
-            image[image < threshold] = 0.0
-
-        for i_r, tthr in enumerate(tth_ranges):
-            this_map = ring_maps[i_r]
-            params = ring_params[i_r]
-            if not params:
-                # We are supposed to skip this ring...
-                continue
-
-            # Unpack the params
-            pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
-            result = histogram(
-                pixel_etas,
-                bins=eta_edges,
-                weights=np.asarray(image[pixel_ids], dtype=np.float64),
-            )[0]
-
-            # Note that this preserves nan values for bins not on the detector.
-            this_map[i_row, bins_on_detector] = result[bins_on_detector]
-
-
-def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
     pixels_in_tthr = np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
     if not np.any(pixels_in_tthr):
         return None
