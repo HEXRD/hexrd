@@ -1,11 +1,15 @@
-"""The `hexrd find-orientations` command: rotation series -> grain orientations.
+"""The ``hexrd find-orientations`` command."""
 
-A thin driver over :mod:`hexrd.hedm.find_orientations`: parse the experiment
-config, run the five-stage pipeline, write the results.
-"""
 import logging
 import os
 import sys
+import cProfile
+import io
+import pstats
+from contextlib import nullcontext
+from dataclasses import replace
+
+import numpy as np
 
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.find_orientations import find_orientations, write_results
@@ -36,6 +40,20 @@ def configure_parser(sub_parsers):
         help='overwrites existing analysis, including cached eta-omega maps',
     )
     p.add_argument(
+        '--hkls',
+        metavar='HKLs',
+        type=str,
+        default=None,
+        help="""\
+          list hkl entries in the materials file to use for fitting;
+          if None, defaults to list specified in the yml file""",
+    )
+    p.add_argument(
+        '-p', '--profile',
+        action='store_true',
+        help='runs the analysis with cProfile enabled',
+    )
+    p.add_argument(
         '--study',
         type=int,
         default=None,
@@ -49,54 +67,77 @@ def execute(args, parser):
         logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
     )
     logger = logging.getLogger('hexrd')
+    previous_level, previous_propagate = logger.level, logger.propagate
     logger.setLevel(log_level)
     logger.propagate = False  # avoid double-printing via the root logger
     ch = logging.StreamHandler()
-    ch.setLevel(log_level)
+    ch.setLevel(logging.CRITICAL if args.quiet else log_level)
     ch.setFormatter(
         logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
     )
     logger.addHandler(ch)
-    logger.info('=== begin find-orientations ===')
+    fh = None
+    try:
+        logger.info('=== begin find-orientations ===')
 
-    experiment = HedmExperiment(args.yml, study=args.study)
-    material = experiment.get_active_material()
-
-    actmat = experiment.active_material.active
-    accepted = os.path.join(
-        experiment.analysis_dir, f'accepted-orientations-{actmat}.dat'
-    )
-    if os.path.exists(accepted) and not (args.force or args.clean):
-        logger.error(
-            '%s already exists. Change yml file or specify "force" or "clean"',
-            accepted,
+        experiment = HedmExperiment(
+            args.yml,
+            study=getattr(args, 'study', None),
+            working_dir=os.getcwd(),
+            new_file_placement=False,
         )
-        sys.exit()
+        if experiment.active_material.dmin is None:
+            experiment.active_material.dmin = 0.5
+        hkls = getattr(args, 'hkls', None)
+        if isinstance(hkls, str):
+            hkls = [int(i) for i in hkls.split(',') if i]
+        if hkls:
+            fo = experiment.find_orientations
+            experiment.find_orientations = replace(
+                fo,
+                orientation_maps=replace(
+                    fo.orientation_maps, active_hkls=np.asarray(hkls, dtype=int)
+                ),
+            )
 
-    # log to a file in the analysis directory as well
-    os.makedirs(experiment.analysis_dir, exist_ok=True)
-    logfile = os.path.join(
-        experiment.analysis_dir, f'find-orientations-{actmat}.log'
-    )
-    fh = logging.FileHandler(logfile, mode='w')
-    fh.setLevel(log_level)
-    fh.setFormatter(
-        logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
-    )
-    logger.info('logging to %s', logfile)
-    logger.addHandler(fh)
+        accepted = experiment.accepted_orientations_file
+        if os.path.exists(accepted) and not (args.force or args.clean):
+            logger.error(
+                '%s already exists. Change yml file or specify "force" or "clean"',
+                accepted,
+            )
+            sys.exit()
 
-    results = find_orientations(experiment, material, clean=args.clean)
-    output_dir = write_results(results, experiment)
-    logger.info(
-        'found %d grain(s); results written to %s',
-        results.num_grains, output_dir,
-    )
+        os.makedirs(experiment.analysis_dir, exist_ok=True)
+        logfile = experiment.find_orientations_logfile
+        fh = logging.FileHandler(logfile, mode='w')
+        fh.setLevel(log_level)
+        fh.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
+        )
+        logger.info('logging to %s', logfile)
+        logger.addHandler(fh)
 
-    fh.flush()
-    fh.close()
-    logger.removeHandler(fh)
-    logger.info('=== end find-orientations ===')
-    ch.flush()
-    ch.close()
-    logger.removeHandler(ch)
+        with (
+            cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()
+        ) as profile:
+            results = find_orientations(experiment, clean=args.clean)
+            output_dir = write_results(results, experiment)
+        if profile is not None:
+            summary = io.StringIO()
+            pstats.Stats(profile, stream=summary).sort_stats('cumulative').print_stats(50)
+            logger.info('%s', summary.getvalue())
+        logger.info(
+            'found %d grain(s); results written to %s',
+            results.num_grains, output_dir,
+        )
+
+        logger.info('=== end find-orientations ===')
+    finally:
+        if fh is not None:
+            logger.removeHandler(fh)
+            fh.close()
+        logger.removeHandler(ch)
+        ch.close()
+        logger.setLevel(previous_level)
+        logger.propagate = previous_propagate

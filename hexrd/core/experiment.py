@@ -360,13 +360,11 @@ class Experiment:
         self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
         self.image_series_list = []
         for d in config['image_series']['data']:
-            panel = d['panel']
+            panel, parent = self._load_image_series(d)
             if isinstance(panel, str):
-                self.image_series_list.append(
-                    ImageSeries(panel, self._path(d['file']), self.max_workers))
+                self.image_series_list.append(parent)
                 continue
             # a list of panels: shared frames split by each detector's ROI
-            parent = ImageSeries(None, self._path(d['file']), self.max_workers)
             for name in panel:
                 det = self.detectors[name]
                 if det.pixels.roi is None:
@@ -380,6 +378,12 @@ class Experiment:
         self.analysis_name = config['analysis_name']
         self.analysis_dir = self._path(self.analysis_name)
         self._materials_file = self._path(config['material']['definitions'])
+
+    def _load_image_series(self, spec):
+        panel = spec['panel']
+        series = ImageSeries(panel if isinstance(panel, str) else None,
+                             self._path(spec['file']), self.max_workers)
+        return panel, series
 
     @property
     def instrument(self):
