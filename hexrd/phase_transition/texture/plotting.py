@@ -259,6 +259,26 @@ def draw(
     return contours
 
 
+def draw_observable_ring(ax, dir_3d: np.ndarray, kwargs: dict | None = None):
+    '''for each pole figure, we need a way to draw the set of points that
+    are observable in a diffraction experiment. This ring is at an angle of
+    pi - theta around the x-ray beam
+    '''
+    # normalize in case normalization was missed before passing it
+    dir_3d = dir_3d / np.linalg.norm(dir_3d, axis=1, keepdims=True)
+
+    # Azimuth and stereographic radius (+z at center, equator at r=1).
+    theta = np.unwrap(np.arctan2(dir_3d[:, 1], dir_3d[:, 0]))
+    r = np.hypot(dir_3d[:, 0], dir_3d[:, 1]) / (1 + dir_3d[:, 2])
+
+    if kwargs is None:
+        kwargs = {}
+    style = dict(color="w", linewidth=1.5, zorder=10)
+    style.update(kwargs)
+    style["linestyle"] = "-"
+    ax.plot(theta, r, **style)
+
+
 def plot_pole_figures(
     labels: Sequence[str | None],
     azimuths: Sequence[np.ndarray],
