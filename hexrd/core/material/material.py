@@ -55,7 +55,6 @@ from hexrd.core.material.symbols import (
     HM_to_sgnum,
 )
 from hexrd.core.utils.compatibility import h5py_read_string
-from hexrd.core.fitting.peakfunctions import _unit_gaussian
 
 __all__ = ['Material', 'loadMaterialList']
 
@@ -415,6 +414,8 @@ class Material(object):
 
         requested feature from Amy Jenei
         """
+        from hexrd.core.fitting.peakfunctions import _unit_gaussian
+
         tth = np.degrees(self.planeData.getTTh())  # convert to degrees
         Ip = self.planeData.powder_intensity
         self.powder_overlay = np.zeros_like(ttharray)

@@ -8,8 +8,6 @@ import numpy as np
 
 from hexrd.core import constants as cnst
 from hexrd.core import rotations
-from hexrd.core import instrument
-from hexrd.hedm.fitgrains import fit_grains
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.core.transforms import xfcapi
 
@@ -81,6 +79,8 @@ class GrainData(_BaseGrainData):
 
     def write_grains_out(self, fname):
         """Write a file in grains.out format"""
+        from hexrd.core import instrument
+
         gw = instrument.GrainDataWriter(filename=fname)
         n = len(self.id)
         for i in range(n):
@@ -189,6 +189,8 @@ def configure_parser(sub_parsers):
 
 def write_results(fit_results, experiment, grains_filename='grains.out',
                   grains_npz='grains.npz'):
+    from hexrd.core import instrument
+
     instr = experiment.instrument
     analysis_dir = Path(experiment.analysis_dir)
     nfit = len(fit_results)
@@ -212,6 +214,9 @@ def write_results(fit_results, experiment, grains_filename='grains.out',
 
 
 def execute(args, parser):
+    from hexrd.core import instrument
+    from hexrd.hedm.fitgrains import fit_grains
+
     clobber = args.force or args.clean
 
     base = HedmExperiment(args.yml)
