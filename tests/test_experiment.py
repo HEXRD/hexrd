@@ -263,7 +263,9 @@ def test_hkl_array_forms():
                           [[1, 0, 0], [1, 1, 0]])
     # a flat list of ints is the legacy master-hkl-ID spelling
     assert np.array_equal(_hkl_array([0, 3, 5], 'k'), [0, 3, 5])
-    for bad in ([[1, 0]], [[1.5, 0.0, 0.0]], [0.5, 1.5], 'all', 3):
+    assert _hkl_array('all', 'k') is None
+    assert np.array_equal(_hkl_array(3, 'k'), [3])
+    for bad in ([[1, 0]], [[1.5, 0.0, 0.0]], [0.5, 1.5], 'invalid'):
         with pytest.raises(ValueError):
             _hkl_array(bad, 'k')
 
@@ -283,9 +285,9 @@ def test_orientation_maps_from_dict():
         'file': 'maps.npz', 'filter_maps': True, 'filter_fwhm': 2.0})
     assert om.filter_maps is True and om.filter_fwhm == 2.0
 
-    # hexrd's legacy numeric filter_maps spelling is rejected, with direction
-    with pytest.raises(ValueError, match='filter_fwhm'):
-        OrientationMaps.from_dict({'filter_maps': 2.0})
+    numeric = OrientationMaps.from_dict({'filter_maps': 2.0})
+    assert numeric.filter_maps is True and numeric.filter_fwhm == 2.0
+    assert OrientationMaps.from_dict({'filter_maps': None}).filter_maps is False
     with pytest.raises(ValueError, match='filter_maps: true'):
         OrientationMaps.from_dict({'filter_fwhm': 2.0})
 
@@ -430,6 +432,85 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.analysis_name == 'study1'
     assert study.find_orientations.orientation_maps.eta_step == 10.0
     assert study.find_orientations.clustering.radius == 1.0
+
+
+def test_registered_image_series_and_metadata_panel(synthetic_config):
+    with open(synthetic_config) as stream:
+        config = next(yaml.safe_load_all(stream))
+    frames = np.zeros((3, 4, 6), dtype=np.uint16)
+    frames[:, 1, 2] = 40_000
+    omega = np.array([[0., 120.], [120., 240.], [240., 360.]])
+    filename = synthetic_config.parent / 'images.h5'
+    with h5py.File(filename, 'w') as stream:
+        group = stream.create_group('entry')
+        group['images'] = frames
+        group.attrs['omega'] = omega
+        group.attrs['panel'] = 'p0'
+    config['image_series'] = {
+        'format': 'hdf5',
+        'data': [{'file': 'images.h5', 'args': {'path': 'entry'}}],
+    }
+    with open(synthetic_config, 'w') as stream:
+        yaml.safe_dump(config, stream)
+    experiment = HedmExperiment(str(synthetic_config))
+    (series,) = experiment.image_series_list
+    assert series.panel == 'p0'
+    assert len(series) == 3
+    assert np.array_equal(series.omega, np.radians(omega))
+    assert np.array_equal(series[0].toarray(), frames[0])
+    assert series[0, 1:2, 2:3].item() == 40_000
+
+    # Explicit null means a shared series, even when metadata names a panel.
+    config['image_series']['data'][0]['panel'] = None
+    with open(synthetic_config, 'w') as stream:
+        yaml.safe_dump(config, stream)
+    with pytest.raises(ValueError, match='pixels: roi'):
+        HedmExperiment(str(synthetic_config))
+
+
+def test_grouped_panel_roi_config(synthetic_config):
+    with open(synthetic_config) as stream:
+        config = next(yaml.safe_load_all(stream))
+    instrument_path = synthetic_config.parent / 'instrument.yml'
+    with open(instrument_path) as stream:
+        instrument = yaml.safe_load(stream)
+    original = instrument['detectors'].pop('p0')
+    instrument['detectors'] = {
+        'left': {**original, 'group': 'p0',
+                 'pixels': {'rows': 4, 'columns': 3, 'size': [0.2, 0.2], 'roi': [0, 0]}},
+        'right': {**original, 'group': 'p0',
+                  'pixels': {'rows': 4, 'columns': 3, 'size': [0.2, 0.2], 'roi': [0, 3]}},
+    }
+    with open(instrument_path, 'w') as stream:
+        yaml.safe_dump(instrument, stream)
+    experiment = HedmExperiment(str(synthetic_config))
+    left, right = experiment.image_series_list
+    assert [left.panel, right.panel] == ['left', 'right']
+    assert left._parent is right._parent
+    assert left.images[0].toarray()[1, 2] == 40_000
+    assert not right.images[0].nnz
+
+
+@pytest.mark.parametrize('panel', [None, 'physical-panel'])
+def test_shared_image_series_requires_explicit_roi(synthetic_config, panel):
+    with open(synthetic_config) as stream:
+        config = next(yaml.safe_load_all(stream))
+    config['image_series']['data'][0]['panel'] = panel
+    with open(synthetic_config, 'w') as stream:
+        yaml.safe_dump(config, stream)
+    instrument_path = synthetic_config.parent / 'instrument.yml'
+    with open(instrument_path) as stream:
+        instrument = yaml.safe_load(stream)
+    instrument['detectors']['p0']['group'] = 'physical-panel'
+    with open(instrument_path, 'w') as stream:
+        yaml.safe_dump(instrument, stream)
+    with pytest.raises(ValueError, match='pixels: roi'):
+        HedmExperiment(str(synthetic_config))
+    instrument['detectors']['p0']['pixels']['roi'] = [0, 0]
+    with open(instrument_path, 'w') as stream:
+        yaml.safe_dump(instrument, stream)
+    (series,) = HedmExperiment(str(synthetic_config)).image_series_list
+    assert series[0, 1:2, 2:3].item() == 40_000
 
 
 def test_eta_ome_maps_file_paths(synthetic_config, tmp_path):

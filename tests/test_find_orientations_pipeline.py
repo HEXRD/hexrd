@@ -45,13 +45,15 @@ from hexrd.hedm.find_orientations import (
     _find_peaks,
     _load_eta_omega_maps,
     _merge_duplicates,
+    _panel_bin_data,
     _resolve_active_rings,
-    _ring_pixels,
+    _ring_masks,
     _save_eta_omega_maps,
     cluster_grains,
     find_orientations,
     generate_orientation_fibers,
     normalize_ranges,
+    score_orientations,
     write_results,
 )
 
@@ -356,6 +358,33 @@ def test_clean_map():
                               [0.0, 0.0, 0.5]])
 
 
+@pytest.mark.parametrize('method', list(SeedSearchMethod))
+@pytest.mark.parametrize('missing', [False, True])
+def test_seed_search_without_peaks_returns_empty_result(method, missing, tmp_path):
+    fo = FindOrientations.from_dict({
+        'seed_search': {'hkl_seeds': [0], 'method': {method.value: {}}},
+        'clustering': {'radius': 1.0, 'completeness': 0.5},
+    })
+    experiment = SimpleNamespace(
+        find_orientations=fo, max_workers=1,
+        oscillation_stage=SimpleNamespace(chi=0.0),
+        active_material=SimpleNamespace(active='test'), analysis_dir=str(tmp_path),
+        accepted_orientations_file=str(tmp_path / 'accepted-orientations-test.dat'),
+        scored_orientations_file=str(tmp_path / 'scored-orientations-test.npz'),
+    )
+    maps = _tiny_maps(np.full((1, 4, 8), np.nan if missing else 0.0))
+    pd = _fake_plane_data()
+    fibers = generate_orientation_fibers(experiment, pd, maps)
+    assert fibers.shape == (4, 0)
+    scores = score_orientations(experiment, pd, maps, fibers)
+    qbar = cluster_grains(experiment, pd, fibers, scores)
+    assert scores.shape == (0,)
+    assert qbar.shape == (4, 0)
+    write_results(FindOrientationsResult(qbar, fibers, scores), experiment)
+    assert (tmp_path / 'accepted-orientations-test.dat').read_text() == ''
+    assert len((tmp_path / 'grains.out').read_text().splitlines()) == 1
+
+
 def test_apply_distortion():
     xy = np.array([[10.0, 20.0], [-5.0, 3.0]])
 
@@ -371,18 +400,34 @@ def test_apply_distortion():
     assert np.allclose(_apply_distortion(ge, xy), expected)
 
 
-def test_ring_pixels():
-    panel_tth = np.array([0.05, 0.10, 0.11, 0.20])
-    panel_eta = np.array([0.0, 1.0, -2.0, 3.0])
-    eta_edges = np.linspace(-np.pi, np.pi, 9)
+def test_ring_masks_histogram_coverage_and_block_boundary(impl):
+    panel_tth = np.array([0.05, 0.10, 0.11, 0.20, np.nan])
+    eta_bin = np.array([0, 1, 2, -1, 3])
+    ranges = np.tile([0.09, 0.12], (65, 1))
+    ranges[1] = [0.5, 0.6]  # this ring misses the panel entirely
+    masks, coverage = impl(_ring_masks)(panel_tth, eta_bin, ranges, 4)
+    assert masks.shape == (2, 5)
+    for ring, (lo, hi) in enumerate(ranges):
+        membership = ((masks[ring // 63] >> (ring % 63)) & 1).astype(bool)
+        expected = (panel_tth >= lo) & (panel_tth <= hi) & (eta_bin >= 0)
+        assert np.array_equal(membership, expected)
+        expected_bins = np.zeros(4, dtype=bool)
+        expected_bins[eta_bin[expected]] = True
+        assert np.array_equal(coverage[ring], expected_bins)
 
-    rp = _ring_pixels(np.array([0.09, 0.12]), panel_tth, panel_eta, eta_edges)
-    assert np.array_equal(rp.in_ring, [False, True, True, False])
-    # eta bins covered: one around eta=1.0, one around eta=-2.0
-    assert len(rp.bins) == 2
 
-    assert _ring_pixels(np.array([0.5, 0.6]), panel_tth, panel_eta,
-                        eta_edges) is None
+def test_panel_bin_data_matches_histogram_at_edges(monkeypatch):
+    from hexrd.hedm import find_orientations as pipeline
+
+    # Includes both closed outer edges, internal boundaries and invalid etas.
+    eta = np.array([-3., -2., -1., 0., 1., 2., 3., np.nan])
+    tth = np.full(eta.shape, 0.1)
+    edges = np.array([-2., -1., 0., 1., 2.])
+    monkeypatch.setattr(pipeline, '_panel_pixel_angles', lambda *args: (tth, eta))
+    bins, masks, coverage = _panel_bin_data(None, None, np.array([[0.05, 0.15]]), edges)
+    assert np.array_equal(bins, [-1, 0, 1, 2, 3, 3, -1, -1])
+    assert np.array_equal(masks[0] != 0, np.isfinite(eta) & (eta >= -2) & (eta <= 2))
+    assert np.array_equal(coverage[0], np.histogram(eta, bins=edges)[0] > 0)
 
 
 # ---------------------------------------------------------------------------
@@ -709,7 +754,9 @@ def test_write_results_formats(tmp_path):
         grain_orientations=qbar, test_orientations=trials, completeness=scores)
     experiment = SimpleNamespace(
         analysis_dir=str(tmp_path / 'analysis'),
-        active_material=SimpleNamespace(active='ruby'))
+        active_material=SimpleNamespace(active='ruby'),
+        accepted_orientations_file=str(tmp_path / 'analysis' / 'accepted-orientations-ruby.dat'),
+        scored_orientations_file=str(tmp_path / 'analysis' / 'scored-orientations-ruby.npz'))
 
     out_dir = write_results(results, experiment)
     assert out_dir == experiment.analysis_dir
@@ -770,6 +817,8 @@ def _ruby_config_path(example_repo_path, tmp_path, **find_orientations_updates):
     for entry in cfg['image_series']['data']:
         entry['file'] = str((include / entry['file']).resolve())
     cfg['analysis_name'] = 'analysis'
+    cfg['working_dir'] = str(tmp_path)
+    cfg['new_file_placement'] = True
     cfg['find_orientations'].update(find_orientations_updates)
 
     config_path = tmp_path / 'ruby.yml'
@@ -838,8 +887,7 @@ def test_ruby_quaternion_grid(example_repo_path, tmp_path):
     grid_path = tmp_path / 'grid.npy'
     np.save(grid_path, grid)
 
-    # a non-label seed method exercises the skimage prefetch, and is
-    # otherwise ignored: the grid replaces the seed search entirely
+    # Seed-search settings are ignored for quaternion grids.
     config_path = _ruby_config_path(
         example_repo_path, tmp_path,
         use_quaternion_grid=str(grid_path),
@@ -853,6 +901,29 @@ def test_ruby_quaternion_grid(example_repo_path, tmp_path):
     expected = np.load(DATA_DIR / 'ruby_qbar.npy')
     assert np.allclose(np.abs(results.grain_orientations.T @ expected), 1.0,
                        atol=1e-6)
+
+
+@pytest.mark.parametrize('grid_search', [False, True])
+def test_custom_script_matches_pipeline(example_repo_path, tmp_path, grid_search):
+    script = Path(__file__).resolve().parents[1] / 'scripts' / 'find_orientations.py'
+    updates = {}
+    if grid_search:
+        grid_file = tmp_path / 'grid.npy'
+        np.save(grid_file, np.hstack([np.load(DATA_DIR / 'ruby_qbar.npy'),
+                                     _rot_z_quats([20., 40., 60.])]))
+        updates['use_quaternion_grid'] = str(grid_file)
+    config = _ruby_config_path(example_repo_path, tmp_path, **updates)
+    expected = find_orientations(HedmExperiment(str(config)))
+    output = tmp_path / 'custom-output'
+    process = subprocess.run(
+        [sys.executable, str(script), str(config), '--output-dir', str(output)],
+        check=True, capture_output=True, text=True)
+    assert f'Found {expected.num_grains} grain(s)' in process.stdout
+    with np.load(output / 'scored-orientations-ruby.npz') as archive:
+        assert np.array_equal(archive['test_quaternions'], expected.test_orientations)
+        assert np.array_equal(archive['score'], expected.completeness)
+    assert np.array_equal(np.loadtxt(output / 'accepted-orientations-ruby.dat', ndmin=2),
+                          expected.grain_orientations.T)
 
 
 # ---------------------------------------------------------------------------
@@ -882,8 +953,66 @@ def test_cli_parser():
     assert args.func is execute
 
 
+@pytest.mark.parametrize('placement', [False, True])
+@pytest.mark.parametrize('configured_working_dir', [False, True])
+def test_cli_master_options_and_paths(example_repo_path, tmp_path, monkeypatch,
+                                       placement, configured_working_dir):
+    import argparse
+    from hexrd.hedm.cli.find_orientations import configure_parser
+
+    path = _ruby_config_path(example_repo_path, tmp_path)
+    with open(path) as stream:
+        config = yaml.safe_load(stream)
+    grid = tmp_path / 'grid.npy'
+    np.save(grid, np.load(DATA_DIR / 'ruby_qbar.npy'))
+    config['find_orientations']['use_quaternion_grid'] = str(grid)
+    config['find_orientations']['orientation_maps']['active_hkls'] = 'all'
+    if placement:
+        config['new_file_placement'] = True
+    else:
+        config.pop('new_file_placement')
+    if not configured_working_dir:
+        config.pop('working_dir')
+    monkeypatch.chdir(tmp_path if not configured_working_dir else tmp_path.parent)
+    nested = tmp_path / 'config'
+    nested.mkdir()
+    path = nested / 'ruby.yml'
+    with open(path, 'w') as stream:
+        yaml.safe_dump(config, stream)
+
+    exp = HedmExperiment(str(path), working_dir=os.getcwd(), new_file_placement=False)
+    master_ids = np.flatnonzero(~exp.get_active_material().plane_data.exclusions)[:2]
+    parser = argparse.ArgumentParser()
+    configure_parser(parser.add_subparsers())
+    args = parser.parse_args(['find-orientations', str(path), '--hkls',
+                             ','.join(map(str, master_ids)) + ',', '-c', '-p'])
+    args.func(args, parser)
+
+    output_dir = tmp_path / 'analysis' if placement else tmp_path
+    accepted = ('accepted-orientations-ruby.dat' if placement
+                else 'accepted_orientations_analysis_ruby.dat')
+    scored = ('scored-orientations-ruby.npz' if placement
+              else 'scored_orientations_analysis_ruby.npz')
+    maps = ('eta-ome-maps-ruby.npz' if placement else 'analysis_ruby_eta-ome_maps.npz')
+    logfile = ('find-orientations-ruby.log' if placement
+               else 'find-orientations_analysis_ruby.log')
+    assert (output_dir / accepted).exists()
+    assert (output_dir / scored).exists()
+    assert (tmp_path / 'analysis' / 'grains.out').exists()
+    assert 'function calls' in (output_dir / logfile).read_text()
+    with np.load(output_dir / maps) as archive:
+        assert len(archive['ring_ids']) == 2
+
+    with pytest.raises(SystemExit):
+        args.func(args.__class__(**{**vars(args), 'clean': False}), parser)
+
+
 def test_cli_refuses_to_clobber(example_repo_path, tmp_path):
+    import logging
     from hexrd.hedm.cli.find_orientations import execute
+
+    logger = logging.getLogger('hexrd')
+    original = (logger.level, logger.propagate, logger.handlers[:])
 
     config_path = _ruby_config_path(example_repo_path, tmp_path)
     analysis_dir = tmp_path / 'analysis'
@@ -892,6 +1021,73 @@ def test_cli_refuses_to_clobber(example_repo_path, tmp_path):
 
     with pytest.raises(SystemExit):
         execute(_cli_args(config_path), None)
+    assert (logger.level, logger.propagate, logger.handlers) == original
+
+
+def test_cli_restores_logging_on_failure(monkeypatch, tmp_path):
+    import logging
+    from hexrd.hedm.cli import find_orientations as cli
+
+    experiment = SimpleNamespace(
+        active_material=SimpleNamespace(active='test', dmin=0.5), analysis_dir=str(tmp_path),
+        accepted_orientations_file=str(tmp_path / 'accepted-orientations-test.dat'),
+        find_orientations_logfile=str(tmp_path / 'find-orientations-test.log'))
+    monkeypatch.setattr(cli, 'HedmExperiment', lambda *a, **kw: experiment)
+
+    def fail(*a, **kw):
+        raise RuntimeError('analysis failed')
+
+    monkeypatch.setattr(cli, 'find_orientations', fail)
+    logger = logging.getLogger('hexrd')
+    original = (logger.level, logger.propagate, logger.handlers[:])
+    with pytest.raises(RuntimeError, match='analysis failed'):
+        cli.execute(_cli_args('unused.yml'), None)
+    assert (logger.level, logger.propagate, logger.handlers) == original
+
+
+@pytest.mark.parametrize('placement', [False, True])
+def test_fit_grains_reuses_configured_orientation_file(example_repo_path, tmp_path,
+                                                       monkeypatch, placement):
+    import logging
+    from hexrd.hedm.cli import fit_grains as cli
+    from hexrd.hedm import find_orientations as pipeline
+
+    path = _ruby_config_path(example_repo_path, tmp_path)
+    with open(path) as stream:
+        config = yaml.safe_load(stream)
+    config['new_file_placement'] = placement
+    with open(path, 'w') as stream:
+        yaml.safe_dump(config, stream)
+    experiment = HedmExperiment(str(path))
+    expected = Path(experiment.accepted_orientations_file)
+    expected.parent.mkdir(parents=True, exist_ok=True)
+    expected.touch()
+    monkeypatch.setattr(cli, 'HedmExperiment', lambda *a, **kw: experiment)
+
+    class OrientationFileRead(Exception):
+        pass
+
+    def read(filename, **kwargs):
+        assert Path(filename) == expected
+        raise OrientationFileRead
+
+    def unexpected(*args, **kwargs):
+        pytest.fail('existing accepted orientations must be reused')
+
+    monkeypatch.setattr(np, 'loadtxt', read)
+    monkeypatch.setattr(pipeline, 'find_orientations', unexpected)
+    logger = logging.getLogger('hexrd')
+    original_handlers, original_level = logger.handlers[:], logger.level
+    try:
+        with pytest.raises(OrientationFileRead):
+            cli.execute(SimpleNamespace(yml=str(path), force=True, clean=False,
+                                        quiet=True, debug=False), None)
+    finally:
+        for handler in logger.handlers[:]:
+            if handler not in original_handlers:
+                logger.removeHandler(handler)
+                handler.close()
+        logger.setLevel(original_level)
 
 
 def test_cli_end_to_end(example_repo_path, tmp_path):
@@ -931,6 +1127,8 @@ def _multiruby_experiment(example_repo_path, tmp_path, maps_file=None):
     for entry in cfg['image_series']['data']:
         entry['file'] = str((include / entry['file']).resolve())
     cfg['analysis_name'] = 'analysis'
+    cfg['working_dir'] = str(tmp_path)
+    cfg['new_file_placement'] = True
     if maps_file is not None:
         cfg['find_orientations']['orientation_maps']['file'] = str(maps_file)
 

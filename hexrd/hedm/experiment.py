@@ -6,12 +6,40 @@ with the ``find_orientations`` section of the config.
 """
 import enum
 import os
+import threading
 from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
 
-from hexrd.core.experiment import Experiment
+from hexrd.core.experiment import Experiment, ImageSeries
+
+
+class _AdapterImageSeries(ImageSeries):
+    """Expose registered image-series formats as sparse frames for map building."""
+
+    def __init__(self, panel, filename, fmt, args):
+        from hexrd.core import imageseries
+
+        self._series = imageseries.open(filename, fmt, **args)
+        self.panel = panel if panel is not None else self._series.metadata.get('panel')
+        self.omega = np.radians(self._series.metadata['omega'])
+        self._n_frames = len(self._series)
+        self._images = None
+        self._lock = threading.Lock()
+
+    @property
+    def images(self):
+        with self._lock:
+            if self._images is None:
+                from scipy.sparse import csr_array
+
+                self._images = [csr_array(self._series[i]) for i in range(len(self))]
+        return self._images
+
+    @property
+    def metadata(self):
+        return self._series.metadata
 
 
 class SeedSearchMethod(enum.StrEnum):
@@ -31,13 +59,11 @@ def _hkl_array(value: Any, key: str) -> Optional[np.ndarray]:
     """Canonicalize an hkl selection: an (n, 3) array of [h, k, l] triples,
     an (n,) array of master hkl IDs, or None for all rings.
 
-    Both spellings appear in existing configs; anything else (single ints,
-    'all', floats) is rejected here so downstream code only sees these
-    three shapes.
+    Legacy scalar IDs and 'all' are normalized at the config boundary.
     """
-    if value is None:
+    if value is None or (isinstance(value, str) and value == 'all'):
         return None
-    hkls = np.asarray(value)
+    hkls = np.atleast_1d(value) if isinstance(value, int) else np.asarray(value)
     if not np.issubdtype(hkls.dtype, np.integer) or hkls.ndim not in (1, 2) \
             or (hkls.ndim == 2 and hkls.shape[1] != 3):
         raise ValueError(
@@ -59,11 +85,15 @@ class OrientationMaps:
     @classmethod
     def from_dict(cls, d: dict) -> 'OrientationMaps':
         filter_maps = d.get('filter_maps', False)
-        if not isinstance(filter_maps, bool):
+        if not isinstance(filter_maps, (bool, int, float)):
             raise ValueError(
-                'filter_maps must be a boolean; give the LoG width (pixels) '
-                'separately as filter_fwhm')
+                'filter_maps must be a boolean or a numeric LoG width in pixels')
         filter_fwhm = d.get('filter_fwhm')
+        if not isinstance(filter_maps, bool):
+            if filter_maps and filter_fwhm is not None:
+                raise ValueError('specify the LoG width only once')
+            filter_fwhm = float(filter_maps) if filter_maps else None
+            filter_maps = bool(filter_maps)
         if filter_fwhm is not None and not filter_maps:
             raise ValueError('filter_fwhm requires filter_maps: true')
         # a null threshold means "no thresholding", same as 0 for count data
@@ -86,12 +116,12 @@ class SeedSearch:
         # `method` is a one-entry mapping: {name: {kwargs...}}
         method_dict = d.get('method') or {'label': {}}
         (name, kwargs), = method_dict.items()
-        seeds = np.asarray(d.get('hkl_seeds', []), dtype=np.intp)
+        seeds = np.atleast_1d(np.asarray(d.get('hkl_seeds', []), dtype=np.intp))
         if seeds.ndim != 1:
             raise ValueError(f'hkl_seeds must be a list of ring indices, '
                              f'got {d.get("hkl_seeds")!r}')
         return cls(seeds, np.radians(d.get('fiber_step', omega_tolerance_deg)),
-                   SeedSearchMethod(name), kwargs or {})
+                   SeedSearchMethod(name.lower()), kwargs or {})
 
     @property
     def fiber_ndiv(self) -> int:
@@ -142,7 +172,7 @@ class Clustering:
         if missing:
             raise ValueError(f'clustering config requires {sorted(missing)}')
         return cls(float(d['radius']), float(d['completeness']),
-                   ClusteringAlgorithm(d.get('algorithm', 'dbscan')))
+                   ClusteringAlgorithm(d.get('algorithm', 'dbscan').lower()))
 
 
 @dataclass(frozen=True)
@@ -215,12 +245,36 @@ class FitGrains:
 class HedmExperiment(Experiment):
     """An :class:`Experiment` plus the HEDM find-orientations parameters."""
 
-    def __init__(self, filename: str, study: int | None = None):
+    def __init__(self, filename: str, study: int | None = None, *,
+                 working_dir: str | None = None, new_file_placement: bool = True):
+        self._default_working_dir = working_dir
+        self._default_file_placement = new_file_placement
         super().__init__(filename, study)
+        if self.active_material.two_theta_width is None:
+            self.active_material.two_theta_width = 0.25
         self.find_orientations = FindOrientations.from_dict(
             self.config['find_orientations'])
         self.fit_grains = FitGrains.from_dict(
             self.config.get('fit_grains', {}), self._path)
+
+    def _load_image_series(self, spec):
+        panel = spec.get('panel')
+        fmt = self.config['image_series'].get('format', 'frame-cache')
+        args = spec.get('args', {})
+        if (panel is not None and fmt == 'frame-cache'
+                and args.get('style', 'npz') == 'npz'
+                and str(spec['file']).endswith('.npz')):
+            panel, series = super()._load_image_series(spec)
+        else:
+            series = _AdapterImageSeries(panel, self._path(spec['file']), fmt, args)
+            if 'panel' not in spec:
+                panel = series.panel
+        if panel is None:
+            panel = list(self.detectors)
+        elif isinstance(panel, str) and panel not in self.detectors:
+            panel = [name for name, det in self.detectors.items()
+                     if det.group == panel] or panel
+        return panel, series
 
     @property
     def eta_ome_maps_file(self) -> str:
@@ -228,8 +282,38 @@ class HedmExperiment(Experiment):
         configured = self.find_orientations.orientation_maps.file
         if configured:
             return configured if os.path.isabs(configured) else self._path(configured)
-        actmat = self.active_material.active.strip().replace(' ', '-')
-        return os.path.join(self.analysis_dir, f'eta-ome-maps-{actmat}.npz')
+        return self._output_file('eta-ome-maps-{material}.npz',
+                                 '{analysis_id}_eta-ome_maps.npz')
+
+    def _path(self, name: str) -> str:
+        root = self.config.get('working_dir', self._default_working_dir)
+        if root is None:
+            return super()._path(name)
+        if not os.path.isdir(root):
+            raise IOError(f'"working_dir": {root} does not exist')
+        return os.path.join(root, name)
+
+    def _output_file(self, new_name, old_name):
+        material = self.active_material.active.strip().replace(' ', '-')
+        if self.config.get('new_file_placement', self._default_file_placement):
+            return os.path.join(self.analysis_dir, new_name.format(material=material))
+        analysis_id = f'{self.analysis_name.strip().replace(" ", "-")}_{material}'
+        return self._path(old_name.format(analysis_id=analysis_id))
+
+    @property
+    def accepted_orientations_file(self) -> str:
+        return self._output_file('accepted-orientations-{material}.dat',
+                                 'accepted_orientations_{analysis_id}.dat')
+
+    @property
+    def scored_orientations_file(self) -> str:
+        return self._output_file('scored-orientations-{material}.npz',
+                                 'scored_orientations_{analysis_id}.npz')
+
+    @property
+    def find_orientations_logfile(self) -> str:
+        return self._output_file('find-orientations-{material}.log',
+                                 'find-orientations_{analysis_id}.log')
 
     @property
     def quaternion_grid_file(self) -> str | None:

@@ -1,16 +1,4 @@
-"""A small, typed material interface for the analysis workflows.
-
-:class:`Material` here is a thin bridge: it exposes the minimal, immutable
-crystallographic surface the workflows actually consume -- a
-:class:`PlaneData` of plain arrays -- while the numbers are produced by
-hexrd's full crystallography (:mod:`hexrd.core.material`), so every lattice
-type hexrd supports works unchanged.
-
-The intent is that workflow code never reaches into the big legacy classes:
-everything it may touch is a field on this PlaneData.  (Replacing the
-underlying implementation with the verified exact-integer space-group port
-is future work; the interface here is what would stay stable.)
-"""
+"""Material bridge exposing crystallographic arrays to workflows."""
 from __future__ import annotations
 
 from dataclasses import dataclass

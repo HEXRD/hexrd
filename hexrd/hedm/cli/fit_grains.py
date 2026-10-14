@@ -237,9 +237,7 @@ def execute(args, parser):
     # use path to grains.out to determine if analysis exists
     grains_filename = analysis_dir / 'grains.out'
 
-    # path to accepted_orientations
-    quats_f = analysis_dir / (
-        f'accepted-orientations-{experiment.active_material.active}.dat')
+    quats_f = Path(experiment.accepted_orientations_file)
 
     # some conditionals for arg handling
     have_orientations = quats_f.exists()
