@@ -1,8 +1,14 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
 from hexrd.powder.wppf.peakfunctions import _anisotropic_peak_broadening
-from hexrd.powder.wppf.wppfsupport import _fill_shkl, _rqd_shkl
+from hexrd.powder.wppf.wppfsupport import (
+    _fill_shkl,
+    _required_shkl_names,
+    _rqd_shkl,
+)
 
 
 @pytest.mark.parametrize(
@@ -23,3 +29,11 @@ def test_equivalent_reflections_broaden_equally(
         expected = _anisotropic_peak_broadening(shkl_values, np.array([h, k, l_val]))
         result = _anisotropic_peak_broadening(shkl_values, rotated)
         assert np.isclose(result, expected)
+
+
+def test_primitive_trigonal_uses_hexagonal_terms() -> None:
+    # P-3m1
+    mat = SimpleNamespace(latticeType='trigonal', sgnum=164, name='test')
+    names, _, _, trig_ptype = _required_shkl_names(mat)
+    assert names == ['s400', 's004', 's202']
+    assert trig_ptype

@@ -585,7 +585,7 @@ def _required_shkl_names(mat):
         this is a trigonal group so the hexagonal
         constants are valid
         """
-        latticetype = "haxagonal"
+        latticetype = "hexagonal"
         trig_ptype = True
 
     rqd_index = _rqd_shkl[latticetype][0]
