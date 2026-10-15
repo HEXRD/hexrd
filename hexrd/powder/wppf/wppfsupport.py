@@ -600,26 +600,27 @@ this dictionary structure holds information for the shkl
 coefficeints needed for anisotropic broadening of peaks
 first component of list are the required shkl components
 second component of ist are the equality constraints with
-a weight factor (sometimes theres a factor of 2 or 3.)
+a weight factor. _anisotropic_peak_broadening already multiplies
+the terms by 2, 3, or 4, so the weight factors here must not.
 """
 _rqd_shkl = {
     "cubic": [(0, 3), ((0, 1, 1.0), (0, 2, 1.0), (3, 4, 1.0), (3, 5, 1.0))],
     "hexagonal": [
         (0, 2, 4),
-        ((0, 1, 1.0), (0, 6, 2.0), (0, 9, 2.0), (0, 3, 3.0), (4, 5, 1.0), (4, 14, 1.0)),
+        ((0, 1, 1.0), (0, 6, 1.0), (0, 9, 1.0), (0, 3, 1.0), (4, 5, 1.0), (4, 14, 0.75)),
     ],
     "trigonal": [
         (0, 2, 4, 10),
         (
             (0, 1, 1.0),
-            (0, 6, 2.0),
-            (0, 9, 2.0),
-            (0, 3, 3.0),
+            (0, 6, 1.0),
+            (0, 9, 1.0),
+            (0, 3, 1.0),
             (4, 5, 1.0),
-            (4, 14, 1.0),
+            (4, 14, 0.75),
             (10, 8, -1.0),
-            (10, 12, 1.5),
-            (10, 13, -1.5),
+            (10, 12, 0.75),
+            (10, 13, -0.75),
         ),
     ],
     "tetragonal": [(0, 2, 3, 4), ((0, 1, 1.0), (4, 5, 1.0))],
