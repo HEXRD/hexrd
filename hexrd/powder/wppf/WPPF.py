@@ -164,6 +164,10 @@ class AbstractWPPF(ABC):
 
     @bkgmethod.setter
     def bkgmethod(self, v):
+        if v is None:
+            # No background
+            v = {}
+
         self._bkgmethod = v
         if "chebyshev" in v and hasattr(self, 'bkg_coef'):
             degree = v["chebyshev"]
@@ -767,9 +771,9 @@ class AbstractWPPF(ABC):
         basically automates the background determination and removes the
         user from the loop which is required for the spline type background.
         """
-        if self.bkgmethod is None:
+        if not self.bkgmethod:
             self._background = []
-            for tth in self.tth_list:
+            for tth in self._tth_list:
                 self._background.append(Spectrum(x=tth, y=np.zeros(tth.shape)))
 
         elif "spline" in self.bkgmethod.keys():

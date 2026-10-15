@@ -673,3 +673,19 @@ def test_extract_intensities_options(
     # intensity_init must reach LeBail, which validates it
     with pytest.raises(RuntimeError):
         extract_intensities(**kwargs, intensity_init='invalid')
+
+
+@pytest.mark.parametrize('wppf_class', [LeBail, Rietveld])
+def test_no_background(
+    expt_spectrum: np.ndarray,
+    ceo2_material: Material,
+    wppf_class: type[LeBail] | type[Rietveld],
+) -> None:
+    wppf = wppf_class(
+        expt_spectrum=expt_spectrum,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod=None,
+    )
+    assert np.all(wppf.background.y == 0)
+    assert np.isfinite(wppf.Rwp)
