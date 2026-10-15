@@ -469,3 +469,31 @@ def test_statistical_weights(
 
     with pytest.raises(ValueError):
         wppf_class(expt_spectrum=spectrum, num_averaged_pixels=n_pixels[:-1], **kwargs)
+
+
+def test_rietveld_atom_params_update_structure_factors(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+    rietveld_params: lmfit.Parameters,
+) -> None:
+    rietveld = Rietveld(
+        expt_spectrum=expt_spectrum,
+        params=rietveld_params,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'spline': spline_picks.tolist()},
+        peakshape='pvtch',
+    )
+    params = rietveld.params
+
+    # Changing a single varying atom parameter must change the structure
+    # factors, no matter which atom of the phase it belongs to
+    for name, delta in [('CeO2_O1_dw', 0.005), ('CeO2_Ce1_dw', 0.005)]:
+        rietveld.params_vary_off()
+        params[name].vary = True
+        before = rietveld.sf['CeO2']['synchrotron'].copy()
+        params[name].value += delta
+        rietveld._set_params_vals_to_class(params, skip_phases=False)
+        after = rietveld.sf['CeO2']['synchrotron']
+        assert not np.allclose(before, after), name

@@ -1836,9 +1836,8 @@ class Rietveld(AbstractWPPF):
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
 
-                    atominfo_vary = force or any(
-                        params[name].vary for name in (nx, ny, nz, oc)
-                    )
+                    if any(params[name].vary for name in (nx, ny, nz, oc)):
+                        atominfo_vary = True
                     x = params[nx].value
                     y = params[ny].value
                     z = params[nz].value
