@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.signal import fftconvolve
+from scipy.special import roots_legendre
 
 from hexrd.powder.wppf import peakfunctions as wpf
 
@@ -61,3 +62,18 @@ def test_asymmetric_profiles_match_convolved_pvtch():
             ref = _convolve(x, pvtch, np.where(x > 0, kernel, 0.0))
             y = func(np.array(coeffs), uvw, *args)
             assert _rel_err(y, ref, x) < 2e-3, func.__name__
+
+
+def test_pvfcj_low_angle():
+    # With large H/L and S/L at low 2theta, the FCJ arccos argument
+    # exceeds 1. The profile must stay finite and normalized.
+    xn, wn = roots_legendre(16)
+    xn, wn = xn[8:], wn[8:]
+    x = np.linspace(0.5, 20, 4000)
+    args = (np.array([0.0, 0.0, 100.0]), 0.0, np.array([1.0, 1.0]), 0.0)
+    args += (np.zeros(15), 0.5)
+    for tth in [3.0, 8.0, 15.0]:
+        y = wpf.pvfcj(*args, tth, 0.2, np.array([1.0, 1.0, 1.0]), x, 0.05, 0.05, xn, wn)
+        assert np.all(np.isfinite(y))
+        assert np.isclose(np.trapezoid(y, x), 1.0)
+        assert tth - 2 < x[np.argmax(y)] <= tth

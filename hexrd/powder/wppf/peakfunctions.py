@@ -462,13 +462,15 @@ def pvfcj(
     tth_r = np.radians(tth)
     ctth = np.cos(tth_r)
 
+    # At low 2theta the arccos argument can exceed 1, in which case the
+    # asymmetry extends all the way to 2phi = 0
     arg = ctth * np.sqrt((HoL + SoL) ** 2 + 1.0)
-    cinv = np.arccos(arg)
+    cinv = np.arccos(min(arg, 1.0))
     tau_min = tth_r - cinv
 
     # two theta of inflection point
     arg = ctth * np.sqrt((HoL - SoL) ** 2 + 1.0)
-    cinv = np.arccos(arg)
+    cinv = np.arccos(min(arg, 1.0))
     tau_infl = tth_r - cinv
 
     tau = tau_min * xn**2
