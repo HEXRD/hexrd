@@ -739,3 +739,13 @@ def test_peakshape_types(expt_spectrum: np.ndarray, ceo2_material: Material) -> 
 
     with pytest.raises(TypeError):
         lebail.peakshape = 1.0
+
+
+def test_spectrum_set_background() -> None:
+    x = np.linspace(1, 10, 10)
+    spectrum = Spectrum(x=x, y=2 * x)
+    spectrum.set_background(Spectrum(x=x, y=x))
+    np.testing.assert_allclose(spectrum.data[1], x)
+
+    spectrum.reset_background()
+    np.testing.assert_allclose(spectrum.data[1], 2 * x)

@@ -59,10 +59,10 @@ class Spectrum:
         np.savetxt(filename, data[0], header=header)
 
     def set_background(self, Spectrum):
-        self.bkg_spectrum = Spectrum
+        self.bkg_Spectrum = Spectrum
 
     def reset_background(self):
-        self.bkg_spectrum = None
+        self.bkg_Spectrum = None
 
     def set_smoothing(self, amount):
         self.smoothing = amount
