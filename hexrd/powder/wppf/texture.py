@@ -448,7 +448,7 @@ def check_degrees(ell, sym):
     if np.mod(ell, 2) != 0:
         msg = f'only even degrees allowed due to' f'inversion symmetry'
         raise ValueError(msg)
-    if sym in ['td', 'oh']:
+    if sym in ['th', 'oh']:
         if ell > 16:
             msg = f'maximum degree available is 16'
             raise ValueError(msg)

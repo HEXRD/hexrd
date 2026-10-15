@@ -446,3 +446,13 @@ def test_calc_ang_rings_normalizes_each_vector():
     np.testing.assert_allclose(
         _calc_ang_rings(scaled, *args)[0], _calc_ang_rings(v, *args)[0]
     )
+
+
+def test_check_degrees_cubic_limit():
+    from hexrd.powder.wppf.texture import check_degrees
+
+    # Both cubic crystal symmetries are only tabulated up to degree 16
+    for sym in ['th', 'oh']:
+        assert check_degrees(16, sym)
+        with pytest.raises(ValueError):
+            check_degrees(18, sym)
