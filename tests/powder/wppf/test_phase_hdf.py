@@ -24,3 +24,7 @@ def test_rietveld_from_hdf_anisotropic_u(test_data_dir, tmp_path):
     mat.U[0, 0] *= 2
     mat.CalcXRSF(0.0155, 1.0)
     assert np.isclose(mat.betaij[0, 0, 0], 2 * ref.unitcell.betaij[0, 0, 0])
+
+    # The absorption factor computed from a material must be kept
+    from_mat = Material_Rietveld(material_obj=ref)
+    assert np.isclose(from_mat.abs_fact, 1e-4 / ref.absorption_length)

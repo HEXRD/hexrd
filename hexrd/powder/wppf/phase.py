@@ -439,8 +439,8 @@ class Material_Rietveld(Material_LeBail):
         # Now initialize Rietveld-specific stuff
         # If `material_object` is not `None`, then
         # `_init_from_materials()` will have already been called.
-        self.abs_fact = 1e4
         if material_obj is None:
+            self.abs_fact = 1e4
             """
             voltage in ev
             """
