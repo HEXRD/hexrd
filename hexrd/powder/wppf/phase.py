@@ -466,11 +466,12 @@ class Material_Rietveld(Material_LeBail):
         self.voltage = material_obj.unitcell.voltage
         self.wavelength = material_obj.unitcell.wavelength
 
-        # asymmetric atomic positions
-        self.atom_pos = material_obj.unitcell.atom_pos
+        # asymmetric atomic positions. We copy these and U, since the
+        # refinement modifies them in place.
+        self.atom_pos = material_obj.unitcell.atom_pos.copy()
 
         # Debye-Waller factors including anisotropic ones
-        self.U = material_obj.unitcell.U
+        self.U = material_obj.unitcell.U.copy()
         self.aniU = False
         if self.U.ndim > 1:
             self.aniU = True

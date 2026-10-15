@@ -2529,6 +2529,9 @@ class Rietveld(AbstractWPPF):
                 mat_list = phase_info
 
             for mat in mat_list:
+                # Copy the material so that we do not modify the caller's
+                # beam energy
+                mat = copy.deepcopy(mat)
                 p[mat.name] = {}
                 for k, v in self.wavelength.items():
                     E = (

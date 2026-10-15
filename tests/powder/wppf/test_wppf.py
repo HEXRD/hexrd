@@ -689,3 +689,28 @@ def test_no_background(
     )
     assert np.all(wppf.background.y == 0)
     assert np.isfinite(wppf.Rwp)
+
+
+def test_rietveld_does_not_modify_input_material(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+    rietveld_params: lmfit.Parameters,
+) -> None:
+    energy = ceo2_material.beamEnergy.getVal('keV')
+    U = ceo2_material.unitcell.U.copy()
+    rietveld = Rietveld(
+        expt_spectrum=expt_spectrum,
+        params=rietveld_params,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'spline': spline_picks.tolist()},
+        peakshape='pvtch',
+    )
+    rietveld.params_vary_off()
+    rietveld.params['CeO2_O1_dw'].value *= 2
+    rietveld.Refine()
+
+    assert rietveld.phases['CeO2']['synchrotron'].U[0] != U[0]
+    assert ceo2_material.beamEnergy.getVal('keV') == energy
+    np.testing.assert_array_equal(ceo2_material.unitcell.U, U)

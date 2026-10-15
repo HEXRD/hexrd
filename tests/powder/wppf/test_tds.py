@@ -105,8 +105,8 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
 
     assert R.Rwp < 0.01
 
-    # Test calculating the equivalent temperatures
-    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
+    # Test calculating the equivalent temperatures from the refined U
+    equiv_temp_dict = R.phases['Ti_beta']['XFEL'].calc_temperature({'Ti': 380})
     # Was 3581 before the dispersion fix
     assert np.isclose(equiv_temp_dict['Ti'], 3601, atol=10)
 
