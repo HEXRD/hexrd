@@ -75,7 +75,6 @@ hexrd/wppf/spectrum.py	hexrd/powder/wppf/spectrum.py
 hexrd/wppf/xtal.py	hexrd/powder/wppf/xtal.py
 hexrd/wppf/derivatives.py	hexrd/powder/wppf/derivatives.py
 hexrd/wppf/WPPF.py	hexrd/powder/wppf/WPPF.py
-hexrd/wppf/RietveldHEDM.py	hexrd/powder/wppf/RietveldHEDM.py
 hexrd/wppf/__init__.py	hexrd/powder/wppf/__init__.py
 hexrd/wppf/wppfsupport.py	hexrd/powder/wppf/wppfsupport.py
 hexrd/wppf/peakfunctions.py	hexrd/powder/wppf/peakfunctions.py
