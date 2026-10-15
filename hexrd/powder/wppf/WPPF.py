@@ -1784,6 +1784,7 @@ class Rietveld(AbstractWPPF):
                 # or atom info.
                 lpvary = force
                 atominfo_vary = force
+                pos_vary = force
 
                 """
                 PART 1: update stacking fault and twin beta parameters
@@ -1838,6 +1839,8 @@ class Rietveld(AbstractWPPF):
 
                     if any(params[name].vary for name in (nx, ny, nz, oc)):
                         atominfo_vary = True
+                    if any(params[name].vary for name in (nx, ny, nz)):
+                        pos_vary = True
                     x = params[nx].value
                     y = params[ny].value
                     z = params[nz].value
@@ -1858,6 +1861,11 @@ class Rietveld(AbstractWPPF):
                         mat.U[i] = params[dw].value
 
                     mat.atom_pos[i, :] = np.array([x, y, z, oc])
+
+                if pos_vary:
+                    # The structure factors use the symmetry equivalent
+                    # positions, so we regenerate them from atom_pos
+                    mat.CalcPositions()
 
                 if mat.aniU:
                     mat.calcBetaij()

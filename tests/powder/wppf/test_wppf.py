@@ -488,7 +488,7 @@ def ceo2_rietveld(
     )
 
 
-@pytest.mark.parametrize('name', ['CeO2_Ce1_dw', 'CeO2_O1_dw'])
+@pytest.mark.parametrize('name', ['CeO2_Ce1_dw', 'CeO2_O1_dw', 'CeO2_O1_x'])
 def test_varied_atom_updates_structure_factors(
     ceo2_rietveld: Rietveld, name: str
 ) -> None:
