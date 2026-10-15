@@ -433,3 +433,16 @@ def test_march_dollase_validation():
     # material setter: wrong type
     with pytest.raises(Exception):
         md.material = "not a material"
+
+
+def test_calc_ang_rings_normalizes_each_vector():
+    from hexrd.powder.wppf.texture import _calc_ang_rings
+
+    rng = np.random.default_rng(0)
+    v = rng.normal(size=(5, 3))
+    v /= np.linalg.norm(v, axis=1)[:, None]
+    scaled = v * np.array([1.0, 2.0, 0.5, 3.0, 7.0])[:, None]
+    args = (0.3, np.array([0.0, 0.0, 1.0]), np.eye(3), np.zeros(3))
+    np.testing.assert_allclose(
+        _calc_ang_rings(scaled, *args)[0], _calc_ang_rings(v, *args)[0]
+    )

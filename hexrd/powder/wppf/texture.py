@@ -2000,7 +2000,7 @@ inverse_polar_figures = InversePoleFigures
 @numba.njit(nogil=True, cache=True)
 def _calc_ang_rings(pfgrid, t, hc, ref_frame_rmat, eta_grid):
     norm = np.sqrt(np.sum(pfgrid**2, axis=1))
-    v = pfgrid / norm.repeat(3).reshape((3, -1)).T
+    v = pfgrid / norm.repeat(3).reshape((-1, 3))
     v = np.dot(ref_frame_rmat, v.T).T
 
     # sanitize v[:, 2] for arccos operation
