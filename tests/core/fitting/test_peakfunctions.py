@@ -1,4 +1,6 @@
 # tests/test_peakfunctions_simplified.py
+from collections.abc import Callable
+
 import numpy as np
 import pytest
 from scipy.special import erfc as scipy_erfc, wofz as scipy_wofz, exp1 as scipy_exp1
@@ -516,3 +518,21 @@ def test_mixing_factor_clamps_large_eta_to_one(fwhm_g, fwhm_l):
     eta, fwhm = pf._mixing_factor_pv(np.float64(fwhm_g), np.float64(fwhm_l))
     assert np.isfinite(fwhm)
     assert eta == pytest.approx(1.0, rel=0.0, abs=0.0)
+
+
+@pytest.mark.parametrize('fwhm_g, fwhm_l', [(0.1, 0.0), (0.0, 0.1)])
+@pytest.mark.parametrize(
+    'func, asymmetry',
+    [
+        (pf.pink_beam_exponential_lmfit, (0.01, 0.0, 0.0)),
+        (pf.pink_beam_heating_lmfit, (0.01, 0.0)),
+    ],
+)
+def test_asymmetric_profiles_keep_their_fwhm(
+    func: Callable, asymmetry: tuple[float, ...], fwhm_g: float, fwhm_l: float
+) -> None:
+    # With little asymmetry, these are close to the peak with the given FWHM
+    x = np.linspace(-1, 1, 20001)
+    y = func(x, 1.0, 0.0, *asymmetry, fwhm_g, fwhm_l)
+    above = x[y >= y.max() / 2]
+    assert np.isclose(above[-1] - above[0], 0.1, rtol=0.06)
