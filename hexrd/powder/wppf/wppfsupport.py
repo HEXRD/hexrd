@@ -214,10 +214,12 @@ def _add_Shkl_terms(params, mat, return_dict=None):
     if return_dict is None:
         for s in valid_shkl:
             n = f"{mname}_{s}"
+            # Only the h^4, k^4 and l^4 terms must be positive. The mixed
+            # terms may be negative as long as the total is positive.
             params.add(
                 name=n,
                 value=0.0,
-                min=0.0,
+                min=0.0 if s in ("s400", "s040", "s004") else -np.inf,
                 max=np.inf,
                 vary=False,
             )

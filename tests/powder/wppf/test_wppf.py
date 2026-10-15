@@ -14,6 +14,7 @@ from hexrd.powder.wppf import LeBail, Rietveld
 from hexrd.powder.wppf.WPPF import extract_intensities
 from hexrd.powder.wppf.peakfunctions import calc_rwp
 from hexrd.powder.wppf.spectrum import Spectrum
+from hexrd.powder.wppf.wppfsupport import _generate_default_parameters_LeBail
 
 
 @pytest.fixture
@@ -714,3 +715,13 @@ def test_rietveld_does_not_modify_input_material(
     assert rietveld.phases['CeO2']['synchrotron'].U[0] != U[0]
     assert ceo2_material.beamEnergy.getVal('keV') == energy
     np.testing.assert_array_equal(ceo2_material.unitcell.U, U)
+
+
+def test_mixed_shkl_terms_may_be_negative(ceo2_material: Material) -> None:
+    # Stephens: only the h^4-type terms must be positive (e.g. a cubic
+    # S220 is often negative)
+    params = _generate_default_parameters_LeBail(
+        ceo2_material, peakshape=0, bkgmethod={'chebyshev': 3}
+    )
+    assert params['CeO2_s400'].min == 0.0
+    assert params['CeO2_s220'].min == -np.inf
