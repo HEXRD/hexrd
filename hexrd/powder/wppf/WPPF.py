@@ -896,9 +896,9 @@ class AbstractWPPF(ABC):
                     "5. pvexponential: pseudo voight convolved with an exponential"
                 )
                 raise ValueError(msg)
-        elif isinstance(val, int):
+        elif isinstance(val, (int, np.integer)):
             if val >= 0 and val <= 4:
-                new_val = val
+                new_val = int(val)
             else:
                 msg = (
                     "invalid peak shape int. "
@@ -910,6 +910,9 @@ class AbstractWPPF(ABC):
                     "5. 4: pseudo voight convolved with an exponential"
                 )
                 raise ValueError(msg)
+        else:
+            msg = f"peak shape must be a str or int, not {type(val).__name__}"
+            raise TypeError(msg)
 
         if hasattr(self, "_peakshape") and self._peakshape == new_val:
             return

@@ -725,3 +725,17 @@ def test_mixed_shkl_terms_may_be_negative(ceo2_material: Material) -> None:
     )
     assert params['CeO2_s400'].min == 0.0
     assert params['CeO2_s220'].min == -np.inf
+
+
+def test_peakshape_types(expt_spectrum: np.ndarray, ceo2_material: Material) -> None:
+    lebail = LeBail(
+        expt_spectrum=expt_spectrum,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+    )
+    lebail.peakshape = np.int64(0)
+    assert lebail.peakshape == 0
+
+    with pytest.raises(TypeError):
+        lebail.peakshape = 1.0
