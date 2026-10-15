@@ -105,13 +105,19 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
 
     assert R.Rwp < 0.01
 
-    # Now try the experimental model.
-    # It shouldn't have a big impact. We'll just verify it runs.
+    # Test calculating the equivalent temperatures
+    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
+    # Was 3581 before the dispersion fix
+    assert np.isclose(equiv_temp_dict['Ti'], 3601, atol=10)
+
+    # Now try the experimental model, using the refined Warren signal as
+    # the "measured" TDS. The fit quality should be about the same.
+    measured_tds = R.calculate_scaled_tds_signal("Ti_beta", "XFEL")
     kwargs = {
         "model_type": "experimental",
         "phases": R.phases,
         "tth": R.tth_list,
-        "model_data": tds_expt_spectrum,
+        "model_data": np.column_stack((R.tth_list, measured_tds)),
         "scale": 1,
         "shift": 0,
         "include_compton": False,
@@ -122,11 +128,6 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.Refine()
 
     assert R.Rwp < 0.05
-
-    # Test calculating the equivalent temperatures
-    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
-    # Was 3581 before the dispersion fix
-    assert np.isclose(equiv_temp_dict['Ti'], 3601, atol=10)
 
 
 def test_tds_aggregate_lineout_no_double_scaling(
@@ -200,3 +201,29 @@ def test_tds_material_include_compton(tds_material_file: Path):
 
     with pytest.raises(RuntimeError):
         TDS_material(**common, include_compton="yes")
+
+
+def test_tds_experimental_model(tds_material_file: Path):
+    # The experimental model must use the measured data, scaled and
+    # shifted, rather than silently computing the Warren model
+    tth = np.linspace(15, 60, 451)
+    m = Material(
+        name="Ti_beta",
+        material_file=tds_material_file,
+        kev=_kev(10.2505),
+        dmin=_nm(0.05),
+    )
+    m_r = Material_Rietveld(material_obj=m)
+    data_tth = np.linspace(10, 65, 1101)
+    model_data = np.column_stack((data_tth, 1 + np.sin(np.radians(data_tth))))
+    tds = TDS_material(
+        model_type="experimental",
+        material=m_r,
+        wavelength=m_r.wavelength * 10,
+        tth=tth,
+        model_data=model_data,
+        scale=2.0,
+        shift=0.5,
+    )
+    expected = 2.0 * (1 + np.sin(np.radians(tth - 0.5)))
+    np.testing.assert_allclose(tds.tds_lineout, expected, rtol=1e-4)

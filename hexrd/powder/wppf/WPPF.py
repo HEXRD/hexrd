@@ -2465,10 +2465,16 @@ class Rietveld(AbstractWPPF):
         p = phase_name
         k = wavelength_name
 
+        tds_mat = self.tds_model.TDSmodels[p][k]
+        tds_signal = tds_mat.tds_lineout
+        weight = self.phases.wavelength[k][1]
+        if tds_mat.model_type == 'experimental':
+            # Measured data is already in observed intensity units, and its
+            # own scale factor is applied in the lineout
+            return weight * tds_signal
+
         lp = self.polfactor_full
         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
-        tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-        weight = self.phases.wavelength[k][1]
 
         return self.scale * weight * pf * lp * tds_signal
 
