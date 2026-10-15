@@ -192,6 +192,7 @@ def getPhaseTransformationVariants(
     parallel_planes: np.ndarray,
     parallel_directions: np.ndarray,
     rmat_parent: list[np.ndarray] | None = None,
+    apply_parent_rotation_to_variants: bool = False,
     plot: bool = False,
     verbose: bool = False,
 ) -> tuple[np.ndarray, int]:
@@ -212,11 +213,14 @@ def getPhaseTransformationVariants(
     rmat_parent : np.ndarray
         starting orientation of parent, default is np.array([np.eye(3)])
         which corresponds to X || a, Y || c* x a, Z || c*
+    apply_parent_rotation_to_variants : boolean
+        should I apply the difference in starting orientation of parent to
+        the daughter orienetations?
     plot : boolean
         plot the data in stereographic projection if true
     """
     if rmat_parent is None:
-        rmat_parent = np.array([np.eye(3)])
+        rmat_parent = [np.array([np.eye(3)])]
 
     (p1, p2), (d1, d2) = prepare_data(mat1, mat2, parallel_planes, parallel_directions)
 
@@ -224,6 +228,11 @@ def getPhaseTransformationVariants(
     r2 = get_rmats(p2, d2)
 
     rmat_variants = getOR(r1, r2, mat1, mat2)
+
+    if apply_parent_rotation_to_variants:
+        rmat_variants = [
+            parent @ variant for parent in rmat_parent for variant in rmat_variants
+        ]
 
     num_var = expected_num_variants(mat1, mat2, r1, r2)
 
