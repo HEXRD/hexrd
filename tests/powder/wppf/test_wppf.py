@@ -1,4 +1,5 @@
 import copy
+import importlib.resources
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,6 +9,7 @@ import lmfit
 import numpy as np
 import pytest
 
+import hexrd.core.resources
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
 from hexrd.powder.wppf import LeBail, Rietveld
 from hexrd.powder.wppf.peakfunctions import calc_rwp
@@ -550,3 +552,25 @@ def test_lp_factor_follows_lattice_and_ph(ceo2_rietveld: Rietveld) -> None:
     assert intensities.shape == tth.shape
     lp = (1 + 0.5 * np.cos(tth) ** 2) / (np.cos(tth / 2) * np.sin(tth / 2) ** 2)
     np.testing.assert_allclose(ceo2_rietveld.LP['CeO2']['synchrotron'], lp)
+
+
+def test_shkl_terms_do_not_leak_between_phases(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    resource = importlib.resources.files(hexrd.core.resources)
+    with importlib.resources.as_file(resource / 'pinhole_materials.h5') as path:
+        u6nb = load_materials_hdf5(path)['U6Nb']
+
+    # A monoclinic phase, and then a cubic one
+    lebail = LeBail(
+        expt_spectrum=expt_spectrum,
+        phases=[u6nb, ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+    )
+    lebail.params['U6Nb_s103'].value = 0.5
+    lebail._update_shkl(lebail.params)
+
+    # s103 is the 8th term
+    assert lebail.phases['U6Nb'].shkl[7] == 0.5
+    assert lebail.phases['CeO2'].shkl[7] == 0.0
