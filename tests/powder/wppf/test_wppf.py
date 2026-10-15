@@ -532,3 +532,21 @@ def test_texture_data_matches_intensities_by_hkl(
     # Each point should be I_lebail(hkl) / I_rietveld(hkl), which is 2 here
     for hkl in map(tuple, hkls):
         np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
+
+
+def test_lp_factor_follows_lattice_and_ph(ceo2_rietveld: Rietveld) -> None:
+    params = ceo2_rietveld.params
+    num_reflections = len(ceo2_rietveld.tth['CeO2']['synchrotron'])
+
+    # A larger lattice parameter brings another reflection into range
+    params['CeO2_a'].value *= 1.02
+    params['Ph'].value = 0.5
+    ceo2_rietveld._set_params_vals_to_class(params, skip_phases=False, force=True)
+    tth = np.radians(ceo2_rietveld.tth['CeO2']['synchrotron'])
+    assert len(tth) > num_reflections
+
+    # Every reflection gets an intensity and an LP factor at its 2theta
+    intensities = ceo2_rietveld.compute_intensities()['CeO2']['synchrotron']
+    assert intensities.shape == tth.shape
+    lp = (1 + 0.5 * np.cos(tth) ** 2) / (np.cos(tth / 2) * np.sin(tth / 2) ** 2)
+    np.testing.assert_allclose(ceo2_rietveld.LP['CeO2']['synchrotron'], lp)
