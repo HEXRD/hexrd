@@ -372,10 +372,11 @@ class AbstractWPPF(ABC):
                 """
                 self._spectrum_expt = [expt_spectrum]
                 # self._spectrum_expt.nan_to_zero()
-                self.global_index = [(0, expt_spectrum.shape[0])]
+                self.global_shape = expt_spectrum.x.shape[0]
+                self.global_index = [(0, self.global_shape)]
                 self.global_mask = np.zeros(
                     [
-                        expt_spectrum.shape[0],
+                        self.global_shape,
                     ],
                     dtype=bool,
                 )

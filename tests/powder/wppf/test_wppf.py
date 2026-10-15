@@ -12,6 +12,7 @@ import hexrd.core.resources
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
 from hexrd.powder.wppf import LeBail, Rietveld
 from hexrd.powder.wppf.peakfunctions import calc_rwp
+from hexrd.powder.wppf.spectrum import Spectrum
 
 
 @pytest.fixture
@@ -633,3 +634,20 @@ def test_shkl_terms_do_not_leak_between_phases(
     lebail._update_shkl(params)
     assert lebail.phases['U6Nb'].shkl[7] == 0.5
     assert lebail.phases['CeO2'].shkl[7] == 0.0
+
+
+@pytest.mark.parametrize('wppf_class', [LeBail, Rietveld])
+def test_spectrum_object_input(
+    expt_spectrum: np.ndarray,
+    ceo2_material: Material,
+    wppf_class: type[LeBail] | type[Rietveld],
+) -> None:
+    kwargs = {
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        'bkgmethod': {'chebyshev': 3},
+    }
+    from_array = wppf_class(expt_spectrum=expt_spectrum, **kwargs)
+    spectrum = Spectrum(x=expt_spectrum[:, 0].copy(), y=expt_spectrum[:, 1].copy())
+    from_spectrum = wppf_class(expt_spectrum=spectrum, **kwargs)
+    assert np.isclose(from_spectrum.Rwp, from_array.Rwp)
