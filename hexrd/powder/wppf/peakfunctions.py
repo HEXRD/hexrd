@@ -475,7 +475,8 @@ def pvfcj(
 
     tau = tau_min * xn**2
 
-    cx = np.cos(tau)
+    # The FCJ weight is divided by cos(2phi), where 2phi = 2theta - tau
+    cx = np.abs(np.cos(tth_r - tau))
     res = np.zeros(tth_list.shape)
     den = 0.0
 

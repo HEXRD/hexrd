@@ -77,3 +77,31 @@ def test_pvfcj_low_angle():
         assert np.all(np.isfinite(y))
         assert np.isclose(np.trapezoid(y, x), 1.0)
         assert tth - 2 < x[np.argmax(y)] <= tth
+
+
+def test_pvfcj_matches_direct_integration():
+    # The FCJ profile is the pseudo-Voigt integrated over the observed
+    # angle 2phi with weight W / (h |cos(2phi)|)
+    xn, wn = roots_legendre(64)
+    xn, wn = xn[32:], wn[32:]
+    hkl = np.array([1.0, 1.0, 1.0])
+    args = (np.array([0.0, 0.0, 2500.0]), 0.0, np.array([0.0, 0.0]), 0.0)
+    args += (np.zeros(15), 0.5)
+    for tth, HoL, SoL in [(60.0, 0.3, 0.3), (120.0, 0.3, 0.2)]:
+        x = np.linspace(tth - 12, tth + 12, 3001)
+        y = wpf.pvfcj(*args, tth, 0.2, hkl, x, HoL, SoL, xn, wn)
+
+        # Sample the offset from 2theta as tau = tau_max * u^2, which
+        # removes the 1 / sqrt(tau) singularity of 1 / h
+        tth_r = np.radians(tth)
+        u = np.linspace(0, 1, 20001)[1:]
+        tau = np.radians(12) * u**2
+        phi = tth_r - tau if tth < 90 else tth_r + tau
+        h = np.sqrt(np.clip((np.cos(phi) / np.cos(tth_r)) ** 2 - 1, 0, None))
+        W = np.where(h <= abs(HoL - SoL), 2 * min(HoL, SoL), HoL + SoL - h)
+        valid = W > 0
+        weights = (W / h / np.abs(np.cos(phi)) * u)[valid]
+        ref = np.zeros_like(x)
+        for p, w in zip(phi[valid], weights):
+            ref += w * wpf.pvoight_wppf(*args, np.degrees(p), 0.2, hkl, x)
+        assert _rel_err(y, _normalized(ref, x), x) < 1e-2
