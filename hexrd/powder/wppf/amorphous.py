@@ -313,10 +313,10 @@ class Amorphous:
                     self.model_data[key], self.smoothing
                 )
 
+                # Pad with the minimum when shifting, and scale it too
                 mi = np.nanmin(smooth_model_data)
-                lo += (
-                    self.scale[key]
-                    * np.interp(
+                lo += self.scale[key] * (
+                    np.interp(
                         self.tth_list,
                         self.tth_list + self.shift[key],
                         smooth_model_data - mi,
