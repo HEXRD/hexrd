@@ -253,6 +253,11 @@ def test_spectrummodel_pink_beam_dcs_refit_flow_executes():
     res = sm.fit()
     assert hasattr(res, "params") and hasattr(res, "success")
 
+    # The tan(theta) coefficients must not be tied to the constant ones
+    for name, value in zip(('alpha0', 'alpha1', 'beta0', 'beta1'), (a0, a1, b0, b1)):
+        assert res.params[f'pk0_{name}'].expr is None
+        assert np.isclose(res.params[f'pk0_{name}'].value, value, atol=1e-3)
+
 
 def test_invalid_pktype_and_bgtype_assertions():
     x = np.linspace(0.0, 1.0, 11)
