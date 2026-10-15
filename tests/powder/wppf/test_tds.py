@@ -6,9 +6,9 @@ import pytest
 
 from hexrd.material import Material
 from hexrd.powder.wppf.phase import Material_Rietveld
-from hexrd.wppf.tds import TDS, TDS_material
+from hexrd.wppf.tds import TDS, TDS_material, cagliotti_uvw_to_smoothing
 from hexrd.valunits import _nm, _kev, _angstrom
-from hexrd.constants import keVToAngstrom
+from hexrd.constants import keVToAngstrom, sigma_to_fwhm
 from hexrd.wppf import Rietveld
 
 
@@ -225,3 +225,11 @@ def test_tds_experimental_model(tds_material_file: Path) -> None:
     )
     expected = 2 * (1 + np.sin(np.radians(tds.tth - 0.5)))
     np.testing.assert_allclose(tds.tds_lineout, expected, rtol=1e-4)
+
+
+def test_cagliotti_smoothing_is_sigma() -> None:
+    # W is the squared FWHM in centidegrees. This one is a sigma of 0.1 deg,
+    # or 10 steps.
+    tth = np.arange(15, 60, 0.01)
+    w = (10 * sigma_to_fwhm) ** 2
+    assert cagliotti_uvw_to_smoothing([0, 0, w], tth) == 10

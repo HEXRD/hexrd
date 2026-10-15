@@ -15,6 +15,7 @@ from hexrd.constants import (
     cBoltzmann,
     cAvogadro,
     ATOM_WEIGHTS_DICT,
+    fwhm_to_sigma,
 )
 from scipy.ndimage import gaussian_filter1d
 
@@ -477,7 +478,8 @@ def cagliotti_uvw_to_smoothing(uvw: list[float], tth: np.ndarray) -> float:
     if sigsqr <= 0.0:
         sigsqr = 1.0e-12
 
-    instrumental_broadening = np.sqrt(sigsqr) * 1e-2
+    # The Caglioti terms give a FWHM, but gaussian_filter1d needs a sigma
+    instrumental_broadening = np.sqrt(sigsqr) * 1e-2 * fwhm_to_sigma
 
     tth_step = tth[1] - tth[0]
     if np.isclose(tth_step, 0):
