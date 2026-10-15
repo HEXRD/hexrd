@@ -11,6 +11,7 @@ import pytest
 import hexrd.core.resources
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
 from hexrd.powder.wppf import LeBail, Rietveld
+from hexrd.powder.wppf.WPPF import extract_intensities
 from hexrd.powder.wppf.peakfunctions import calc_rwp
 from hexrd.powder.wppf.spectrum import Spectrum
 
@@ -651,3 +652,24 @@ def test_spectrum_object_input(
     spectrum = Spectrum(x=expt_spectrum[:, 0].copy(), y=expt_spectrum[:, 1].copy())
     from_spectrum = wppf_class(expt_spectrum=spectrum, **kwargs)
     assert np.isclose(from_spectrum.Rwp, from_array.Rwp)
+
+
+def test_extract_intensities_options(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    kwargs = {
+        'polar_view': np.ma.masked_invalid(expt_spectrum[None, :, 1]),
+        'tth_array': expt_spectrum[:, 0],
+        'phases': [ceo2_material],
+        'wavelength': {'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        'bkgmethod': {'chebyshev': 3},
+    }
+
+    # Termination conditions that are met right away still run one cycle
+    termination = {'rwp_perct_change': 1.0, 'max_iter': 0}
+    results = extract_intensities(**kwargs, termination_condition=termination)
+    assert np.all(np.isfinite(results[0][0]['CeO2']['synchrotron']))
+
+    # intensity_init must reach LeBail, which validates it
+    with pytest.raises(RuntimeError):
+        extract_intensities(**kwargs, intensity_init='invalid')

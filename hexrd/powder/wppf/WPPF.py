@@ -2727,7 +2727,6 @@ class Rietveld(AbstractWPPF):
             phases=mats,
             wavelength=self.wavelength,
             bkgmethod=bkg_method,
-            intensity_init=ints_computed,
             termination_condition={
                 "rwp_perct_change": 0.01,
                 "max_iter": 20,
@@ -2896,6 +2895,7 @@ def extract_intensities(
         "phases": phases,
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
+        "intensity_init": intensity_init,
         "termination_condition": termination_condition,
         "peakshape": peakshape,
         "amorphous_model": amorphous_model,
@@ -2979,12 +2979,15 @@ def single_azimuthal_extraction(
     init_error = 1.0
     niter = 0
 
-    # when change in Rwp < 0.05% or reached maximum iteration
-    while rel_error > del_rwp and niter < max_iter:
+    # when change in Rwp < 0.05% or reached maximum iteration. We always
+    # run at least one cycle, since that computes the intensities.
+    while True:
         L.RefineCycle(print_to_screen=False)
         rel_error = 100.0 * np.abs(L.Rwp - init_error)
         init_error = L.Rwp
         niter += 1
+        if rel_error <= del_rwp or niter >= max_iter:
+            break
 
     res = (L.spectrum_sim._x, L.spectrum_sim._y, L.Rwp, L.Iobs, L.hkls, L.tth)
     return res
