@@ -1243,6 +1243,12 @@ class HarmonicModel:
                     mask = eta_mask[k]
                 else:
                     mask = np.zeros_like(v, dtype=bool)
+
+                if np.all(mask):
+                    # The ring is not observed at all. Use the full ring,
+                    # rather than a NaN that would poison the spectrum.
+                    mask = np.zeros_like(v, dtype=bool)
+
                 tf[ii] = np.mean(v[~mask])
         return tf
 

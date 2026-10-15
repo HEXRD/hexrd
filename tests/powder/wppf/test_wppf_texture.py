@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import h5py
+import lmfit
 import numpy as np
 from PIL import Image
 import pytest
@@ -456,3 +457,24 @@ def test_check_degrees_cubic_limit():
         assert check_degrees(16, sym)
         with pytest.raises(ValueError):
             check_degrees(18, sym)
+
+
+def test_texture_factor_fully_masked_ring(texture_instrument):
+    mat = Material(dmin=_angstrom(0.5), kev=_kev(texture_instrument.beam_energy))
+    hm = HarmonicModel(
+        material=Material_Rietveld(material_obj=mat),
+        ssym='axial',
+        ell_max=4,
+        bvec=texture_instrument.beam_vector,
+        evec=texture_instrument.eta_vector,
+    )
+    params = lmfit.Parameters()
+    hm.get_parameters(params, vary=False)
+    eta_step = np.radians(5)
+    tf = hm.calc_texture_factor(params, eta_step=eta_step)
+
+    # A ring that is masked at every eta must not give a NaN
+    hkl = next(iter(hm.intensities_rings))
+    eta_mask = {hkl: np.ones_like(hm.intensities_rings[hkl], dtype=bool)}
+    masked_tf = hm.calc_texture_factor(params, eta_step=eta_step, eta_mask=eta_mask)
+    np.testing.assert_allclose(masked_tf, tf)
