@@ -1975,24 +1975,16 @@ class Rietveld(AbstractWPPF):
         will replace part of the code in the computespectrum
         function
         '''
+        # The reflections in range and Ph may have changed since the last call
+        self.PolarizationFactor()
+
         Ic = {}
         for iph, p in enumerate(self.phases):
             Ic[p] = {}
             for k, l in self.phases.wavelength.items():
-                tth = self.tth[p][k]
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
                 lp = self.LP[p][k]
-                extinction = self.extinction[p][k]
-                absorption = self.absorption[p][k]
-
-                n = np.min((tth.shape[0], sf.shape[0], lp.shape[0]))
-
-                tth = tth[:n]
-                sf = sf[:n]
-                lp = lp[:n]
-                extinction = extinction[:n]
-                absorption = absorption[:n]
 
                 Ic[p][k] = self.scale * pf * sf * lp  # *extinction*absorption
         return Ic

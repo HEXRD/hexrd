@@ -555,3 +555,35 @@ def test_texture_data_matches_intensities_by_hkl(
     assert len(model.pfdata) == len(hkls)
     for hkl in map(tuple, hkls):
         np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
+
+
+def test_rietveld_intensities_follow_lattice_and_ph(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+    rietveld_params: lmfit.Parameters,
+) -> None:
+    rietveld = Rietveld(
+        expt_spectrum=expt_spectrum,
+        params=rietveld_params,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'spline': spline_picks.tolist()},
+        peakshape='pvtch',
+    )
+    params = rietveld.params
+
+    # A larger lattice parameter brings another reflection into range
+    num_reflections = len(rietveld.tth['CeO2']['synchrotron'])
+    params['CeO2_a'].value *= 1.02
+    params['Ph'].value = 0.5
+    rietveld._set_params_vals_to_class(params, skip_phases=False, force=True)
+    tth = np.radians(rietveld.tth['CeO2']['synchrotron'])
+    assert len(tth) > num_reflections
+
+    # Every reflection in range must get an intensity, with the
+    # Lorentz-polarization factor at its current 2theta and Ph
+    Ic = rietveld.compute_intensities()['CeO2']['synchrotron']
+    assert Ic.shape == tth.shape
+    lp = (1 + 0.5 * np.cos(tth) ** 2) / (np.cos(0.5 * tth) * np.sin(0.5 * tth) ** 2)
+    np.testing.assert_allclose(rietveld.LP['CeO2']['synchrotron'], lp)
