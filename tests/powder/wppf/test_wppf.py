@@ -488,8 +488,13 @@ def test_rietveld_atom_params_update_structure_factors(
     params = rietveld.params
 
     # Changing a single varying atom parameter must change the structure
-    # factors, no matter which atom of the phase it belongs to
-    for name, delta in [('CeO2_O1_dw', 0.005), ('CeO2_Ce1_dw', 0.005)]:
+    # factors, no matter which atom of the phase it belongs to. Positions
+    # must also regenerate the symmetry equivalent atoms.
+    for name, delta in [
+        ('CeO2_O1_dw', 0.005),
+        ('CeO2_Ce1_dw', 0.005),
+        ('CeO2_O1_x', 0.01),
+    ]:
         rietveld.params_vary_off()
         params[name].vary = True
         before = rietveld.sf['CeO2']['synchrotron'].copy()
@@ -497,3 +502,6 @@ def test_rietveld_atom_params_update_structure_factors(
         rietveld._set_params_vals_to_class(params, skip_phases=False)
         after = rietveld.sf['CeO2']['synchrotron']
         assert not np.allclose(before, after), name
+
+    mat = rietveld.phases['CeO2']['synchrotron']
+    assert np.isclose(mat.asym_pos[0][0, 0], params['CeO2_O1_x'].value)
