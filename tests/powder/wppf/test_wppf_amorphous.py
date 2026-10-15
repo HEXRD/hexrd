@@ -155,3 +155,20 @@ def test_wppf_amorphous_lebail(wppf_amorphous_kwargs: dict):
     # Verify that the goodness of fit and chi-squared are below expected values
     assert obj.Rwp < 0.06
     assert obj.gofF < 0.3
+
+
+def test_experimental_amorphous_scale():
+    # The whole measured signal, including its minimum, must be scaled
+    tth = np.linspace(10, 60, 501)
+    data = np.column_stack((tth, 5 + np.exp(-((tth - 35) ** 2) / 50)))
+    model = Amorphous(
+        tth,
+        model_type='experimental',
+        model_data={'c1': data},
+        scale={'c1': 2.0},
+        shift={'c1': 0.0},
+    )
+    np.testing.assert_allclose(model.amorphous_lineout, 2 * data[:, 1])
+
+    model.scale = {'c1': 0.0}
+    np.testing.assert_allclose(model.amorphous_lineout, 0.0)
