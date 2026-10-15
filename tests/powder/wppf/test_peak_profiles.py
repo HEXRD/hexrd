@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from scipy.signal import fftconvolve
+from scipy.special import roots_legendre
 
 from hexrd.powder.wppf import peakfunctions as wpf
 
@@ -48,3 +49,27 @@ def test_asymmetric_profiles_are_convolved_pvtch(
         expected = convolve(x, pvtch, np.where(x > 0, kernel, 0.0))
         y = normalized(func(np.array(coeffs), uvw, *args), x)
         assert np.abs(y - expected).max() < 2e-3 * expected.max(), func.__name__
+
+
+@pytest.mark.parametrize('tth, hol, sol', [(60.0, 0.3, 0.3), (120.0, 0.3, 0.2)])
+def test_pvfcj_matches_direct_integration(tth: float, hol: float, sol: float) -> None:
+    # The FCJ profile is the pseudo-Voigt integrated over the observed
+    # angle 2phi, with the weight W / (h |cos(2phi)|)
+    args = (np.array([0.0, 0.0, 2500.0]), 0.0, np.zeros(2), 0.0, np.zeros(15), 0.5)
+    x = np.linspace(tth - 12, tth + 12, 3001)
+    xn, wn = roots_legendre(64)
+    y = wpf.pvfcj(*args, tth, 0.2, np.ones(3), x, hol, sol, xn[32:], wn[32:])
+
+    # Sampling the offset from 2theta as tau_max * u^2 removes the
+    # 1 / sqrt(tau) singularity of 1 / h
+    u = np.linspace(0, 1, 20001)[1:]
+    tau = np.radians(12) * u**2
+    phi = np.radians(tth) - tau if tth < 90 else np.radians(tth) + tau
+    h = np.sqrt(np.clip((np.cos(phi) / np.cos(np.radians(tth))) ** 2 - 1, 0, None))
+    W = np.where(h <= abs(hol - sol), 2 * min(hol, sol), hol + sol - h)
+    expected = np.zeros_like(x)
+    for p, w in zip(phi[W > 0], (W / h / np.abs(np.cos(phi)) * u)[W > 0]):
+        expected += w * wpf.pvoight_wppf(*args, np.degrees(p), 0.2, np.ones(3), x)
+
+    expected = normalized(expected, x)
+    assert np.abs(normalized(y, x) - expected).max() < 1e-2 * expected.max()
