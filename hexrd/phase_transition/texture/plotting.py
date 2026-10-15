@@ -64,9 +64,11 @@ def subplot_shape(
         Number of rows and columns. A single row is narrowed to the number
         of figures so a lone pole figure is not stretched across the width.
     """
-    n_rows = int(n_figures / n_columns) + 1
-    if n_rows == 1:
-        return 1, min(n_columns, max(n_figures, 1))
+    n_rows = int(n_figures / n_columns)
+    n_leftover = np.mod(n_figures, n_columns)
+    if n_leftover != 0:
+        n_rows += 1
+
     return n_rows, n_columns
 
 
