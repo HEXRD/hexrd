@@ -70,7 +70,6 @@ hexrd/imageseries/load/metadata.py	hexrd/core/imageseries/load/metadata.py
 hexrd/projections/polar.py	hexrd/core/projections/polar.py
 hexrd/projections/__init__.py	hexrd/core/projections/__init__.py
 hexrd/projections/spherical.py	hexrd/core/projections/spherical.py
-hexrd/wppf/LeBailCalibration.py	hexrd/powder/wppf/LeBailCalibration.py
 hexrd/wppf/spectrum.py	hexrd/powder/wppf/spectrum.py
 hexrd/wppf/xtal.py	hexrd/powder/wppf/xtal.py
 hexrd/wppf/derivatives.py	hexrd/powder/wppf/derivatives.py
