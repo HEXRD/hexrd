@@ -227,3 +227,28 @@ def test_tds_experimental_model(tds_material_file: Path):
     )
     expected = 2.0 * (1 + np.sin(np.radians(tth - 0.5)))
     np.testing.assert_allclose(tds.tds_lineout, expected, rtol=1e-4)
+
+
+def test_tds_warren_multiple_elements(example_repo_path: Path):
+    # Every element of a compound must contribute to the Warren TDS with
+    # its own form factor
+    from hexrd.material import load_materials_hdf5
+
+    path = Path(example_repo_path) / 'ge/wppf/ceo2.h5'
+    m_r = Material_Rietveld(material_obj=load_materials_hdf5(path)['CeO2'])
+    tds = TDS_material(
+        material=m_r,
+        wavelength=m_r.wavelength * 10,
+        tth=np.linspace(5, 30, 251),
+        include_compton=False,
+    )
+    numat = dict(zip(m_r.atom_type, m_r.numat))
+    formfact = tds.formfactor(np.array([0.0]))
+    # |f(0)|^2 is close to Z^2
+    assert np.isclose(formfact['Ce'][0] / numat[58], 58**2, rtol=0.1)
+    assert np.isclose(formfact['O'][0] / numat[8], 8**2, rtol=0.1)
+
+    # Changing the O Debye-Waller factor must change the TDS
+    before = tds.tds_lineout
+    m_r.U[list(m_r.atom_type).index(8)] *= 2
+    assert not np.allclose(tds.tds_lineout, before)

@@ -160,36 +160,32 @@ class TDS_material:
         f_anomalous_data = self.mat.f_anomalous_data
         f_anomalous_data_sizes = self.mat.f_anomalous_data_sizes
 
+        atom_type = self.mat.atom_type
         scattering_factors = np.zeros([self.mat.atom_ntype, 11])
-        for i, a in enumerate(self.mat.atom_type):
+        fNT_arr = np.zeros(self.mat.atom_ntype)
+        frel_arr = np.zeros(self.mat.atom_ntype)
+        for i, a in enumerate(atom_type):
             k = ptableinverse[a]
             scattering_factors[i, :] = scatfac[k]
-            k = ptableinverse[a]
-            fNT_k = np.array([fNT[k]])
-            frel_k = np.array([frel[k]])
+            fNT_arr[i] = fNT[k]
+            frel_arr[i] = frel[k]
 
-        formfact = {}
-        for i, (a, nat) in enumerate(zip(self.mat.atom_type, self.mat.numat)):
-            k = ptableinverse[a]
-            formfact[k] = np.zeros_like(s)
-            for ii, ss in enumerate(s):
-                formfact[k][ii] = nat * (
-                    np.squeeze(
-                        np.abs(
-                            _calcxrayformfactor(
-                                self.mat.wavelength,
-                                ss,
-                                np.array([a]),
-                                scattering_factors,
-                                fNT_k,
-                                frel_k,
-                                f_anomalous_data,
-                                f_anomalous_data_sizes,
-                            )
-                        )
-                    )
-                    ** 2
-                )
+        formfact = {ptableinverse[a]: np.zeros_like(s) for a in atom_type}
+        for ii, ss in enumerate(s):
+            # Form factors of every atom type, in the order of atom_type
+            ff = _calcxrayformfactor(
+                self.mat.wavelength,
+                ss,
+                atom_type,
+                scattering_factors,
+                fNT_arr,
+                frel_arr,
+                f_anomalous_data,
+                f_anomalous_data_sizes,
+            )
+            for i, (a, nat) in enumerate(zip(atom_type, self.mat.numat)):
+                formfact[ptableinverse[a]][ii] = nat * np.abs(ff[i]) ** 2
+
         return formfact
 
     def get_TDS_contribution_hkl(
@@ -254,7 +250,7 @@ class TDS_material:
 
         thermal_diffuse = np.zeros_like(self.tth)
         for k, v in formfact.items():
-            thermal_diffuse = v * (
+            thermal_diffuse += v * (
                 (1 - exp2M[k]) + exp2M[k] * (2 * Ms[k] + Ms[k] ** 2) * (C - 1)
             )
 
