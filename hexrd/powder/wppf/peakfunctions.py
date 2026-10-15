@@ -770,8 +770,9 @@ def pvoight_exponential(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_exponential(tau_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_exponential(tau_exp, fwhm_l, tth, tth_list)
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a FWHM
+    g = _gaussian_exponential(tau_exp, fwhm / 2.354820045, tth, tth_list)
+    l_val = _lorentzian_exponential(tau_exp, fwhm, tth, tth_list)
 
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
@@ -812,8 +813,9 @@ def pvoight_heating(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_heating(sigma_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_heating(sigma_exp, fwhm_l, tth, tth_list)
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a HWHM
+    g = _gaussian_heating(sigma_exp, fwhm / 2.354820045, tth, tth_list)
+    l_val = _lorentzian_heating(sigma_exp, 0.5 * fwhm, tth, tth_list)
 
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
