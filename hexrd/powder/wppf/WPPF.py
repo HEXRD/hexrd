@@ -2743,26 +2743,37 @@ class Rietveld(AbstractWPPF):
             # Sanitize the name
             mat_key = mat_key.replace('-', '_')
 
+            # Each eta row may have a different set of hkls in range, so
+            # we must match the computed intensities by hkl, not by index
+            ints_comp = dict(
+                zip(
+                    map(tuple, self.hkls[mat_key][lambda_key]),
+                    ints_computed[mat_key][lambda_key],
+                )
+            )
+
             pfdata = {}
             for ii, nnz in enumerate(results[3]):
                 eta = self.eta_min + (nnz + 1) * np.radians(azimuthal_interval)
                 t = results[2][ii][mat_key][lambda_key]
                 hkl = results[1][ii][mat_key][lambda_key]
                 ints = results[0][ii][mat_key][lambda_key]
-                ints_comp = ints_computed[mat_key][lambda_key]
 
-                nn = np.min((t.shape[0], ints_comp.shape[0], ints.shape[0]))
+                nn = np.min((t.shape[0], ints.shape[0]))
                 for jj in range(nn):
+                    hkey = tuple(hkl[jj, :])
+                    if hkey not in ints_comp:
+                        continue
+
                     angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
                     v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
                     data = np.hstack(
                         (
                             v,
-                            np.atleast_2d(ints[jj] / ints_comp[jj]),
+                            np.atleast_2d(ints[jj] / ints_comp[hkey]),
                         )
                     )
 
-                    hkey = tuple(hkl[jj, :])
                     if hkey in pfdata:
                         # Stack with previous data
                         data = np.vstack((pfdata[hkey], data))

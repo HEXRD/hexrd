@@ -1,6 +1,8 @@
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import lmfit
 import numpy as np
@@ -500,3 +502,33 @@ def test_varied_atom_updates_structure_factors(
     before = ceo2_rietveld.sf['CeO2']['synchrotron'].copy()
     ceo2_rietveld._set_params_vals_to_class(params, skip_phases=False)
     assert not np.allclose(ceo2_rietveld.sf['CeO2']['synchrotron'], before)
+
+
+def test_texture_data_matches_intensities_by_hkl(
+    ceo2_rietveld: Rietveld,
+    expt_spectrum: np.ndarray,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hkls = ceo2_rietveld.hkls['CeO2']['synchrotron']
+    tths = ceo2_rietveld.tth['CeO2']['synchrotron']
+    ints = ceo2_rietveld.compute_intensities()['CeO2']['synchrotron']
+    model = SimpleNamespace(pfdata=None)
+    ceo2_rietveld.texture_model = {'CeO2': model}
+
+    # The second eta row is masked at low 2theta, so it lacks the first hkl
+    rows = [slice(None), slice(1, None)]
+
+    def per_row(values: np.ndarray) -> list[dict]:
+        return [{'CeO2': {'synchrotron': values[row]}} for row in rows]
+
+    def extract_intensities(**kwargs: Any) -> tuple:
+        return per_row(2 * ints), per_row(hkls), per_row(tths), np.arange(2), None
+
+    monkeypatch.setattr(
+        'hexrd.powder.wppf.WPPF.extract_intensities', extract_intensities
+    )
+    ceo2_rietveld.compute_texture_data(np.tile(expt_spectrum[:, 1], (2, 1)))
+
+    # Each point should be I_lebail(hkl) / I_rietveld(hkl), which is 2 here
+    for hkl in map(tuple, hkls):
+        np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
