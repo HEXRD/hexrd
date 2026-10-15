@@ -558,7 +558,7 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
     """
     del_tth = tth_list - tth
-    p = -alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
+    p = alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
     q = -beta * del_tth + 1j * 0.5 * beta * fwhm_l
 
     f1 = exp1exp(p)
