@@ -2673,6 +2673,12 @@ class Rietveld(AbstractWPPF):
 
         A simulated spectrum is returned.
         """
+        if bvec is None:
+            bvec = constants.beam_vec
+
+        if evec is None:
+            evec = constants.eta_vec
+
         # Use only the first lambda key, since it doesn't matter for LeBail
         lambda_key = next(iter(self.wavelength))
         mats = [v[lambda_key] for v in self.phases.phase_dict.values()]
