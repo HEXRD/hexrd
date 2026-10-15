@@ -1,6 +1,7 @@
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import lmfit
 import numpy as np
@@ -505,3 +506,52 @@ def test_rietveld_atom_params_update_structure_factors(
 
     mat = rietveld.phases['CeO2']['synchrotron']
     assert np.isclose(mat.asym_pos[0][0, 0], params['CeO2_O1_x'].value)
+
+
+def test_texture_data_matches_intensities_by_hkl(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rietveld = Rietveld(
+        expt_spectrum=expt_spectrum,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'spline': spline_picks.tolist()},
+        peakshape='pvtch',
+    )
+    model = SimpleNamespace(pfdata=None)
+    rietveld.texture_model = {'CeO2': model}
+
+    hkls = rietveld.hkls['CeO2']['synchrotron']
+    tths = rietveld.tth['CeO2']['synchrotron']
+    ints_comp = rietveld.compute_intensities()['CeO2']['synchrotron']
+
+    # The second eta row is masked at low 2theta, so its LeBail hkl list
+    # is missing the first reflection
+    rows = [slice(None), slice(1, None)]
+
+    def fake_extract_intensities(**kwargs):
+        def per_row(arr, row):
+            return {'CeO2': {'synchrotron': arr[row]}}
+
+        ints = [per_row(2 * ints_comp, row) for row in rows]
+        return (
+            ints,
+            [per_row(hkls, row) for row in rows],
+            [per_row(tths, row) for row in rows],
+            np.arange(len(rows)),
+            None,
+        )
+
+    monkeypatch.setattr(
+        'hexrd.powder.wppf.WPPF.extract_intensities', fake_extract_intensities
+    )
+    pv_binned = np.tile(expt_spectrum[:, 1], (len(rows), 1))
+    rietveld.compute_texture_data(pv_binned)
+
+    # Every pole figure point must be I_lebail(hkl) / I_rietveld(hkl)
+    assert len(model.pfdata) == len(hkls)
+    for hkl in map(tuple, hkls):
+        np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
