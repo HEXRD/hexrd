@@ -253,9 +253,9 @@ class AbstractWPPF(ABC):
         them using the params arg. else use values from
         the parameter class
         """
-        shkl_dict = {}
         for p in self.phases:
             for k in self.phases.wavelength:
+                shkl_dict = {}
                 phase = self._get_phase(p, k)
                 shkl_name = phase.valid_shkl
                 eq_const = phase.eq_constraints

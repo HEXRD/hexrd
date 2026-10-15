@@ -1,4 +1,5 @@
 import copy
+import importlib.resources
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -7,6 +8,7 @@ import lmfit
 import numpy as np
 import pytest
 
+import hexrd.core.resources
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
 from hexrd.powder.wppf import LeBail, Rietveld
 from hexrd.powder.wppf.peakfunctions import calc_rwp
@@ -610,3 +612,24 @@ def test_negative_spectrum_offset_is_global(
     assert lebail.offset_val == [ymin]
     shifted = lebail.spectrum_expt.y[~mask[:, 1]]
     np.testing.assert_allclose(shifted, spectrum[:, 1].compressed() - ymin)
+
+
+def test_shkl_terms_do_not_leak_between_phases(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    resource = importlib.resources.files(hexrd.core.resources)
+    with importlib.resources.as_file(resource / 'pinhole_materials.h5') as path:
+        u6nb = load_materials_hdf5(path)['U6Nb']
+
+    # A monoclinic phase followed by a cubic one
+    lebail = LeBail(
+        expt_spectrum=expt_spectrum,
+        phases=[u6nb, ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+    )
+    params = lebail.params
+    params['U6Nb_s103'].value = 0.5
+    lebail._update_shkl(params)
+    assert lebail.phases['U6Nb'].shkl[7] == 0.5
+    assert lebail.phases['CeO2'].shkl[7] == 0.0
