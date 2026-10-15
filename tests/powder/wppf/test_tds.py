@@ -6,7 +6,7 @@ import pytest
 
 from hexrd.material import Material
 from hexrd.powder.wppf.phase import Material_Rietveld
-from hexrd.wppf.tds import TDS, TDS_material
+from hexrd.wppf.tds import TDS, TDS_material, cagliotti_uvw_to_smoothing
 from hexrd.valunits import _nm, _kev, _angstrom
 from hexrd.constants import keVToAngstrom
 from hexrd.wppf import Rietveld
@@ -252,3 +252,9 @@ def test_tds_warren_multiple_elements(example_repo_path: Path):
     before = tds.tds_lineout
     m_r.U[list(m_r.atom_type).index(8)] *= 2
     assert not np.allclose(tds.tds_lineout, before)
+
+
+def test_cagliotti_smoothing_is_sigma():
+    # W gives a FWHM of 0.2355 deg, i.e. a sigma of 0.1 deg = 10 steps
+    tth = np.arange(15, 60, 0.01)
+    assert cagliotti_uvw_to_smoothing([0, 0, 23.54820045**2], tth) == 10
