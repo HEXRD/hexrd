@@ -497,13 +497,16 @@ class AbstractWPPF(ABC):
             when the computation has finished.
             03/08/2021 all quantities are lists now
             """
-            for s in self._spectrum_expt:
-                self.offset = []
-                self.offset_val = []
-                if np.any(s.y < 0.0):
-                    self.offset.append(True)
-                    self.offset_val.append(s.y.min())
-                    s.y = s.y - s.y.min()
+            # All islands must be shifted by the same amount, or we would
+            # introduce steps that the background cannot follow
+            self.offset = []
+            self.offset_val = []
+            ymin = min(s.y.min() for s in self._spectrum_expt)
+            if ymin < 0.0:
+                self.offset.append(True)
+                self.offset_val.append(ymin)
+                for s in self._spectrum_expt:
+                    s.y = s.y - ymin
 
             """
             @date 09/24/2020 SS

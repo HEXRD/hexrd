@@ -587,3 +587,26 @@ def test_rietveld_intensities_follow_lattice_and_ph(
     assert Ic.shape == tth.shape
     lp = (1 + 0.5 * np.cos(tth) ** 2) / (np.cos(0.5 * tth) * np.sin(0.5 * tth) ** 2)
     np.testing.assert_allclose(rietveld.LP['CeO2']['synchrotron'], lp)
+
+
+def test_negative_spectrum_offset_is_global(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    # A masked lineout with negative values is split into islands, which
+    # must all be shifted by the same global minimum
+    spectrum = expt_spectrum.copy()
+    spectrum[:, 1] -= 50.0
+    spectrum[:1000, 1] -= 30.0
+    mask = np.zeros(spectrum.shape, dtype=bool)
+    mask[1000:1100] = True
+    spectrum = np.ma.masked_array(spectrum, mask)
+    lebail = LeBail(
+        expt_spectrum=spectrum,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+    )
+    ymin = spectrum[:, 1].min()
+    assert lebail.offset_val == [ymin]
+    shifted = lebail.spectrum_expt.y[~mask[:, 1]]
+    np.testing.assert_allclose(shifted, spectrum[:, 1].compressed() - ymin)
