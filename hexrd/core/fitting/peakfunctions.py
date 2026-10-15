@@ -511,7 +511,7 @@ def _lorentzian_pink_beam(p, x):
 
     del_tth = x - x0
 
-    p = -alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
+    p = alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
     q = -beta * del_tth + 1j * 0.5 * beta * fwhm_l
 
     y = np.zeros(x.shape)

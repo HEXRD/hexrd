@@ -2,8 +2,9 @@ import pytest
 from unittest.mock import MagicMock, patch
 import numpy as np
 from lmfit import Parameters
+from scipy.integrate import quad
 
-from hexrd.core.fitting import utils
+from hexrd.core.fitting import peakfunctions, utils
 
 # --- Fixtures ---
 
@@ -102,6 +103,29 @@ def test_pink_beam_funcs():
     res_l = utils._lorentzian_pink_beam(p, x)
     assert not np.any(np.isnan(res_l))
     assert utils._lorentzian_pink_beam(p, np.array([np.nan]))[0] == 0.0
+
+
+def test_pink_beam_lorentzian_is_a_convolution() -> None:
+    # The Lorentzian part should be a Lorentzian convolved with the same
+    # back-to-back exponential as the Gaussian part
+    alpha, beta, fwhm = 3.0, 0.8, 0.08
+
+    def integrand(t: float, x0: float, rate: float) -> float:
+        lorentzian = (fwhm / 2 / np.pi) / ((x0 - t) ** 2 + (fwhm / 2) ** 2)
+        return np.exp(-rate * abs(t)) * lorentzian
+
+    x = np.array([-1.0, -0.05, 0.0, 0.05, 1.0])
+    expected = np.zeros_like(x)
+    for i, x0 in enumerate(x):
+        low = quad(integrand, -np.inf, 0, args=(x0, alpha), limit=200)[0]
+        high = quad(integrand, 0, np.inf, args=(x0, beta), limit=200)[0]
+        expected[i] = alpha * beta / (alpha + beta) * (low + high)
+
+    p = np.array([1.0, 0.0, alpha, beta, fwhm])
+    np.testing.assert_allclose(utils._lorentzian_pink_beam(p, x), expected, rtol=1e-6)
+    # The copy in peakfunctions is normalized to its maximum
+    y = peakfunctions._lorentzian_pink_beam(p, x)
+    np.testing.assert_allclose(y, expected / expected.max(), rtol=1e-6)
 
 
 # --- Spectrum Fitting Wrapper ---
