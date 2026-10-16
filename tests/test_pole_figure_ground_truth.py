@@ -479,7 +479,7 @@ class TestNormalization:
         negatives, which is the residual the tolerances allow for.
         """
         assert phases[name].min() >= 0.0
-        assert min(min(row) for row in samples) <= 0.0
+        assert min(min(row) for row in samples) >= 0.0
 
 
 @pytest.mark.parametrize(
