@@ -1,0 +1,25 @@
+{
+    "upload_type": "software",
+    "license": "bsd-3-clause",
+    "creators": [
+        {"name": "Avery, Patrick", "affiliation": "Kitware, Inc.", "orcid": "0000-0003-2254-1345"},
+        {"name": "Bernier, Joel V.", "affiliation": "Lawrence Livermore National Laboratory", "orcid": "0000-0001-5418-8094"},
+        {"name": "Boyce, Donald E.", "affiliation": "Cornell University", "orcid": "0000-0002-2980-6169"},
+        {"name": "Harris, Chris", "affiliation": "Kitware, Inc."},
+        {"name": "Lewis, Kevin", "affiliation": "Verdant Evolution, LLC"},
+        {"name": "Singer, Zack", "affiliation": "Verdant Evolution, LLC"},
+        {"name": "Major, Brianna", "affiliation": "Kitware, Inc.", "orcid": "0000-0003-4968-5701"},
+        {"name": "Tsolakis, Christos", "affiliation": "Kitware, Inc.", "orcid": "0000-0002-0656-9631"},
+        {"name": "Welsh, Kevin", "affiliation": "Verdant Evolution, LLC"},
+        {"name": "Lim, Rachel", "affiliation": "Lawrence Livermore National Laboratory", "orcid": "0000-0001-9913-4348"},
+        {"name": "Pagan, Darren C.", "affiliation": "Pennsylvania State University", "orcid": "0000-0001-8638-6546"},
+        {"name": "Tourtellott, John", "affiliation": "Kitware, Inc."},
+        {"name": "Villellas Guillén, Óscar"},
+        {"name": "Rygg, J. Ryan", "affiliation": "University of Rochester", "orcid": "0000-0002-0605-7847"},
+        {"name": "Gustafson, Sven", "affiliation": "Cornell University", "orcid": "0000-0003-3031-4169"},
+        {"name": "Budrow, Chris", "affiliation": "Budrow Consulting LLC"},
+        {"name": "Nygren, Kelly", "affiliation": "Cornell University", "orcid": "0000-0002-9210-0556"},
+        {"name": "Shade, Paul", "affiliation": "Air Force Research Laboratory", "orcid": "0000-0002-7516-4275"},
+        {"name": "Singh, Saransh", "affiliation": "Lawrence Livermore National Laboratory", "orcid": "0000-0002-0286-9549"}
+    ]
+}
