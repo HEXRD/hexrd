@@ -686,7 +686,7 @@ def simulateGVecs(
         op_idx = np.where(on_panel)[0]
 
         valid_ang = allAngs[op_idx, :]
-        valid_ang[:, 2] = xfcapi.mapAngle(valid_ang[:, 2], ome_period)
+        valid_ang[:, 2] = rot.mapAngle(valid_ang[:, 2], ome_period)
         valid_ids = allHKLs[op_idx, 0]
         valid_hkl = allHKLs[op_idx, 1:]
         valid_xy = det_xy[op_idx, :]
