@@ -235,7 +235,15 @@ def _lorentzian_pink_beam(p, x):
 
     del_tth = x - x0
 
-    p = -alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
+    # Von Dreele et al. (2021) and GSAS-II (epsvoigt.for) use
+    # p = -alpha * del_tth, with the same sign as q. We think that is a sign
+    # error. It makes the alpha and beta terms the same function, so swapping
+    # alpha and beta would not change the profile, although the alpha
+    # exponential lies below the peak and the beta one above it. Convolving
+    # each exponential with a Lorentzian gives +alpha * del_tth here and
+    # -beta * del_tth in q, the same signs as in the Gaussian part, and this
+    # matches a numeric convolution (see tests/powder/wppf/test_peak_profiles.py).
+    p = alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
     q = -beta * del_tth + 1j * 0.5 * beta * fwhm_l
 
     y = np.zeros(x.shape)

@@ -473,7 +473,8 @@ def pvfcj(
 
     tau = tau_min * xn**2
 
-    cx = np.cos(tau)
+    # The FCJ weight is divided by cos(2phi), where 2phi = 2theta - tau
+    cx = np.abs(np.cos(tth_r - tau))
     res = np.zeros(tth_list.shape)
     den = 0.0
 
@@ -558,7 +559,15 @@ def _lorentzian_pink_beam(alpha, beta, fwhm_l, tth, tth_list):
     Von Dreele et. al., J. Appl. Cryst. (2021). 54, 3–6
     """
     del_tth = tth_list - tth
-    p = -alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
+    # Von Dreele et al. (2021) and GSAS-II (epsvoigt.for) use
+    # p = -alpha * del_tth, with the same sign as q. We think that is a sign
+    # error. It makes the alpha and beta terms the same function, so swapping
+    # alpha and beta would not change the profile, although the alpha
+    # exponential lies below the peak and the beta one above it. Convolving
+    # each exponential with a Lorentzian gives +alpha * del_tth here and
+    # -beta * del_tth in q, the same signs as in the Gaussian part, and this
+    # matches a numeric convolution (see tests/powder/wppf/test_peak_profiles.py).
+    p = alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
     q = -beta * del_tth + 1j * 0.5 * beta * fwhm_l
 
     f1 = exp1exp(p)
@@ -669,7 +678,7 @@ def _lorentzian_exponential(
 
     f2 = exp1exp(q)
 
-    y = 1 / (np.pi * tau) * f2.imag
+    y = -1 / (np.pi * tau) * f2.imag
 
     mask = np.isnan(y)
     y[mask] = 0.0
@@ -729,7 +738,7 @@ def pvoight_pink_beam(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm / 2.354820045, tth, tth_list)
+    g = _gaussian_pink_beam(alpha_exp, beta_exp, fwhm / gauss_width_fact, tth, tth_list)
     l_val = _lorentzian_pink_beam(alpha_exp, beta_exp, fwhm, tth, tth_list)
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
@@ -770,8 +779,9 @@ def pvoight_exponential(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_exponential(tau_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_exponential(tau_exp, fwhm_l, tth, tth_list)
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a FWHM
+    g = _gaussian_exponential(tau_exp, fwhm / gauss_width_fact, tth, tth_list)
+    l_val = _lorentzian_exponential(tau_exp, fwhm, tth, tth_list)
 
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)
@@ -812,8 +822,9 @@ def pvoight_heating(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    g = _gaussian_heating(sigma_exp, fwhm_g, tth, tth_list)
-    l_val = _lorentzian_heating(sigma_exp, fwhm_l, tth, tth_list)
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a HWHM
+    g = _gaussian_heating(sigma_exp, fwhm / gauss_width_fact, tth, tth_list)
+    l_val = _lorentzian_heating(sigma_exp, 0.5 * fwhm, tth, tth_list)
 
     ag = np.trapezoid(g, tth_list)
     al = np.trapezoid(l_val, tth_list)

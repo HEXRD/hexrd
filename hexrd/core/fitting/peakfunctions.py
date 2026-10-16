@@ -511,7 +511,15 @@ def _lorentzian_pink_beam(p, x):
 
     del_tth = x - x0
 
-    p = -alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
+    # Von Dreele et al. (2021) and GSAS-II (epsvoigt.for) use
+    # p = -alpha * del_tth, with the same sign as q. We think that is a sign
+    # error. It makes the alpha and beta terms the same function, so swapping
+    # alpha and beta would not change the profile, although the alpha
+    # exponential lies below the peak and the beta one above it. Convolving
+    # each exponential with a Lorentzian gives +alpha * del_tth here and
+    # -beta * del_tth in q, the same signs as in the Gaussian part, and this
+    # matches a numeric convolution (see tests/powder/wppf/test_peak_profiles.py).
+    p = alpha * del_tth + 1j * 0.5 * alpha * fwhm_l
     q = -beta * del_tth + 1j * 0.5 * beta * fwhm_l
 
     y = np.zeros(x.shape)
@@ -544,7 +552,7 @@ def _pink_beam_dcs_no_bg(p, x):
     beta = _calc_beta((p[4], p[5]), p[1])
 
     eta, fwhm = _mixing_factor_pv(p[6], p[7])
-    arg1 = np.array([alpha, beta, fwhm / 2.354820045]).astype(np.float64)
+    arg1 = np.array([alpha, beta, fwhm / gauss_width_fact]).astype(np.float64)
     arg2 = np.array([alpha, beta, fwhm]).astype(np.float64)
 
     p_g = np.hstack((p[0:2], arg1))
@@ -575,13 +583,14 @@ def _pink_beam_exponential_no_bg(p: NDArray, x: NDArray) -> NDArray:
     if np.abs(tau) < 0.01:
         return np.zeros(x.shape)
 
-    arg1 = np.array([tau, p[5]]).astype(np.float64)
-    arg2 = np.array([tau, p[6]]).astype(np.float64)
+    eta, fwhm = _mixing_factor_pv(p[5], p[6])
+
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a FWHM
+    arg1 = np.array([tau, fwhm / gauss_width_fact]).astype(np.float64)
+    arg2 = np.array([tau, fwhm]).astype(np.float64)
 
     p_g = np.hstack((p[0:2], arg1))
     p_l = np.hstack((p[0:2], arg2))
-
-    eta, fwhm = _mixing_factor_pv(p[5], p[6])
 
     G = _gaussian_exponential(p_g, x)
     L = _lorentzian_exponential(p_l, x)
@@ -613,13 +622,14 @@ def _pink_beam_heating_no_bg(p: NDArray, x: NDArray) -> NDArray:
     if np.abs(sigma) < 0.01:
         return np.zeros(x.shape)
 
-    arg1 = np.array([sigma, p[4]]).astype(np.float64)
-    arg2 = np.array([sigma, p[5]]).astype(np.float64)
+    eta, fwhm = _mixing_factor_pv(p[4], p[5])
+
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a HWHM
+    arg1 = np.array([sigma, fwhm / gauss_width_fact]).astype(np.float64)
+    arg2 = np.array([sigma, 0.5 * fwhm]).astype(np.float64)
 
     p_g = np.hstack((p[0:2], arg1))
     p_l = np.hstack((p[0:2], arg2))
-
-    eta, fwhm = _mixing_factor_pv(p[4], p[5])
 
     G = _gaussian_heating(p_g, x)
     L = _lorentzian_heating(p_l, x)
@@ -660,7 +670,7 @@ def pink_beam_dcs_lmfit(x, A, x0, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     beta = _calc_beta((beta0, beta1), x0)
 
     eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
-    arg1 = np.array([alpha, beta, fwhm / 2.354820045], dtype=np.float64)
+    arg1 = np.array([alpha, beta, fwhm / gauss_width_fact], dtype=np.float64)
     arg2 = np.array([alpha, beta, fwhm], dtype=np.float64)
 
     p_g = np.hstack([[A, x0], arg1]).astype(np.float64, order='C')
@@ -754,7 +764,7 @@ def _lorentzian_exponential(p: NDArray, x: NDArray) -> NDArray:
 
     f2 = exp1exp(q)
 
-    y = 1 / (np.pi * tau) * f2.imag
+    y = -1 / (np.pi * tau) * f2.imag
 
     mask = np.isnan(y)
     y[mask] = 0.0
@@ -844,8 +854,9 @@ def pink_beam_exponential_lmfit(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    p_g = np.array([A, x0, tau_exp, fwhm_g])
-    p_l = np.array([A, x0, tau_exp, fwhm_l])
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a FWHM
+    p_g = np.array([A, x0, tau_exp, fwhm / gauss_width_fact])
+    p_l = np.array([A, x0, tau_exp, fwhm])
 
     g = _gaussian_exponential(p_g, x)
     l_val = _lorentzian_exponential(p_l, x)
@@ -882,8 +893,9 @@ def pink_beam_heating_lmfit(
 
     n, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
 
-    p_g = np.array([A, x0, sig_exp, fwhm_g])
-    p_l = np.array([A, x0, sig_exp, fwhm_l])
+    # The Gaussian kernel takes a sigma and the Lorentzian kernel a HWHM
+    p_g = np.array([A, x0, sig_exp, fwhm / gauss_width_fact])
+    p_l = np.array([A, x0, sig_exp, 0.5 * fwhm])
 
     g = _gaussian_heating(p_g, x)
     l_val = _lorentzian_heating(p_l, x)

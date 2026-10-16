@@ -1,11 +1,15 @@
 import copy
+import importlib.resources
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
 
 import lmfit
 import numpy as np
 import pytest
 
+import hexrd.core.resources
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
 from hexrd.powder.wppf import LeBail, Rietveld
 from hexrd.powder.wppf.peakfunctions import calc_rwp
@@ -469,3 +473,127 @@ def test_statistical_weights(
 
     with pytest.raises(ValueError):
         wppf_class(expt_spectrum=spectrum, num_averaged_pixels=n_pixels[:-1], **kwargs)
+
+
+@pytest.fixture
+def ceo2_rietveld(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+    rietveld_params: lmfit.Parameters,
+) -> Rietveld:
+    return Rietveld(
+        expt_spectrum=expt_spectrum,
+        params=rietveld_params,
+        phases=[ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'spline': spline_picks.tolist()},
+        peakshape='pvtch',
+    )
+
+
+@pytest.mark.parametrize('name', ['CeO2_Ce1_dw', 'CeO2_O1_dw', 'CeO2_O1_x'])
+def test_varied_atom_updates_structure_factors(
+    ceo2_rietveld: Rietveld, name: str
+) -> None:
+    params = ceo2_rietveld.params
+    ceo2_rietveld.params_vary_off()
+    params[name].vary = True
+    params[name].value += 0.005
+
+    before = ceo2_rietveld.sf['CeO2']['synchrotron'].copy()
+    ceo2_rietveld._set_params_vals_to_class(params, skip_phases=False)
+    assert not np.allclose(ceo2_rietveld.sf['CeO2']['synchrotron'], before)
+
+
+def test_forced_update_keeps_rounded_positions(
+    example_repo_path: Path, expt_spectrum: np.ndarray
+) -> None:
+    path = example_repo_path / 'DAC/alpha_zirconium_axial_multi/include/materials.h5'
+    zr = load_materials_hdf5(path)['alpha_Zr']
+
+    # CIFs often round the 1/3, 2/3 positions of hcp
+    atom_pos = zr.unitcell.atom_pos.copy()
+    atom_pos[0, :3] = [0.3333, 0.6667, 0.25]
+    zr.unitcell.atom_pos = atom_pos
+
+    rietveld = Rietveld(
+        expt_spectrum=expt_spectrum,
+        phases=[zr],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+        peakshape='pvtch',
+    )
+    before = rietveld.sf['alpha_Zr']['synchrotron'].copy()
+    rietveld._set_params_vals_to_class(rietveld.params, skip_phases=False, force=True)
+    np.testing.assert_allclose(rietveld.sf['alpha_Zr']['synchrotron'], before)
+
+
+def test_texture_data_matches_intensities_by_hkl(
+    ceo2_rietveld: Rietveld,
+    expt_spectrum: np.ndarray,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hkls = ceo2_rietveld.hkls['CeO2']['synchrotron']
+    tths = ceo2_rietveld.tth['CeO2']['synchrotron']
+    ints = ceo2_rietveld.compute_intensities()['CeO2']['synchrotron']
+    model = SimpleNamespace(pfdata=None)
+    ceo2_rietveld.texture_model = {'CeO2': model}
+
+    # The second eta row is masked at low 2theta, so it lacks the first hkl
+    rows = [slice(None), slice(1, None)]
+
+    def per_row(values: np.ndarray) -> list[dict]:
+        return [{'CeO2': {'synchrotron': values[row]}} for row in rows]
+
+    def extract_intensities(**kwargs: Any) -> tuple:
+        return per_row(2 * ints), per_row(hkls), per_row(tths), np.arange(2), None
+
+    monkeypatch.setattr(
+        'hexrd.powder.wppf.WPPF.extract_intensities', extract_intensities
+    )
+    ceo2_rietveld.compute_texture_data(np.tile(expt_spectrum[:, 1], (2, 1)))
+
+    # Each point should be I_lebail(hkl) / I_rietveld(hkl), which is 2 here
+    for hkl in map(tuple, hkls):
+        np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
+
+
+def test_lp_factor_follows_lattice_and_ph(ceo2_rietveld: Rietveld) -> None:
+    params = ceo2_rietveld.params
+    num_reflections = len(ceo2_rietveld.tth['CeO2']['synchrotron'])
+
+    # A larger lattice parameter brings another reflection into range
+    params['CeO2_a'].value *= 1.02
+    params['Ph'].value = 0.5
+    ceo2_rietveld._set_params_vals_to_class(params, skip_phases=False, force=True)
+    tth = np.radians(ceo2_rietveld.tth['CeO2']['synchrotron'])
+    assert len(tth) > num_reflections
+
+    # Every reflection gets an intensity and an LP factor at its 2theta
+    intensities = ceo2_rietveld.compute_intensities()['CeO2']['synchrotron']
+    assert intensities.shape == tth.shape
+    lp = (1 + 0.5 * np.cos(tth) ** 2) / (np.cos(tth / 2) * np.sin(tth / 2) ** 2)
+    np.testing.assert_allclose(ceo2_rietveld.LP['CeO2']['synchrotron'], lp)
+
+
+def test_shkl_terms_do_not_leak_between_phases(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    resource = importlib.resources.files(hexrd.core.resources)
+    with importlib.resources.as_file(resource / 'pinhole_materials.h5') as path:
+        u6nb = load_materials_hdf5(path)['U6Nb']
+
+    # A monoclinic phase, and then a cubic one
+    lebail = LeBail(
+        expt_spectrum=expt_spectrum,
+        phases=[u6nb, ceo2_material],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+    )
+    lebail.params['U6Nb_s103'].value = 0.5
+    lebail._update_shkl(lebail.params)
+
+    # s103 is the 8th term
+    assert lebail.phases['U6Nb'].shkl[7] == 0.5
+    assert lebail.phases['CeO2'].shkl[7] == 0.0

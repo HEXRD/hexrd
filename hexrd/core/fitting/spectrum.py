@@ -187,7 +187,7 @@ def pink_beam_dcs(x, amp, cen, alpha0, alpha1, beta0, beta1, fwhm_g, fwhm_l):
     beta = _calc_beta((beta0, beta1), cen)
 
     eta, fwhm = _mixing_factor_pv(fwhm_g, fwhm_l)
-    arg1 = np.array([alpha, beta, fwhm / 2.354820045], dtype=np.float64)
+    arg1 = np.array([alpha, beta, fwhm * fwhm_to_sigma], dtype=np.float64)
     arg2 = np.array([alpha, beta, fwhm], dtype=np.float64)
 
     p_g = np.hstack([[amp, cen], arg1]).astype(np.float64, order='C')
@@ -665,8 +665,10 @@ class SpectrumModel(object):
                 _set_refinement_by_name(new_p, 'alpha0', vary=True)
                 _set_refinement_by_name(new_p, 'alpha1', vary=False)
                 _set_refinement_by_name(new_p, 'beta', vary=True)
-                _set_equality_constraints(new_p, 'alpha')
-                _set_equality_constraints(new_p, 'beta')
+                _set_equality_constraints(new_p, 'alpha0')
+                _set_equality_constraints(new_p, 'alpha1')
+                _set_equality_constraints(new_p, 'beta0')
+                _set_equality_constraints(new_p, 'beta1')
                 _set_bound_constraints(new_p, 'alpha', min_val=-10, max_val=30)
                 _set_bound_constraints(new_p, 'beta', min_val=-10, max_val=30)
                 _set_width_mixing_bounds(

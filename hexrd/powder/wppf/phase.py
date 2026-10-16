@@ -614,10 +614,11 @@ class Material_Rietveld(Material_LeBail):
                 rr[rr < 0.0] += 1.0
                 rr[np.abs(rr) < 1.0e-6] = 0.0
 
-                # check if this is new
+                # check if this is new, with the same test as the unitcell,
+                # so that rounded coordinates such as 0.3333 are not doubled
                 isnew = True
                 for j in range(n):
-                    if np.sum(np.abs(rr - asym_pos[i][j, :])) < 1e-4:
+                    if self.CalcLength(rr - asym_pos[i][j, :], 'd') < 1e-3:
                         isnew = False
                         break
 

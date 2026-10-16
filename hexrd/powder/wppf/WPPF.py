@@ -253,9 +253,9 @@ class AbstractWPPF(ABC):
         them using the params arg. else use values from
         the parameter class
         """
-        shkl_dict = {}
         for p in self.phases:
             for k in self.phases.wavelength:
+                shkl_dict = {}
                 phase = self._get_phase(p, k)
                 shkl_name = phase.valid_shkl
                 eq_const = phase.eq_constraints
@@ -1784,6 +1784,7 @@ class Rietveld(AbstractWPPF):
                 # or atom info.
                 lpvary = force
                 atominfo_vary = force
+                pos_vary = force
 
                 """
                 PART 1: update stacking fault and twin beta parameters
@@ -1836,9 +1837,10 @@ class Rietveld(AbstractWPPF):
                     else:
                         dw = f"{p}_{elem}{atom_label[i]}_dw"
 
-                    atominfo_vary = force or any(
-                        params[name].vary for name in (nx, ny, nz, oc)
-                    )
+                    if any(params[name].vary for name in (nx, ny, nz, oc)):
+                        atominfo_vary = True
+                    if any(params[name].vary for name in (nx, ny, nz)):
+                        pos_vary = True
                     x = params[nx].value
                     y = params[ny].value
                     z = params[nz].value
@@ -1859,6 +1861,11 @@ class Rietveld(AbstractWPPF):
                         mat.U[i] = params[dw].value
 
                     mat.atom_pos[i, :] = np.array([x, y, z, oc])
+
+                if pos_vary:
+                    # The structure factors use the symmetry equivalent
+                    # positions, so we regenerate them from atom_pos
+                    mat.CalcPositions()
 
                 if mat.aniU:
                     mat.calcBetaij()
@@ -1968,24 +1975,16 @@ class Rietveld(AbstractWPPF):
         will replace part of the code in the computespectrum
         function
         '''
+        # The reflections in range and Ph may have changed since the last call
+        self.PolarizationFactor()
+
         Ic = {}
         for iph, p in enumerate(self.phases):
             Ic[p] = {}
             for k, l in self.phases.wavelength.items():
-                tth = self.tth[p][k]
                 pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
                 sf = self.sf[p][k]
                 lp = self.LP[p][k]
-                extinction = self.extinction[p][k]
-                absorption = self.absorption[p][k]
-
-                n = np.min((tth.shape[0], sf.shape[0], lp.shape[0]))
-
-                tth = tth[:n]
-                sf = sf[:n]
-                lp = lp[:n]
-                extinction = extinction[:n]
-                absorption = absorption[:n]
 
                 Ic[p][k] = self.scale * pf * sf * lp  # *extinction*absorption
         return Ic
@@ -2458,10 +2457,16 @@ class Rietveld(AbstractWPPF):
         p = phase_name
         k = wavelength_name
 
+        tds_mat = self.tds_model.TDSmodels[p][k]
+        tds_signal = tds_mat.tds_lineout
+        weight = self.phases.wavelength[k][1]
+        if tds_mat.model_type == 'experimental':
+            # Measured data is already in observed intensity units, and its
+            # own scale factor is applied in the lineout
+            return weight * tds_signal
+
         lp = self.polfactor_full
         pf = self.phases[p][k].pf / self.phases[p][k].vol ** 2
-        tds_signal = self.tds_model.TDSmodels[p][k].tds_lineout
-        weight = self.phases.wavelength[k][1]
 
         return self.scale * weight * pf * lp * tds_signal
 
@@ -2666,6 +2671,12 @@ class Rietveld(AbstractWPPF):
 
         A simulated spectrum is returned.
         """
+        if bvec is None:
+            bvec = constants.beam_vec
+
+        if evec is None:
+            evec = constants.eta_vec
+
         # Use only the first lambda key, since it doesn't matter for LeBail
         lambda_key = next(iter(self.wavelength))
         mats = [v[lambda_key] for v in self.phases.phase_dict.values()]
@@ -2730,26 +2741,37 @@ class Rietveld(AbstractWPPF):
             # Sanitize the name
             mat_key = mat_key.replace('-', '_')
 
+            # Each eta row may have a different set of hkls in range, so
+            # we must match the computed intensities by hkl, not by index
+            ints_comp = dict(
+                zip(
+                    map(tuple, self.hkls[mat_key][lambda_key]),
+                    ints_computed[mat_key][lambda_key],
+                )
+            )
+
             pfdata = {}
             for ii, nnz in enumerate(results[3]):
                 eta = self.eta_min + (nnz + 1) * np.radians(azimuthal_interval)
                 t = results[2][ii][mat_key][lambda_key]
                 hkl = results[1][ii][mat_key][lambda_key]
                 ints = results[0][ii][mat_key][lambda_key]
-                ints_comp = ints_computed[mat_key][lambda_key]
 
-                nn = np.min((t.shape[0], ints_comp.shape[0], ints.shape[0]))
+                nn = np.min((t.shape[0], ints.shape[0]))
                 for jj in range(nn):
+                    hkey = tuple(hkl[jj, :])
+                    if hkey not in ints_comp:
+                        continue
+
                     angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
                     v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
                     data = np.hstack(
                         (
                             v,
-                            np.atleast_2d(ints[jj] / ints_comp[jj]),
+                            np.atleast_2d(ints[jj] / ints_comp[hkey]),
                         )
                     )
 
-                    hkey = tuple(hkl[jj, :])
                     if hkey in pfdata:
                         # Stack with previous data
                         data = np.vstack((pfdata[hkey], data))

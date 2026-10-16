@@ -6,9 +6,9 @@ import pytest
 
 from hexrd.material import Material
 from hexrd.powder.wppf.phase import Material_Rietveld
-from hexrd.wppf.tds import TDS, TDS_material
+from hexrd.wppf.tds import TDS, TDS_material, cagliotti_uvw_to_smoothing
 from hexrd.valunits import _nm, _kev, _angstrom
-from hexrd.constants import keVToAngstrom
+from hexrd.constants import keVToAngstrom, sigma_to_fwhm
 from hexrd.wppf import Rietveld
 
 
@@ -105,13 +105,19 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
 
     assert R.Rwp < 0.01
 
-    # Now try the experimental model.
-    # It shouldn't have a big impact. We'll just verify it runs.
+    # Test calculating the equivalent temperatures
+    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
+    # Was 3581 before the dispersion fix
+    assert np.isclose(equiv_temp_dict['Ti'], 3601, atol=10)
+
+    # Now try the experimental model, using the refined Warren signal as
+    # the "measured" TDS. The fit quality should be about the same.
+    measured_tds = R.calculate_scaled_tds_signal("Ti_beta", "XFEL")
     kwargs = {
         "model_type": "experimental",
         "phases": R.phases,
         "tth": R.tth_list,
-        "model_data": tds_expt_spectrum,
+        "model_data": np.column_stack((R.tth_list, measured_tds)),
         "scale": 1,
         "shift": 0,
         "include_compton": False,
@@ -122,11 +128,6 @@ def test_wppf_tds(tds_material_file: Path, tds_expt_spectrum: np.ndarray):
     R.Refine()
 
     assert R.Rwp < 0.05
-
-    # Test calculating the equivalent temperatures
-    equiv_temp_dict = m_r.calc_temperature({'Ti': 380})
-    # Was 3581 before the dispersion fix
-    assert np.isclose(equiv_temp_dict['Ti'], 3601, atol=10)
 
 
 def test_tds_aggregate_lineout_no_double_scaling(
@@ -200,3 +201,35 @@ def test_tds_material_include_compton(tds_material_file: Path):
 
     with pytest.raises(RuntimeError):
         TDS_material(**common, include_compton="yes")
+
+
+def test_tds_experimental_model(tds_material_file: Path) -> None:
+    # The experimental model should be the measured data, scaled and
+    # shifted, rather than the Warren model
+    m = Material(
+        name="Ti_beta",
+        material_file=tds_material_file,
+        kev=_kev(10.2505),
+        dmin=_nm(0.05),
+    )
+    m_r = Material_Rietveld(material_obj=m)
+    data_tth = np.linspace(10, 65, 1101)
+    tds = TDS_material(
+        model_type="experimental",
+        material=m_r,
+        wavelength=m_r.wavelength * 10,
+        tth=np.linspace(15, 60, 451),
+        model_data=np.column_stack((data_tth, 1 + np.sin(np.radians(data_tth)))),
+        scale=2.0,
+        shift=0.5,
+    )
+    expected = 2 * (1 + np.sin(np.radians(tds.tth - 0.5)))
+    np.testing.assert_allclose(tds.tds_lineout, expected, rtol=1e-4)
+
+
+def test_cagliotti_smoothing_is_sigma() -> None:
+    # W is the squared FWHM in centidegrees. This one is a sigma of 0.1 deg,
+    # or 10 steps.
+    tth = np.arange(15, 60, 0.01)
+    w = (10 * sigma_to_fwhm) ** 2
+    assert cagliotti_uvw_to_smoothing([0, 0, w], tth) == 10

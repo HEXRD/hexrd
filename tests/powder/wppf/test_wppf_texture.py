@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import h5py
+import lmfit
 import numpy as np
 from PIL import Image
 import pytest
@@ -433,3 +434,23 @@ def test_march_dollase_validation():
     # material setter: wrong type
     with pytest.raises(Exception):
         md.material = "not a material"
+
+
+def test_texture_factor_fully_masked_ring(texture_instrument: HEDMInstrument) -> None:
+    mat = Material(dmin=_angstrom(0.5), kev=_kev(texture_instrument.beam_energy))
+    hm = HarmonicModel(
+        material=Material_Rietveld(material_obj=mat),
+        ssym='axial',
+        ell_max=4,
+        bvec=texture_instrument.beam_vector,
+        evec=texture_instrument.eta_vector,
+    )
+    params = lmfit.Parameters()
+    hm.get_parameters(params, vary=False)
+    expected = hm.calc_texture_factor(params, eta_step=np.radians(5))
+
+    # A ring that is masked at every eta falls back to the full ring
+    hkl = next(iter(hm.intensities_rings))
+    eta_mask = {hkl: np.ones_like(hm.intensities_rings[hkl], dtype=bool)}
+    tf = hm.calc_texture_factor(params, eta_step=np.radians(5), eta_mask=eta_mask)
+    np.testing.assert_allclose(tf, expected)

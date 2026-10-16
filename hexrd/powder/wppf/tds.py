@@ -15,6 +15,7 @@ from hexrd.constants import (
     cBoltzmann,
     cAvogadro,
     ATOM_WEIGHTS_DICT,
+    fwhm_to_sigma,
 )
 from scipy.ndimage import gaussian_filter1d
 
@@ -102,8 +103,8 @@ class TDS_material:
         self._wavelength = wavelength
         self.tth = tth
         self.model_data = model_data
-        self.scale = scale
-        self.shift = shift
+        self.scale = 1.0 if scale is None else scale
+        self.shift = 0.0 if shift is None else shift
         self.smoothing = smoothing
 
         self.validate()
@@ -302,9 +303,19 @@ class TDS_material:
 
     @property
     def tds_lineout(self) -> np.ndarray:
-        lo = self.calcTDS()
-        if self.include_compton:
-            lo += self.compton_scattering_intensity
+        if self.model_type == 'experimental':
+            # The measured signal already contains any incoherent part
+            lo = self.scale * np.interp(
+                self.tth,
+                self.model_data[:, 0] + self.shift,
+                self.model_data[:, 1],
+                left=0.0,
+                right=0.0,
+            )
+        else:
+            lo = self.calcTDS()
+            if self.include_compton:
+                lo += self.compton_scattering_intensity
         if self.smoothing is not None:
             lo = gaussian_filter1d(lo, self.smoothing)
         return lo
@@ -467,7 +478,8 @@ def cagliotti_uvw_to_smoothing(uvw: list[float], tth: np.ndarray) -> float:
     if sigsqr <= 0.0:
         sigsqr = 1.0e-12
 
-    instrumental_broadening = np.sqrt(sigsqr) * 1e-2
+    # The Caglioti terms give a FWHM, but gaussian_filter1d needs a sigma
+    instrumental_broadening = np.sqrt(sigsqr) * 1e-2 * fwhm_to_sigma
 
     tth_step = tth[1] - tth[0]
     if np.isclose(tth_step, 0):
