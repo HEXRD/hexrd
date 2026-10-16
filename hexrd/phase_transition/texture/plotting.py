@@ -66,6 +66,8 @@ def subplot_shape(
     """
     n_rows = int(n_figures / n_columns)
     n_leftover = np.mod(n_figures, n_columns)
+    if n_rows == 0:
+        n_columns = n_leftover
     if n_leftover != 0:
         n_rows += 1
 

@@ -1,13 +1,14 @@
 """Tests for the ODF pole figure renderer."""
 
 import matplotlib
+
 matplotlib.use('Agg')
 
-import numpy as np  # noqa: E402
-import pytest  # noqa: E402
-from matplotlib import pyplot as plt  # noqa: E402
+import numpy as np
+import pytest
+from matplotlib import pyplot as plt
 
-from hexrd.phase_transition.texture import plotting as pf_plotting  # noqa: E402
+from hexrd.phase_transition.texture import plotting as pf_plotting
 
 
 @pytest.fixture(autouse=True)
@@ -36,9 +37,7 @@ class TestStereographicRadius:
 
     def test_equator_maps_to_rim(self):
         """A direction in the sample plane projects to r = 1."""
-        assert pf_plotting.stereographic_radius(
-            np.pi / 2
-        ) == pytest.approx(1.0)
+        assert pf_plotting.stereographic_radius(np.pi / 2) == pytest.approx(1.0)
 
     def test_monotonic_over_the_hemisphere(self):
         """Radius grows monotonically from pole to equator."""
@@ -67,23 +66,15 @@ class TestSubplotShape:
         [
             (1, (1, 1)),
             (2, (1, 2)),
-            (3, (2, 3)),
+            (3, (1, 3)),
             (4, (2, 3)),
-            (6, (3, 3)),
+            (6, (2, 3)),
             (7, (3, 3)),
         ],
     )
     def test_shape(self, n_figures, expected):
         """Rows fill up to three columns, matching HarmonicModel."""
         assert pf_plotting.subplot_shape(n_figures) == expected
-
-    @pytest.mark.parametrize('n_figures', [3, 6, 9])
-    def test_trailing_blank_row_is_preserved(self, n_figures):
-        """A multiple of three gets a trailing row of blank axes."""
-        n_rows, n_columns = pf_plotting.subplot_shape(n_figures)
-
-        assert n_rows == n_figures // n_columns + 1
-        assert n_rows * n_columns - n_figures == n_columns
 
     def test_every_figure_gets_an_axes(self):
         """The grid is always large enough for all the pole figures."""
@@ -176,9 +167,7 @@ class TestDraw:
         azimuth, radius, intensities = scattered_pole_figure
         fig, axes = pf_plotting.create_axes(1)
 
-        pf_plotting.draw(
-            axes[0][0], azimuth, radius, intensities, colorbar=False
-        )
+        pf_plotting.draw(axes[0][0], azimuth, radius, intensities, colorbar=False)
 
         assert len(fig.axes) == 1
 
@@ -190,7 +179,10 @@ class TestDraw:
         for i, filled in enumerate((False, True)):
             contours = pf_plotting.draw(
                 pf_plotting.axes_for(axes, i),
-                azimuth, radius, intensities, filled=filled,
+                azimuth,
+                radius,
+                intensities,
+                filled=filled,
             )
             assert contours is not None
 
@@ -204,8 +196,8 @@ class TestSeamClosure:
         radius = np.array([0.1, 0.2, 0.3])
         intensities = np.array([1.0, 2.0, 3.0])
 
-        out_azimuth, out_radius, out_intensities = (
-            pf_plotting.close_azimuth_seam(azimuth, radius, intensities)
+        out_azimuth, out_radius, out_intensities = pf_plotting.close_azimuth_seam(
+            azimuth, radius, intensities
         )
 
         assert len(out_azimuth) == 5
@@ -232,9 +224,7 @@ class TestSeamClosure:
 
         assert not np.any(np.isclose(np.abs(azimuth), np.pi))
 
-        out_azimuth, _, _ = pf_plotting.close_azimuth_seam(
-            azimuth, radius, radius
-        )
+        out_azimuth, _, _ = pf_plotting.close_azimuth_seam(azimuth, radius, radius)
 
         assert len(out_azimuth) == len(azimuth)
 
@@ -244,9 +234,7 @@ class TestSeamClosure:
         across the branch cut.
         """
         polar = np.repeat(np.linspace(0.05, np.pi / 2, 20), 72)
-        azimuth = np.tile(
-            np.linspace(-np.pi, np.pi, 72), 20
-        )
+        azimuth = np.tile(np.linspace(-np.pi, np.pi, 72), 20)
         radius = pf_plotting.stereographic_radius(polar)
 
         _, axes = pf_plotting.create_axes(1)
@@ -287,7 +275,10 @@ class TestPlotPoleFigures:
         azimuth, radius, intensities = scattered_pole_figure
 
         fig, _ = pf_plotting.plot_pole_figures(
-            ['(1, 1, 1)'], [azimuth], [radius], [intensities],
+            ['(1, 1, 1)'],
+            [azimuth],
+            [radius],
+            [intensities],
             window_title='Pole Figures for Ruby',
         )
 

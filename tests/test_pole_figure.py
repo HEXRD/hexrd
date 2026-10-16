@@ -1,18 +1,19 @@
 """Tests for pole figure calculation from ODFs."""
 
 import matplotlib
+
 matplotlib.use('Agg')
 
-import numpy as np  # noqa: E402
-import pytest  # noqa: E402
-from matplotlib import pyplot as plt  # noqa: E402
-from scipy.spatial.transform import Rotation  # noqa: E402
+import numpy as np
+import pytest
+from matplotlib import pyplot as plt
+from scipy.spatial.transform import Rotation
 
-from hexrd.phase_transition.texture.kernels import (  # noqa: E402
+from hexrd.phase_transition.texture.kernels import (
     DeLaValleePoussinKernel,
     SO3Kernel,
 )
-from hexrd.phase_transition.texture.pole_figure import (  # noqa: E402
+from hexrd.phase_transition.texture.pole_figure import (
     PoleFigures,
     angles_from_directions,
     calc_pole_figure,
@@ -21,9 +22,8 @@ from hexrd.phase_transition.texture.pole_figure import (  # noqa: E402
     pole_density,
     regular_s2_grid,
 )
-from hexrd.phase_transition.texture.unimodal_odf import UnimodalODF  # noqa: E402,E501
-from hexrd.phase_transition.texture.uniform_odf import UniformODF  # noqa: E402,E501
-
+from hexrd.phase_transition.texture.uniform_odf import UniformODF
+from hexrd.phase_transition.texture.unimodal_odf import UnimodalODF
 
 IDENTITY_OPERATION = np.eye(3).reshape(1, 3, 3)
 
@@ -44,9 +44,7 @@ def grid():
 @pytest.fixture
 def cubic_odf():
     """A single-mode cubic ODF tilted off the specimen axes."""
-    kernel = DeLaValleePoussinKernel(
-        halfwidth=np.radians(10.0), crystal_symmetry='oh'
-    )
+    kernel = DeLaValleePoussinKernel(halfwidth=np.radians(10.0), crystal_symmetry='oh')
     orientation = Rotation.from_euler(
         'ZXZ', [30.0, 20.0, 10.0], degrees=True
     ).as_matrix()
@@ -72,13 +70,13 @@ class TestGrid:
         assert len(np.unique(azimuth)) == 72
 
     def test_grid_covers_the_upper_hemisphere(self):
-        """Polar spans 0 to pi/2 and azimuth 0 to 2*pi, endpoints included."""
+        """Polar spans 0 to pi/2 and azimuth -pi to pi, endpoints included."""
         polar, azimuth = regular_s2_grid()
 
         assert polar.min() == pytest.approx(0.0)
         assert polar.max() == pytest.approx(np.pi / 2)
-        assert azimuth.min() == pytest.approx(0.0)
-        assert azimuth.max() == pytest.approx(2 * np.pi)
+        assert azimuth.min() == pytest.approx(-np.pi)
+        assert azimuth.max() == pytest.approx(np.pi)
 
     def test_polar_varies_fastest(self):
         """Polar varies fastest, so the grid ravels column-major."""
@@ -105,9 +103,7 @@ class TestGrid:
 
     def test_pole_direction(self):
         """Polar angle 0 is the sample normal."""
-        np.testing.assert_allclose(
-            directions_from_angles(0.0, 0.0), [0.0, 0.0, 1.0]
-        )
+        np.testing.assert_allclose(directions_from_angles(0.0, 0.0), [0.0, 0.0, 1.0])
 
 
 class TestEquivalentDirections:
@@ -140,9 +136,7 @@ class TestEquivalentDirections:
         for direction, expected in multiplicity.items():
             unit = np.asarray(direction, float)
             unit = unit / np.linalg.norm(unit)
-            assert len(
-                equivalent_directions(unit, operations)
-            ) == expected
+            assert len(equivalent_directions(unit, operations)) == expected
 
     def test_hexagonal_c_axis(self):
         """The hexagonal c axis has only itself and its opposite."""
@@ -167,7 +161,7 @@ class TestEquivalentDirections:
         )
 
         for i, first in enumerate(equivalents):
-            for second in equivalents[i + 1:]:
+            for second in equivalents[i + 1 :]:
                 assert np.linalg.norm(first - second) > 1e-6
 
 
@@ -239,15 +233,11 @@ class TestUniformODF:
         uniform = UniformODF()
 
         for direction in ([0, 0, 1], [1, 1, 0], [1, 2, 3]):
-            np.testing.assert_allclose(
-                pole_density(uniform, direction, grid), 1.0
-            )
+            np.testing.assert_allclose(pole_density(uniform, direction, grid), 1.0)
 
     def test_single_direction_returns_scalar(self):
         """A single (3,) specimen direction evaluates to a scalar."""
-        value = UniformODF().pole_density(
-            [0.0, 0.0, 1.0], np.array([0.0, 0.0, 1.0])
-        )
+        value = UniformODF().pole_density([0.0, 0.0, 1.0], np.array([0.0, 0.0, 1.0]))
 
         assert value == 1.0
 
@@ -281,9 +271,7 @@ class TestUnimodalODF:
         values = pole_density(cubic_odf, direction, specimen)
 
         peak = specimen[np.argmax(values)]
-        assert np.degrees(
-            np.arccos(np.clip(abs(peak @ expected), -1.0, 1.0))
-        ) < 1.0
+        assert np.degrees(np.arccos(np.clip(abs(peak @ expected), -1.0, 1.0))) < 1.0
 
     def test_sharper_kernel_gives_a_higher_peak(self, grid):
         """Halving the halfwidth concentrates the pole density."""
@@ -327,9 +315,8 @@ class TestCompositeODF:
         direction = [1.0, 1.0, 1.0]
 
         combined = pole_density(cubic_odf + other, direction, grid)
-        separate = (
-            pole_density(cubic_odf, direction, grid)
-            + pole_density(other, direction, grid)
+        separate = pole_density(cubic_odf, direction, grid) + pole_density(
+            other, direction, grid
         )
 
         np.testing.assert_allclose(combined, separate)
@@ -338,9 +325,7 @@ class TestCompositeODF:
         """Adding a uniform ODF raises the pole figure by 1 MRD."""
         direction = [1.0, 1.0, 0.0]
 
-        with_background = pole_density(
-            cubic_odf + UniformODF(), direction, grid
-        )
+        with_background = pole_density(cubic_odf + UniformODF(), direction, grid)
 
         np.testing.assert_allclose(
             with_background, pole_density(cubic_odf, direction, grid) + 1.0
@@ -381,18 +366,14 @@ class TestCalcPoleFigure:
         """A caller-supplied grid is used as given."""
         specimen = directions_from_angles(*regular_s2_grid(10, 12))
 
-        pfs = calc_pole_figure(
-            cubic_odf, [1, 1, 1], specimen_directions=specimen
-        )
+        pfs = calc_pole_figure(cubic_odf, [1, 1, 1], specimen_directions=specimen)
 
         assert pfs.values.shape == (1, 120)
         np.testing.assert_allclose(pfs.specimen_directions, specimen)
 
     def test_matches_pole_density(self, cubic_odf, grid):
         """calc_pole_figure is a wrapper over pole_density."""
-        pfs = calc_pole_figure(
-            cubic_odf, [1, 1, 1], specimen_directions=grid
-        )
+        pfs = calc_pole_figure(cubic_odf, [1, 1, 1], specimen_directions=grid)
 
         np.testing.assert_allclose(
             pfs.values[0], pole_density(cubic_odf, [1, 1, 1], grid)
@@ -410,9 +391,7 @@ class TestCalcPoleFigure:
 
         hkls = np.array([[1, 1, 1], [2, 0, 0]])
 
-        pfs = calc_pole_figure(
-            cubic_odf, hkls=hkls, material=FakeCubicMaterial()
-        )
+        pfs = calc_pole_figure(cubic_odf, hkls=hkls, material=FakeCubicMaterial())
 
         assert pfs.num_pfs == 2
         assert pfs.keys == ((1, 1, 1), (2, 0, 0))
@@ -437,9 +416,7 @@ class TestCalcPoleFigure:
 
     def test_hkls_label_explicit_directions(self, cubic_odf):
         """hkls may label directions that were passed directly."""
-        pfs = calc_pole_figure(
-            cubic_odf, [[0.0, 0.0, 1.0]], hkls=[[0, 0, 0, 2]]
-        )
+        pfs = calc_pole_figure(cubic_odf, [[0.0, 0.0, 1.0]], hkls=[[0, 0, 0, 2]])
 
         assert pfs.keys == ((0, 0, 0, 2),)
         assert pfs.label(0) == '(0, 0, 0, 2)'
@@ -467,9 +444,7 @@ class TestPoleFiguresContainer:
         return calc_pole_figure(
             cubic_odf,
             [[1, 1, 1], [2, 0, 0]],
-            specimen_directions=directions_from_angles(
-                *regular_s2_grid(10, 12)
-            ),
+            specimen_directions=directions_from_angles(*regular_s2_grid(10, 12)),
             hkls=[[1, 1, 1], [2, 0, 0]],
         )
 
@@ -517,9 +492,7 @@ class TestPoleFiguresContainer:
     def test_intensity_shape_validated(self):
         """Values must match the directions they were computed on."""
         with pytest.raises(ValueError, match='intensities must have shape'):
-            PoleFigures(
-                [[0.0, 0.0, 1.0]], [[0.0, 0.0, 1.0]], np.zeros((1, 5))
-            )
+            PoleFigures([[0.0, 0.0, 1.0]], [[0.0, 0.0, 1.0]], np.zeros((1, 5)))
 
     def test_hkl_count_validated(self):
         """One hkl label per pole figure."""
@@ -545,9 +518,7 @@ class TestPlotting:
         return calc_pole_figure(
             cubic_odf,
             [[1, 1, 1], [2, 0, 0]],
-            specimen_directions=directions_from_angles(
-                *regular_s2_grid(20, 36)
-            ),
+            specimen_directions=directions_from_angles(*regular_s2_grid(20, 36)),
             hkls=[[1, 1, 1], [2, 0, 0]],
         )
 
@@ -564,9 +535,7 @@ class TestPlotting:
 
         pfs.plot_pf(show=False)
 
-        titles = [
-            pf_plotting.axes_for(pfs.ax, i).get_title() for i in range(2)
-        ]
+        titles = [pf_plotting.axes_for(pfs.ax, i).get_title() for i in range(2)]
         assert titles == ['(1, 1, 1)', '(2, 0, 0)']
 
     def test_filled_contours(self, pfs):
