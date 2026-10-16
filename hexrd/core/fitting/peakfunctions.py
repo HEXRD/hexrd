@@ -756,7 +756,7 @@ def _lorentzian_exponential(p: NDArray, x: NDArray) -> NDArray:
 
     f2 = exp1exp(q)
 
-    y = 1 / (np.pi * tau) * f2.imag
+    y = -1 / (np.pi * tau) * f2.imag
 
     mask = np.isnan(y)
     y[mask] = 0.0

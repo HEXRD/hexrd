@@ -3,6 +3,7 @@ import pytest
 from scipy.signal import fftconvolve
 from scipy.special import roots_legendre
 
+from hexrd.core.fitting import peakfunctions as pf
 from hexrd.powder.wppf import peakfunctions as wpf
 
 
@@ -23,6 +24,18 @@ def test_pink_beam_lorentzian_is_a_convolution() -> None:
     expected = convolve(x, hwhm / np.pi / (x**2 + hwhm**2), kernel)
     y = normalized(wpf._lorentzian_pink_beam(alpha, beta, 2 * hwhm, 0.0, x), x)
     assert np.abs(y - expected).max() < 1e-3 * expected.max()
+
+
+def test_exponential_lorentzian_is_a_density() -> None:
+    # Both copies should integrate to one before the profiles normalize them
+    x = np.arange(-8, 8, 2e-4)
+    tau, fwhm = 0.1, 0.15
+    for y in (
+        wpf._lorentzian_exponential(tau, fwhm, 0.0, x),
+        pf._lorentzian_exponential(np.array([1.0, 0.0, tau, fwhm]), x),
+    ):
+        assert y.min() >= 0
+        assert np.trapezoid(y, x) == pytest.approx(1, abs=0.01)
 
 
 @pytest.mark.parametrize(
