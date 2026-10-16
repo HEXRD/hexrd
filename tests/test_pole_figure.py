@@ -6,6 +6,7 @@ matplotlib.use('Agg')
 
 import numpy as np
 import pytest
+from hexrd.valunits import _kev, _nm
 from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
 
@@ -25,7 +26,6 @@ from hexrd.phase_transition.texture.pole_figure import (
 )
 from hexrd.phase_transition.texture.uniform_odf import UniformODF
 from hexrd.phase_transition.texture.unimodal_odf import UnimodalODF
-from hexrd.valunits import _kev, _nm
 
 IDENTITY_OPERATION = np.eye(3).reshape(1, 3, 3)
 
@@ -56,9 +56,7 @@ def cubic_odf():
 @pytest.fixture
 def hexagonal_odf():
     """A single-mode ODF with the 4H-SiC Laue symmetry."""
-    kernel = DeLaValleePoussinKernel(
-        halfwidth=np.radians(10.0), crystal_symmetry='d6h'
-    )
+    kernel = DeLaValleePoussinKernel(halfwidth=np.radians(10.0), crystal_symmetry='d6h')
     orientation = Rotation.from_euler(
         'ZXZ', [30.0, 20.0, 10.0], degrees=True
     ).as_matrix()
@@ -214,7 +212,7 @@ class TestRadonTransform:
 
         # <RK> = (1/2) * integral over cos from -1 to 1
         cosines = np.linspace(-1.0, 1.0, 200001)
-        mean = 0.5 * np.trapz(kernel.radon(cosines), cosines)
+        mean = 0.5 * np.trapezoid(kernel.radon(cosines), cosines)
 
         assert mean == pytest.approx(1.0, rel=1e-6)
 
@@ -437,9 +435,7 @@ class TestCalcPoleFigure:
         """Miller-Bravais indices are converted using a hexagonal cell."""
         hkls = np.array([[1, 0, -1, 1], [0, 0, 0, 2]])
 
-        pfs = calc_pole_figure(
-            hexagonal_odf, hkls=hkls, material=four_h_material
-        )
+        pfs = calc_pole_figure(hexagonal_odf, hkls=hkls, material=four_h_material)
 
         expected = np.array(
             [
