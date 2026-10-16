@@ -506,6 +506,29 @@ def test_varied_atom_updates_structure_factors(
     assert not np.allclose(ceo2_rietveld.sf['CeO2']['synchrotron'], before)
 
 
+def test_forced_update_keeps_rounded_positions(
+    example_repo_path: Path, expt_spectrum: np.ndarray
+) -> None:
+    path = example_repo_path / 'DAC/alpha_zirconium_axial_multi/include/materials.h5'
+    zr = load_materials_hdf5(path)['alpha_Zr']
+
+    # CIFs often round the 1/3, 2/3 positions of hcp
+    atom_pos = zr.unitcell.atom_pos.copy()
+    atom_pos[0, :3] = [0.3333, 0.6667, 0.25]
+    zr.unitcell.atom_pos = atom_pos
+
+    rietveld = Rietveld(
+        expt_spectrum=expt_spectrum,
+        phases=[zr],
+        wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+        bkgmethod={'chebyshev': 3},
+        peakshape='pvtch',
+    )
+    before = rietveld.sf['alpha_Zr']['synchrotron'].copy()
+    rietveld._set_params_vals_to_class(rietveld.params, skip_phases=False, force=True)
+    np.testing.assert_allclose(rietveld.sf['alpha_Zr']['synchrotron'], before)
+
+
 def test_texture_data_matches_intensities_by_hkl(
     ceo2_rietveld: Rietveld,
     expt_spectrum: np.ndarray,
