@@ -549,18 +549,22 @@ def calc_pole_figure(
     if hkls is not None:
         hkls = np.atleast_2d(np.asarray(hkls))
 
-        # check if hkls is 4-index, in that case ignore the third index
-        # the third index, i = -(h+k), so its redundant
-        # if this is not done, the unitcell.TransSpace will not work
-        if hkls.shape[1] == 4:
-            hkls = hkls[:, [0, 1, 3]]
-
     if crystal_directions is None:
         if hkls is None:
             raise ValueError("Provide either crystal_directions or hkls")
         if material is not None:
+            # UnitCell.TransSpace accepts three-index reciprocal vectors.
+            # For Miller-Bravais indices, i = -(h + k) is redundant, so
+            # omit it for conversion but retain the original four-index
+            # values as pole-figure keys and plot labels.
+            conversion_hkls = hkls
+            if hkls.shape[1] == 4:
+                conversion_hkls = hkls[:, [0, 1, 3]]
             crystal_directions = np.array(
-                [material.unitcell.TransSpace(h, 'r', 'c') for h in hkls]
+                [
+                    material.unitcell.TransSpace(h, 'r', 'c')
+                    for h in conversion_hkls
+                ]
             )
         elif hkls.shape[-1] == 3:
             # Only a cubic-like frame makes (h, k, l) directly cartesian,

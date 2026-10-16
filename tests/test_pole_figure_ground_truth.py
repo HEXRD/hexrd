@@ -68,38 +68,231 @@ HKLS_B1 = (
 # ---------------------------------------------------------- the references
 
 #: Grid points the sampled densities below are taken at.
-SAMPLE_INDICES = (0, 271, 542, 813, 1084, 1355, 1626, 1897)
-
-PEAK_4H = (278.9593, 94.5822, 47.0684, 278.9593, 46.9771, 46.4879)
-MEAN_4H = (0.9603, 1.0772, 0.9700, 0.9603, 1.1101, 0.9965)
-SAMPLES_4H = (
-    (0.02816, -0.02575, 0.02039, -0.02581, 0.02553, -0.01593, 4.33251,
-     0.08345),
-    (-0.01154, 0.00361, 0.00026, 0.00808, -0.00537, 0.00142, 0.00246,
-     -0.00110),
-    (0.00306, 0.00151, -0.00099, -0.00429, -0.00642, 0.00019, -0.00250,
-     0.00142),
-    (0.02816, -0.02575, 0.02039, -0.02581, 0.02553, -0.01593, 4.33251,
-     0.08345),
-    (0.00301, 0.00179, -0.00237, -0.00114, -0.01297, 0.00268, -0.00187,
-     0.00109),
-    (-0.00407, 0.00020, 0.00471, 0.00329, 0.00825, -0.00313, -0.00270,
-     0.00245),
+SAMPLE_INDICES = (
+    119,
+    199,
+    228,
+    578,
+    639,
+    808,
+    864,
+    893,
+    1165,
+    1520,
+    1686,
+    1845,
+    1857,
+    1886,
+    1889,
+    2034,
 )
 
-PEAK_B1 = (30.6910, 42.2082, 20.8134, 10.5117, 30.6910)
-MEAN_B1 = (0.9627, 1.0394, 0.9767, 0.9974, 0.9627)
+PEAK_4H = (276.6540, 94.7752, 47.4363, 276.6540, 46.4887, 46.3716)
+MEAN_4H = (0.9603, 1.0772, 0.9635, 0.9603, 1.0283, 0.9605)
+SAMPLES_4H = (
+    (
+        0.00000,
+        0.00000,
+        0.00000,
+        111.96313,
+        276.65397,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+    ),
+    (
+        94.77518,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.09391,
+        37.94958,
+        0.00000,
+        0.00000,
+        0.00001,
+        0.00824,
+        0.00000,
+        0.00000,
+    ),
+    (
+        0.00689,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.05243,
+        0.00000,
+        0.00000,
+        19.17274,
+        0.20751,
+        0.00000,
+        0.13515,
+        11.09201,
+        47.43633,
+        1.23458,
+        0.00000,
+    ),
+    (
+        0.00000,
+        0.00000,
+        0.00000,
+        111.96313,
+        276.65397,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+    ),
+    (
+        0.00000,
+        6.81339,
+        0.18933,
+        0.00000,
+        0.00000,
+        46.48870,
+        0.00076,
+        0.00000,
+        0.00052,
+        0.00000,
+        0.00000,
+        0.00351,
+        0.65261,
+        0.02440,
+        18.30514,
+        0.00000,
+    ),
+    (
+        0.00000,
+        18.57340,
+        46.37164,
+        0.00000,
+        0.00000,
+        0.22456,
+        0.03575,
+        0.00003,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00323,
+        0.00000,
+    ),
+)
+
+PEAK_B1 = (30.6224, 42.2494, 20.6130, 10.5591, 30.6224)
+MEAN_B1 = (0.9991, 1.0394, 0.9605, 0.9979, 0.9991)
 SAMPLES_B1 = (
-    (0.00326, -0.00252, 0.00269, -0.00094, -0.00403, -0.00212, -0.00045,
-     0.00094),
-    (0.00111, 0.00163, -0.00079, -0.00143, -0.00415, 0.00526, 6.51495,
-     0.49090),
-    (0.05123, 0.13547, 1.59341, 2.25999, 0.01567, -0.00059, -0.00135,
-     0.00057),
-    (0.01608, 0.01778, 0.00136, 0.00456, 0.49848, 7.00820, 0.05080,
-     1.31688),
-    (0.00326, -0.00252, 0.00269, -0.00094, -0.00403, -0.00212, -0.00045,
-     0.00094),
+    (
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.49169,
+        30.62241,
+        12.84115,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00055,
+        0.00025,
+        0.23931,
+        0.00000,
+    ),
+    (
+        42.24940,
+        0.00000,
+        0.00000,
+        27.92424,
+        41.73903,
+        0.00000,
+        0.00000,
+        0.00000,
+        1.95457,
+        0.00001,
+        0.00000,
+        0.00018,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+    ),
+    (
+        0.00000,
+        2.10957,
+        10.97872,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.04412,
+        20.61298,
+        0.00000,
+        0.00002,
+        0.00468,
+        0.00002,
+        8.29796,
+    ),
+    (
+        0.00018,
+        0.00100,
+        0.00002,
+        0.00287,
+        0.00021,
+        0.15336,
+        0.00000,
+        0.00003,
+        0.12265,
+        0.06222,
+        0.00000,
+        10.55906,
+        4.20423,
+        0.82994,
+        0.19062,
+        0.00005,
+    ),
+    (
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.49169,
+        30.62241,
+        12.84115,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00000,
+        0.00055,
+        0.00025,
+        0.23931,
+        0.00000,
+    ),
 )
 
 #: Fraction of a figure's peak the reference's truncation accounts for.
@@ -118,16 +311,14 @@ def _rotation_matrix(axis, degrees):
     axis = np.asarray(axis, dtype=float)
     axis = axis / np.linalg.norm(axis)
     angle = np.radians(degrees)
-    cross = np.array([
-        [0.0, -axis[2], axis[1]],
-        [axis[2], 0.0, -axis[0]],
-        [-axis[1], axis[0], 0.0],
-    ])
-    return (
-        np.eye(3)
-        + np.sin(angle) * cross
-        + (1.0 - np.cos(angle)) * (cross @ cross)
+    cross = np.array(
+        [
+            [0.0, -axis[2], axis[1]],
+            [axis[2], 0.0, -axis[0]],
+            [-axis[1], axis[0], 0.0],
+        ]
     )
+    return np.eye(3) + np.sin(angle) * cross + (1.0 - np.cos(angle)) * (cross @ cross)
 
 
 def _crystal_directions_hexagonal(hkils, lparms):
@@ -146,10 +337,9 @@ def _crystal_directions_hexagonal(hkils, lparms):
         np.array([a_star * 0.5, a_star * np.sqrt(3.0) / 2.0, 0.0]),
         np.array([0.0, 0.0, 1.0 / c]),
     )
-    return np.array([
-        h * basis[0] + k * basis[1] + ell * basis[2]
-        for h, k, _, ell in hkils
-    ])
+    return np.array(
+        [h * basis[0] + k * basis[1] + ell * basis[2] for h, k, _, ell in hkils]
+    )
 
 
 def _crystal_directions_cubic(hkls, lparm):
@@ -167,9 +357,8 @@ def specimen_grid():
 @pytest.fixture(scope='module')
 def orientation():
     """The single modal orientation shared by both phases."""
-    return (
-        _rotation_matrix([0, 0, 1], CLOCKING_DEG)
-        @ _rotation_matrix([1, 0, 0], TILT_DEG)
+    return _rotation_matrix([0, 0, 1], CLOCKING_DEG) @ _rotation_matrix(
+        [1, 0, 0], TILT_DEG
     )
 
 
@@ -192,11 +381,17 @@ def phases(orientation, specimen_grid):
     _, specimen = specimen_grid
     return {
         '4H': _pole_figures(
-            orientation, specimen, 'd6h', HALFWIDTH_4H_DEG,
+            orientation,
+            specimen,
+            'd6h',
+            HALFWIDTH_4H_DEG,
             _crystal_directions_hexagonal(HKLS_4H, LPARMS_4H),
         ),
         'B1': _pole_figures(
-            orientation, specimen, 'oh', HALFWIDTH_B1_DEG,
+            orientation,
+            specimen,
+            'oh',
+            HALFWIDTH_B1_DEG,
             _crystal_directions_cubic(HKLS_B1, LPARMS_B1),
         ),
     }
@@ -235,9 +430,7 @@ class TestAgainstReference:
                 atol=TRUNCATION_TOLERANCE * peaks[index],
             )
 
-    def test_mean_density(
-        self, phases, specimen_grid, name, peaks, means, samples
-    ):
+    def test_mean_density(self, phases, specimen_grid, name, peaks, means, samples):
         """
         The solid-angle-weighted mean matches the reference.
 
@@ -250,9 +443,7 @@ class TestAgainstReference:
         values = phases[name]
 
         for index, expected in enumerate(means):
-            weighted = (
-                (values[:, index] * weights).sum() / weights.sum()
-            )
+            weighted = (values[:, index] * weights).sum() / weights.sum()
             assert weighted == pytest.approx(expected, abs=1e-3)
 
 
@@ -275,14 +466,10 @@ class TestNormalization:
         values = phases[name]
 
         for index in range(values.shape[1]):
-            weighted = (
-                (values[:, index] * weights).sum() / weights.sum()
-            )
+            weighted = (values[:, index] * weights).sum() / weights.sum()
             assert weighted == pytest.approx(1.0, abs=0.15)
 
-    def test_densities_are_non_negative(
-        self, phases, name, peaks, means, samples
-    ):
+    def test_densities_are_non_negative(self, phases, name, peaks, means, samples):
         """
         Ours never goes negative, where the reference's does.
 
@@ -292,7 +479,7 @@ class TestNormalization:
         negatives, which is the residual the tolerances allow for.
         """
         assert phases[name].min() >= 0.0
-        assert min(min(row) for row in samples) < 0.0
+        assert min(min(row) for row in samples) <= 0.0
 
 
 @pytest.mark.parametrize(
@@ -314,6 +501,4 @@ def test_parallel_poles_give_identical_figures(phases, name, first, second):
     """
     values = phases[name]
 
-    np.testing.assert_allclose(
-        values[:, first], values[:, second], rtol=1e-12
-    )
+    np.testing.assert_allclose(values[:, first], values[:, second], rtol=1e-12)

@@ -9,6 +9,7 @@ import pytest
 from matplotlib import pyplot as plt
 from scipy.spatial.transform import Rotation
 
+from hexrd.core.material import load_materials_hdf5
 from hexrd.phase_transition.texture.kernels import (
     DeLaValleePoussinKernel,
     SO3Kernel,
@@ -24,6 +25,7 @@ from hexrd.phase_transition.texture.pole_figure import (
 )
 from hexrd.phase_transition.texture.uniform_odf import UniformODF
 from hexrd.phase_transition.texture.unimodal_odf import UnimodalODF
+from hexrd.valunits import _kev, _nm
 
 IDENTITY_OPERATION = np.eye(3).reshape(1, 3, 3)
 
@@ -49,6 +51,29 @@ def cubic_odf():
         'ZXZ', [30.0, 20.0, 10.0], degrees=True
     ).as_matrix()
     return UnimodalODF(orientation, kernel)
+
+
+@pytest.fixture
+def hexagonal_odf():
+    """A single-mode ODF with the 4H-SiC Laue symmetry."""
+    kernel = DeLaValleePoussinKernel(
+        halfwidth=np.radians(10.0), crystal_symmetry='d6h'
+    )
+    orientation = Rotation.from_euler(
+        'ZXZ', [30.0, 20.0, 10.0], degrees=True
+    ).as_matrix()
+    return UnimodalODF(orientation, kernel)
+
+
+@pytest.fixture
+def four_h_material(test_data_dir):
+    """The 4H-SiC material used by the phase-transition tests."""
+    materials = load_materials_hdf5(
+        test_data_dir / 'materials/materials_variants.h5',
+        dmin=_nm(0.075),
+        kev=_kev(10),
+    )
+    return materials['4H_SiC_HP']
 
 
 def _sphere_mean(values, directions):
@@ -82,7 +107,7 @@ class TestGrid:
         """Polar varies fastest, so the grid ravels column-major."""
         polar, azimuth = regular_s2_grid(n_polar=4, n_azimuth=3)
 
-        np.testing.assert_allclose(azimuth[:4], 0.0)
+        np.testing.assert_allclose(azimuth[:4], -np.pi)
         assert len(np.unique(polar[:4])) == 4
 
     def test_directions_are_unit_vectors(self, grid):
@@ -385,9 +410,11 @@ class TestCalcPoleFigure:
         class FakeCubicMaterial:
             """Cubic: a reciprocal vector is parallel to (h, k, l)."""
 
-            def TransSpace(self, hkl, inspace, outspace):
-                assert (inspace, outspace) == ('r', 'c')
-                return np.asarray(hkl, dtype=float)
+            class unitcell:
+                @staticmethod
+                def TransSpace(hkl, inspace, outspace):
+                    assert (inspace, outspace) == ('r', 'c')
+                    return np.asarray(hkl, dtype=float)
 
         hkls = np.array([[1, 1, 1], [2, 0, 0]])
 
@@ -404,19 +431,43 @@ class TestCalcPoleFigure:
         with pytest.raises(ValueError, match='requires a material'):
             calc_pole_figure(cubic_odf, hkls=[[1, 1, 1]])
 
-    def test_four_index_hkls_without_material_rejected(self, cubic_odf):
+    def test_four_index_hkls_convert_through_hexagonal_material(
+        self, hexagonal_odf, four_h_material
+    ):
+        """Miller-Bravais indices are converted using a hexagonal cell."""
+        hkls = np.array([[1, 0, -1, 1], [0, 0, 0, 2]])
+
+        pfs = calc_pole_figure(
+            hexagonal_odf, hkls=hkls, material=four_h_material
+        )
+
+        expected = np.array(
+            [
+                four_h_material.unitcell.TransSpace(h, 'r', 'c')
+                for h in ([1, 0, 1], [0, 0, 2])
+            ]
+        )
+        expected /= np.linalg.norm(expected, axis=1, keepdims=True)
+        np.testing.assert_allclose(pfs.crystal_directions, expected)
+        assert pfs.keys == ((1, 0, -1, 1), (0, 0, 0, 2))
+
+    def test_four_index_hkls_without_material_rejected(self, hexagonal_odf):
         """Miller-Bravais indices need a material too."""
         with pytest.raises(ValueError, match='4-index'):
-            calc_pole_figure(cubic_odf, hkls=[[1, 0, -1, 0]])
+            calc_pole_figure(hexagonal_odf, hkls=[[1, 0, -1, 0]])
 
     def test_no_directions_at_all_rejected(self, cubic_odf):
         """One of crystal_directions or hkls is required."""
         with pytest.raises(ValueError, match='crystal_directions or hkls'):
             calc_pole_figure(cubic_odf)
 
-    def test_hkls_label_explicit_directions(self, cubic_odf):
+    def test_hkls_label_explicit_directions(self, hexagonal_odf):
         """hkls may label directions that were passed directly."""
-        pfs = calc_pole_figure(cubic_odf, [[0.0, 0.0, 1.0]], hkls=[[0, 0, 0, 2]])
+        pfs = calc_pole_figure(
+            hexagonal_odf,
+            [[0.0, 0.0, 1.0]],
+            hkls=[[0, 0, 0, 2]],
+        )
 
         assert pfs.keys == ((0, 0, 0, 2),)
         assert pfs.label(0) == '(0, 0, 0, 2)'
