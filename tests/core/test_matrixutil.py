@@ -58,6 +58,15 @@ def test_unitVector(random_vectors):
     res_z = matrixutil.unitVector(zeros)
     np.testing.assert_allclose(res_z, 0.0)
 
+    # Test on a single 1D vector.
+    x = np.array([1.0, 2.0, 3.0])
+    u = matrixutil.unitVector(x)
+    assert u.shape == (3, 1)
+
+    # Test dimensions of input.
+    x = np.zeros((2, 3, 4))
+    with pytest.raises(ValueError):
+        u = matrixutil.unitVector(x)
 
 # --- Null Space ---
 
