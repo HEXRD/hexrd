@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2020, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -25,9 +24,9 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
-from hexrd.core import constants
 import numpy as np
-from hexrd.hedm.ipfcolor import colorspace
+
+from hexrd.core import constants
 
 eps = constants.sqrt_epsf
 
@@ -517,7 +516,6 @@ class sector:
         nn = vertex.shape[1]
 
         for i in range(fregion.shape[0]):
-
             f = fregion[i]
             d = dir3[i, :]
 
@@ -582,7 +580,7 @@ class sector:
                 # angle between point and A
                 omegap = np.dot(A, d)
                 if np.abs(omegap) > 1.0:
-                    omegap = np.sign(omega)
+                    omegap = np.sign(omegap)
 
                 omega = np.arccos(omega)
                 omegap = np.arccos(omegap)
@@ -646,17 +644,22 @@ class sector:
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
+                 10/19/2026 SS 1.1 wrap rho in [-pi, pi]
         @PARAM   rho azimuthal angle
         @DETAIL  calculate the hue speed for a vector of azimuthal angles
                 this is utilized in increasing the area of the red, blue and
                 green regions
         '''
-        rho = rho - np.pi
+
+        def wrap(x):
+            return np.mod(x + np.pi, 2.0 * np.pi) - np.pi
+
+        k = 4.0 / 7.0
         v = (
             0.5
-            + np.exp(-(4.0 / 7.0) * rho**2)
-            + np.exp(-(4.0 / 7.0) * (rho - 2.0 * np.pi / 3.0) ** 2)
-            + np.exp(-(4.0 / 7.0) * (rho + 2.0 * np.pi / 3.0) ** 2)
+            + np.exp(-k * wrap(rho) ** 2)
+            + np.exp(-k * wrap(rho - 2.0 * np.pi / 3.0) ** 2)
+            + np.exp(-k * wrap(rho + 2.0 * np.pi / 3.0) ** 2)
         )
 
         return v
@@ -682,20 +685,39 @@ class sector:
         @DETAIL  calculate hue. this is aggigned based on the azimuthal angle in the
         stereographic triangle. the laueswitch controls which fundamental sector to use.
 
+        @performance improvement suggested by claude opus 5.5 is to build a
+        look up table and interpolate
+
+        the original integrated hue_speed with a 1000-point trapezoid rule from
+        0 to rho for every direction. here the integral is tabulated once on a
+        fine grid (cached on the sector) and interpolated, and the trapezoid
+        rule's leading error term, +(step**2 / 12) * (v'(b) - v'(a)), is added
+        so the result reproduces the 1000-point rule.
+
         '''
+        n = 1000  # points used by the original rule
         rho = self.calculate_rho(dir3, switch)
-        r = np.linspace(0.0, 2 * np.pi, 1000)
-        v = self.hue_speed(r)
-        cons = np.trapezoid(v, r)
 
-        h = np.zeros(rho.shape)
-
-        for i in range(rho.shape[0]):
-            r = np.linspace(0.0, rho[i], 1000)
+        table = getattr(self, '_hue_table', None)
+        if table is None:
+            r = np.linspace(0.0, 2.0 * np.pi, 200001)
             v = self.hue_speed(r)
-            h[i] = np.trapezoid(v, r) / cons
+            cum = np.concatenate(
+                ([0.0], np.cumsum(0.5 * (v[1:] + v[:-1]) * np.diff(r)))
+            )
+            table = self._hue_table = (r, cum)
+        r, cum = table
 
-        return h
+        def dv(x, h=1e-5):  # derivative of the hue speed
+            return (self.hue_speed(x + h) - self.hue_speed(x - h)) / (2.0 * h)
+
+        def trapezoid_n(b):  # 1000-point trapezoid from 0 to b
+            step = b / (n - 1)
+            return np.interp(b, r, cum) + step**2 / 12.0 * (
+                dv(b) - dv(np.zeros_like(b))
+            )
+
+        return trapezoid_n(rho) / trapezoid_n(np.array(2.0 * np.pi))
 
     def calc_saturation(self, l):
         '''
@@ -728,6 +750,7 @@ class sector:
                  group reductions. mask has size dir3.shape[0]
                  12/09/2020 SS 2.0 completely rewrite the way in which computation
                  is performed. all the routines have been rewritten
+                 10/19/2026 SS 2.1 change lightness to 0.25
 
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  laueswitch get colors in laue group or pg
@@ -740,7 +763,7 @@ class sector:
         theta = np.pi - self.calculate_theta(dir3, switch)
         f1 = theta / np.pi
         f2 = np.sin(theta / 2.0) ** 2
-        l = 0.35 * f1 + 0.65 * f2
+        l = 0.25 * f1 + 0.75 * f2
         l[~mask] = 1.0 - l[~mask]
 
         return l
