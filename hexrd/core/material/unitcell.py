@@ -1,18 +1,19 @@
 import importlib.resources
+import time
+import warnings
+
+import h5py
 import numpy as np
 from numba import njit
+from scipy.interpolate import interp1d
+
+import hexrd.core.resources
 from hexrd.core import constants
 from hexrd.core.material import spacegroup, symbols, symmetry
+from hexrd.core.valunits import valWUnit
 
 # TODO: Resolve extra-core-dependency
-from hexrd.hedm.ipfcolor import sphere_sector, colorspace
-from hexrd.core.valunits import valWUnit
-import hexrd.core.resources
-import warnings
-import h5py
-from pathlib import Path
-from scipy.interpolate import interp1d
-import time
+from hexrd.hedm.ipfcolor import colorspace, sphere_sector
 
 eps = constants.sqrt_epsf
 ENERGY_ID = 0
@@ -426,7 +427,7 @@ class unitcell:
         self.SYM_PG_c[np.abs(self.SYM_PG_c) < eps] = 0.0
 
         if self._pointGroup == self._laueGroup:
-            self.SYM_PG_c_laue = self.SYM_PG_c
+            self.SYM_PG_c_laue = self.SYM_PG_c.copy()
         else:
             for sop in self.SYM_PG_d_laue:
                 self.SYM_PG_c_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
@@ -767,7 +768,7 @@ class unitcell:
             .open("rb")
         )
         with h5py.File(data, "r") as fid:
-            for i in range(0, self.atom_ntype):
+            for i in range(self.atom_ntype):
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
 
@@ -841,12 +842,12 @@ class unitcell:
             betaij = self.U
 
         self.asym_pos_arr = np.zeros([self.numat.max(), self.atom_ntype, 3])
-        for i in range(0, self.atom_ntype):
+        for i in range(self.atom_ntype):
             nn = self.numat[i]
             self.asym_pos_arr[:nn, i, :] = self.asym_pos[i]
 
         self.numat = np.zeros(self.atom_ntype, dtype=np.int32)
-        for i in range(0, self.atom_ntype):
+        for i in range(self.atom_ntype):
             self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
@@ -1051,7 +1052,7 @@ class unitcell:
                 f"number of constants entered is not correct."
                 f" need a total of {x} independent constants."
             )
-            raise IOError(msg)
+            raise OSError(msg)
 
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
@@ -1434,7 +1435,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "a")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1448,7 +1449,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "b")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1462,7 +1463,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "c")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1476,7 +1477,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "alpha")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1490,7 +1491,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "beta")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1504,7 +1505,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "gamma")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
