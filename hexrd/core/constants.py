@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2012, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -27,20 +26,17 @@
 # =============================================================================
 
 # fmt: off -- Don't try to format this, it has a lot of special formatting.
-from importlib.metadata import version, PackageNotFoundError
 import multiprocessing as mp
 import os
 import platform
+from importlib.metadata import PackageNotFoundError, version
 
 import numpy as np
 from numpy.typing import NDArray
-
 from scipy import constants as scipyc
 
 # !!! for stetting mp start method
-if 'Windows' in platform.system():
-    mp_context = mp.get_context("spawn")
-elif 'Darwin' in platform.system():
+if 'Windows' in platform.system() or 'Darwin' in platform.system():
     mp_context = mp.get_context("spawn")
 else:
     mp_context = mp.get_context("fork")
@@ -4418,13 +4414,11 @@ SYM_GENERATORS['e'][0, 1] = 1.0
 SYM_GENERATORS['e'][1, 0] = 1.0
 SYM_GENERATORS['e'][2, 2] = -1.0
 
-#
 SYM_GENERATORS['f'] = np.zeros([3, 3])
 SYM_GENERATORS['f'][0, 1] = -1.0
 SYM_GENERATORS['f'][1, 0] = -1.0
 SYM_GENERATORS['f'][2, 2] = -1.0
 
-#
 SYM_GENERATORS['g'] = np.zeros([3, 3])
 SYM_GENERATORS['g'][0, 1] = -1.0
 SYM_GENERATORS['g'][1, 0] = 1.0
@@ -4451,19 +4445,16 @@ SYM_GENERATORS['k'][0, 1] = -1.0
 SYM_GENERATORS['k'][1, 0] = -1.0
 SYM_GENERATORS['k'][2, 2] = 1.0
 
-#
 SYM_GENERATORS['l'] = np.zeros([3, 3])
 SYM_GENERATORS['l'][0, 1] = 1.0
 SYM_GENERATORS['l'][1, 0] = 1.0
 SYM_GENERATORS['l'][2, 2] = 1.0
 
-#
 SYM_GENERATORS['m'] = np.zeros([3, 3])
 SYM_GENERATORS['m'][0, 1] = 1.0
 SYM_GENERATORS['m'][1, 0] = -1.0
 SYM_GENERATORS['m'][2, 2] = -1.0
 
-#
 SYM_GENERATORS['n'] = np.zeros([3, 3])
 SYM_GENERATORS['n'][0, 1] = -1.0
 SYM_GENERATORS['n'][1, 0] = 1.0
@@ -4512,14 +4503,14 @@ SYM_GL_PG: dict[str, str] = {
     'c4': '1g',
     's4': '1m',
     'c4h': '2gh',
-    'd4': '2cg',
+    'd4': '2gc',  # CHANGED (was '2cg'):  7 -> 8 operations
     'c4v': '2gj',
-    'd2d': '2cm',
+    'd2d': '2mc',  # CHANGED (was '2cm'):  7 -> 8 operations
     'd4h': '3cgh',
     'c3': '1n',
     's6': '2hn',
-    'd3': '2en',
-    'c3v': '2kn ',
+    'd3': '2ne',  # CHANGED (was '2en'):  5 -> 6 operations
+    'c3v': '2nk',  # CHANGED (was '2kn '): 5 -> 6 operations, stray space removed
     'd3d': '3fhn',
     'c6': '2bn',
     'c3h': '2in',
