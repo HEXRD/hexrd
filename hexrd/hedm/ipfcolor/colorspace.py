@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2020, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -26,8 +25,9 @@
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
 
-from hexrd.core import constants
 import numpy as np
+
+from hexrd.core import constants
 
 eps = constants.sqrt_epsf
 
@@ -45,12 +45,16 @@ def hsl2rgb(hsl):
     it is assumed that the hsl array has values in [0,1] for the 
     different components
     '''
+    if hsl.ndim != 2 or hsl.shape[1] != 3:
+        raise RuntimeError(
+            f"hsl2rgb: hsl must be an n x 3 array, got shape {hsl.shape}"
+        )
     hsl = np.atleast_2d(hsl)
     hsl[np.abs(hsl) < eps] = 0.0
     hsl[np.abs(hsl - np.ones(hsl.shape)) < eps] = 1.0
 
     if (hsl.min() < 0.0) or (hsl.max() > 1.0):
-        raise RuntimeError("value of not in range [0,1]. normalizing before conversion")
+        raise RuntimeError("value of not in range [0,1].")
 
     if hsl.ndim != 2:
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
@@ -119,6 +123,9 @@ def rgb2hsl(rgb):
     rgb = np.atleast_2d(rgb)
     if rgb.ndim != 2:
         raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
+
+    if (rgb.min() < 0.0) or (rgb.max() > 1.0):
+        raise RuntimeError("value of not in range [0,1].")
     hsl = np.zeros(rgb.shape)
 
     '''
