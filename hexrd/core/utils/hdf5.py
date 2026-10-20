@@ -3,7 +3,7 @@ from hexrd.core.utils.compatibility import h5py_read_string
 import numpy as np
 
 
-def unwrap_dict_to_h5(grp, d, asattr=False):
+def unwrap_dict_to_h5(grp, d, asattr=False, **dataset_options):
     """
     Unwraps a dictionary to an HDF5 file of the same structure.
 
@@ -16,6 +16,8 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
     asattr : bool, optional
         Flag to write end member in dictionary tree to an attribute. If False,
         if writes the object to a dataset using numpy.  The default is False.
+    **dataset_options
+        HDF5 dataset options for non-scalar numeric arrays (e.g. compression).
 
     Returns
     -------
@@ -26,7 +28,7 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
         key, item = d.popitem()
         if isinstance(item, dict):
             subgrp = grp.create_group(key)
-            unwrap_dict_to_h5(subgrp, item, asattr=asattr)
+            unwrap_dict_to_h5(subgrp, item, asattr=asattr, **dataset_options)
         else:
             if asattr:
                 try:
@@ -37,9 +39,16 @@ def unwrap_dict_to_h5(grp, d, asattr=False):
                     else:
                         raise
             else:
+                data = np.atleast_1d(item)
+                # b/i/u/f/c: bool, signed/unsigned integer, float, and complex
+                # Check item because atleast_1d also turns scalars into arrays
+                is_numeric_array = np.ndim(item) > 0 and data.dtype.kind in 'biufc'
+                options = dataset_options if is_numeric_array else {}
                 try:
-                    grp.create_dataset(key, data=np.atleast_1d(item))
+                    grp.create_dataset(key, data=data, **options)
                 except TypeError:
+                    if options:
+                        raise
                     if item is None:
                         continue
                     else:
