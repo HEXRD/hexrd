@@ -535,14 +535,14 @@ class HEDMInstrument(object):
     def __init__(
         self,
         instrument_config: Optional[InstrumentConfig | h5py.File | h5py.Group] = None,
-        image_series=None,
-        eta_vector=None,
-        instrument_name=None,
-        tilt_calibration_mapping=None,
-        max_workers=max_workers_DFLT,
-        physics_package=None,
+        image_series: object | None = None,
+        eta_vector: Sequence[float] | NDArray[np.float64] | None = None,
+        instrument_name: str | None = None,
+        tilt_calibration_mapping: object | None = None,
+        max_workers: int | None = max_workers_DFLT,
+        physics_package: object | None = None,
         active_beam_name: Optional[str] = None,
-    ):
+    ) -> None:
         self._id = instrument_name_DFLT
 
         self._active_beam_name = active_beam_name
@@ -974,8 +974,12 @@ class HEDMInstrument(object):
     # =========================================================================
 
     def write_config(
-        self, file=None, style='yaml', calibration_dict={}, **dataset_options
-    ):
+        self,
+        file: str | Path | h5py.File | None = None,
+        style: str = 'yaml',
+        calibration_dict: dict[str, Any] = {},
+        **dataset_options: Any,
+    ) -> dict[str, Any]:
         """Write YAML or HDF5, forwarding dataset options for numeric HDF5 arrays."""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
@@ -1036,7 +1040,7 @@ class HEDMInstrument(object):
                     yaml.dump(par_dict, stream=f, Dumper=NumpyToNativeDumper)
             else:
 
-                def _write_group(file):
+                def _write_group(file: h5py.File) -> None:
                     instr_grp = file.create_group('instrument')
                     unwrap_dict_to_h5(instr_grp, par_dict, asattr=False, **dataset_options)
                     if self.active_beam_name is not None:

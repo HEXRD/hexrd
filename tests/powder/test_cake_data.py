@@ -3,6 +3,7 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import h5py
 import numpy as np
@@ -86,7 +87,7 @@ def small_scan(tmp_path: Path) -> CakeDataConfig:
 )
 def test_command_integrates_frames(
     tmp_path: Path,
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
     small_scan: CakeDataConfig,
     frame_limit: int | None,
     template: str,
@@ -148,7 +149,35 @@ def test_failed_processing_preserves_outputs(
     assert not list((tmp_path / 'out').glob('.cake-data-*'))
 
 
-def test_two_detectors_with_four_subpanels(tmp_path, small_scan, monkeypatch):
+@pytest.mark.parametrize('style', ['yaml', 'hdf5'])
+def test_scan_from_instrument(
+    tmp_path: Path, small_scan: CakeDataConfig, style: str
+) -> None:
+    instrument = CakeMatrix(small_scan.matrix).instrument
+    path = tmp_path / f'instrument.{style}'
+    instrument.write_config(str(path), style=style)
+    config = replace(
+        small_scan,
+        matrix=None,
+        instrument=path,
+        tth_start=0,
+        tth_end=3,
+        max_input_frames=10,
+    )
+    output_path, _ = cake_data(config)
+    with h5py.File(output_path) as output:
+        layer = output['Cake/0']
+        profile = layer['IvTTH_Full'][:]
+        assert np.isfinite(profile).sum() > 5
+        np.testing.assert_allclose(profile[np.isfinite(profile)], 1)
+        np.testing.assert_allclose(layer['ome_key'][1], [1.5])
+        assert layer['nFrames'][()] == 1
+        assert np.all(np.diff(layer['tth'][:]) > 0)
+
+
+def test_two_detectors_with_four_subpanels(
+    tmp_path: Path, small_scan: CakeDataConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
     instrument = HEDMInstrument()
     instrument.detectors.clear()
     parents = {}
@@ -245,7 +274,9 @@ def test_combined_lineout_weights_wedges_equally() -> None:
     np.testing.assert_allclose(full, [15, 2, np.nan], equal_nan=True)
 
 
-def test_invalid_yaml_config(tmp_path, monkeypatch, capsys):
+def test_invalid_yaml_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     path = tmp_path / 'invalid.yml'
     path.write_text('cake_width: [')
     monkeypatch.setattr(sys, 'argv', ['hexrd', 'cake-data', '-y', str(path)])
@@ -263,7 +294,13 @@ def test_invalid_yaml_config(tmp_path, monkeypatch, capsys):
         ('eiger-stream-v2', {'threshold_setting': 'man_diff'}, 'does not support man_diff'),
     ],
 )
-def test_reader_options(small_scan, monkeypatch, image_format, options, error):
+def test_reader_options(
+    small_scan: CakeDataConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    image_format: str,
+    options: dict[str, Any],
+    error: str,
+) -> None:
     # Validate configuration even when optional Dectris support is not installed.
     monkeypatch.setitem(imageseries.load.Registry.adapter_registry, image_format, object)
     config = replace(small_scan, image_format=image_format, image_options=options)
@@ -280,8 +317,8 @@ def test_reader_options(small_scan, monkeypatch, image_format, options, error):
     ],
 )
 def test_wedges_preserve_partial_and_rounded_endpoints(
-    step, count, width, wedges, last_width
-):
+    step: float, count: int, width: float, wedges: int, last_width: float
+) -> None:
     centers = -180 + (np.arange(count) + 0.5) * step
     operator = SimpleNamespace(eta=(-180.0, step, count), eta_centers=centers)
     edges = _wedge_edges(CakeDataConfig(cake_width=width), operator)
@@ -303,7 +340,9 @@ def test_final_wedge_keeps_its_weight() -> None:
     np.testing.assert_allclose(full, [11.5])
 
 
-def test_invalid_destinations_do_not_create_directory(tmp_path, small_scan):
+def test_invalid_destinations_do_not_create_directory(
+    tmp_path: Path, small_scan: CakeDataConfig
+) -> None:
     output_dir = tmp_path / 'new/nested'
     config = replace(small_scan, output_dir=output_dir, output_par='sample.h5')
     with pytest.raises(ValueError, match='output paths must differ'):

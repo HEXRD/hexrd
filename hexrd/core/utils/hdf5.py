@@ -1,9 +1,17 @@
 from hexrd.core.utils.compatibility import h5py_read_string
 
+from typing import Any
+
+import h5py
 import numpy as np
 
 
-def unwrap_dict_to_h5(grp, d, asattr=False, **dataset_options):
+def unwrap_dict_to_h5(
+    grp: h5py.Group,
+    d: dict[str, Any],
+    asattr: bool = False,
+    **dataset_options: Any,
+) -> None:
     """
     Unwraps a dictionary to an HDF5 file of the same structure.
 
