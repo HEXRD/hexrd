@@ -77,6 +77,10 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         The accepted grain orientations, trial orientations, and completeness
         scores.
     """
+    # Material initialization also runs parallel Numba kernels (structure
+    # factors), so honor the worker limit before loading the material.
+    numba.set_num_threads(
+        max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
     threading.Thread(target=_prefetch_heavy_imports, daemon=True).start()
 
     if material is None:

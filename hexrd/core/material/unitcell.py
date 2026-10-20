@@ -59,18 +59,24 @@ def _calcstar(v, sym, mat):
     # the first element is always the identity
     # so we can safely skip that
     for s in sym[1:, :, :]:
-        vp = np.dot(np.ascontiguousarray(s), v)
+        # These are three-component vectors. Scalar operations avoid BLAS
+        # dispatch, temporary arrays, and compiling general array operations.
+        vp0 = s[0, 0] * v[0] + s[0, 1] * v[1] + s[0, 2] * v[2]
+        vp1 = s[1, 0] * v[0] + s[1, 1] * v[1] + s[1, 2] * v[2]
+        vp2 = s[2, 0] * v[0] + s[2, 1] * v[1] + s[2, 2] * v[2]
 
         # check if this is new
         isnew = True
         for vec in vsym[0:n, :]:
-            dist = np.sum((vp - vec) ** 2)
+            dist = (vp0 - vec[0]) ** 2 + (vp1 - vec[1]) ** 2 + (vp2 - vec[2]) ** 2
             if dist < 1e-4:
                 isnew = False
                 break
 
         if isnew:
-            vsym[n, :] = vp
+            vsym[n, 0] = vp0
+            vsym[n, 1] = vp1
+            vsym[n, 2] = vp2
             n = n + 1
 
     return vsym[0:n, :]

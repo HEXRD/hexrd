@@ -571,29 +571,21 @@ def rotMatOfExpMap_opt(expMap):  # pragma: no cover
 @njit(cache=True, nogil=True)
 def _rotmatofquat(quat):
     n = quat.shape[1]
-    # FIXME: maybe preallocate for speed?
-    # R = np.zeros(n*3*3, dtype='float64')
-
-    a = np.ascontiguousarray(quat[0, :]).reshape(n, 1)
-    b = np.ascontiguousarray(quat[1, :]).reshape(n, 1)
-    c = np.ascontiguousarray(quat[2, :]).reshape(n, 1)
-    d = np.ascontiguousarray(quat[3, :]).reshape(n, 1)
-
-    R = np.hstack(
-        (
-            a**2 + b**2 - c**2 - d**2,
-            2 * b * c - 2 * a * d,
-            2 * a * c + 2 * b * d,
-            2 * a * d + 2 * b * c,
-            a**2 - b**2 + c**2 - d**2,
-            2 * c * d - 2 * a * b,
-            2 * b * d - 2 * a * c,
-            2 * a * b + 2 * c * d,
-            a**2 - b**2 - c**2 + d**2,
-        )
-    )
-
-    return R.reshape(n, 3, 3)
+    # Write the result directly. Array expressions and hstack allocate many
+    # temporaries and require expensive Numba compilation for each layout.
+    rmats = np.empty((n, 3, 3), dtype=quat.dtype)
+    for i in range(n):
+        a, b, c, d = quat[0, i], quat[1, i], quat[2, i], quat[3, i]
+        rmats[i, 0, 0] = a**2 + b**2 - c**2 - d**2
+        rmats[i, 0, 1] = 2 * b * c - 2 * a * d
+        rmats[i, 0, 2] = 2 * a * c + 2 * b * d
+        rmats[i, 1, 0] = 2 * a * d + 2 * b * c
+        rmats[i, 1, 1] = a**2 - b**2 + c**2 - d**2
+        rmats[i, 1, 2] = 2 * c * d - 2 * a * b
+        rmats[i, 2, 0] = 2 * b * d - 2 * a * c
+        rmats[i, 2, 1] = 2 * a * b + 2 * c * d
+        rmats[i, 2, 2] = a**2 - b**2 - c**2 + d**2
+    return rmats
 
 
 def rotMatOfQuat(quat):
