@@ -11,10 +11,11 @@ from typing import Optional
 import numpy as np
 from scipy.special import beta as beta_fn
 
+from .arithmetic import ODFArithmetic
 from .kernels import SO3Kernel
 
 
-class UnimodalODF:
+class UnimodalODF(ODFArithmetic):
     """
     Unimodal orientation distribution function.
 
@@ -156,6 +157,16 @@ class UnimodalODF:
         return self._kernel.sample_symmetry
 
     @property
+    def crystal_symmetry_quats(self):
+        """ndarray or None: Crystal symmetry operators, from the kernel."""
+        return self._kernel.crystal_symmetry_quats
+
+    @property
+    def sample_symmetry_quats(self):
+        """ndarray or None: Sample symmetry operators, from the kernel."""
+        return self._kernel.sample_symmetry_quats
+
+    @property
     def n_components(self):
         """int: Number of modal orientations."""
         return self._n_components
@@ -239,6 +250,38 @@ class UnimodalODF:
         else:
             return results.reshape(output_shape)
 
+    def pole_density(self, crystal_direction, specimen_directions,
+                     antipodal=True):
+        """
+        Pole density for one crystal direction, in MRD.
+
+        Evaluates the Radon transform of the ODF in closed form (see
+        :mod:`hexrd.phase_transition.texture.pole_figure`), which requires
+        the kernel to provide a Radon transform.
+
+        Parameters
+        ----------
+        crystal_direction : array_like
+            Cartesian crystal direction, shape (3,), in the same crystal
+            frame as the modal orientations.
+        specimen_directions : array_like
+            Cartesian specimen directions, shape (..., 3).
+        antipodal : bool, optional
+            Treat h and -h as equivalent, default True.
+
+        Returns
+        -------
+        float or numpy.ndarray
+            Pole density in MRD, shape matching the leading dimensions of
+            ``specimen_directions``.
+        """
+        from .pole_figure import unimodal_pole_density
+
+        return unimodal_pole_density(
+            self, crystal_direction, specimen_directions,
+            antipodal=antipodal,
+        )
+
     def estimated_max_value(self):
         """
         Estimate the maximum ODF value, in MRD.
@@ -315,7 +358,7 @@ class UnimodalODF:
 
     def norm(self, n_orientations=100000, seed=None):
         """
-        L2 norm ||f|| = sqrt(J) of the ODF (MTEX ``norm``), in MRD.
+        L2 norm ||f|| = sqrt(J) of the ODF, in MRD.
 
         Uses the exact closed form when available; otherwise estimates the
         norm by Monte Carlo over Haar-uniform orientations.
