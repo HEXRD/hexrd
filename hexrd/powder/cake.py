@@ -159,11 +159,33 @@ class CakeMatrix:
         return start + step * (np.arange(count) + 0.5)
 
     def assemble(self, images: Mapping[str, np.ndarray]) -> np.ndarray:
-        """Place complete panel images into the matrix input array"""
-        if set(images) != set(self.columns):
-            raise ValueError('input panel names must match the embedded instrument')
+        """Assemble panel images, or parent images keyed by detector group.
 
-        for name, panel in self.instrument.detectors.items():
+        Parent images must already have any required orientation corrections.
+        We crop their subpanels using the embedded instrument's ROIs.
+        """
+        panels = self.instrument.detectors
+        if set(images) != set(self.columns):
+            groups = {panel.group for panel in panels.values()}
+            if (
+                set(images) != groups or
+                any(p.group is None or p.roi is None for p in panels.values())
+            ):
+                msg = 'input names must match the instrument panels or ROI groups'
+                raise ValueError(msg)
+
+            if any(np.ndim(image) != 2 for image in images.values()):
+                raise ValueError('parent detector images must be two-dimensional')
+
+            images = {
+                name: images[panel.group][
+                    panel.roi[0][0]:panel.roi[0][1],
+                    panel.roi[1][0]:panel.roi[1][1],
+                ]
+                for name, panel in panels.items()
+            }
+
+        for name, panel in panels.items():
             if np.shape(images[name]) != panel.shape:
                 msg = f'Panel {name} has the wrong shape'
                 raise ValueError(msg)
@@ -208,7 +230,7 @@ class CakeMatrix:
         return result
 
     def apply(self, images: np.ndarray | Mapping[str, np.ndarray]) -> np.ma.MaskedArray:
-        """Cake a complete raw frame or a mapping of complete panel images"""
+        """Cake a raw frame or images keyed by panel name or detector group"""
         pixels = self.assemble(images) if isinstance(images, Mapping) else images
         if np.shape(pixels) != self.input_shape:
             msg = f'input shape must be {self.input_shape}'

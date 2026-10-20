@@ -10,6 +10,7 @@ import pytest
 
 from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 from hexrd.core.instrument import HEDMInstrument, PlanarDetector
+from hexrd.core.projections.polar import PolarView
 from hexrd.core import imageseries
 from hexrd.powder.cake_data import (
     CakeDataConfig,
@@ -145,6 +146,90 @@ def test_failed_processing_preserves_outputs(
         cake_data(small_scan)
     assert [path.read_bytes() for path in outputs] == originals
     assert not list((tmp_path / 'out').glob('.cake-data-*'))
+
+
+def test_two_detectors_with_four_subpanels(tmp_path, small_scan, monkeypatch):
+    instrument = HEDMInstrument()
+    instrument.detectors.clear()
+    parents = {}
+    for group, offset in [('ff2', 100), ('ff1', 0)]:
+        # Different detector intensities and asymmetric pixels expose swapped
+        # inputs, incorrect crops, and flips applied after cropping
+        parents[group] = np.arange(36 * 42).reshape(36, 42) + offset
+        detector_x = 1.0 if group == 'ff2' else -1.0
+        for i, row in enumerate((1, 19)):
+            for j, col in enumerate((2, 22)):
+                name = f'{group}_{i}_{j}'
+                instrument.detectors[name] = PlanarDetector(
+                    rows=16, cols=18, roi=(row, col), group=group,
+                    pixel_size=(0.2, 0.2),
+                    tvec=np.array([detector_x + j * 3.6 - 1.8, i * 3.2 - 1.6, -100.0]),
+                    saturation_level=65535,
+                )
+
+    grid = dict(tth_range=(0, 3), eta_range=(-180, 180), pixel_size=(0.2, 10))
+    export_cake_matrix(small_scan.matrix, instrument, **grid, overwrite=True)
+    matrix = CakeMatrix(small_scan.matrix)
+    assert matrix.input_layout == 'panels'
+    panel_images = {
+        name: parents[panel.group][
+            panel.roi[0][0]:panel.roi[0][1], panel.roi[1][0]:panel.roi[1][1]
+        ]
+        for name, panel in instrument.detectors.items()
+    }
+    view = PolarView(
+        (0, 3), instrument, eta_min=-180, eta_max=180, pixel_size=(0.2, 10)
+    )
+    expected = view.warp_image(panel_images)
+    actual = matrix.apply(parents)
+    np.testing.assert_array_equal(actual.mask, expected.mask)
+    np.testing.assert_allclose(actual.compressed(), expected.compressed())
+    np.testing.assert_array_equal(matrix.assemble(parents), matrix.assemble(panel_images))
+    with pytest.raises(ValueError, match='input names'):
+        matrix.apply({'ff1': parents['ff1']})
+    with pytest.raises(ValueError, match='wrong shape'):
+        matrix.apply({**parents, 'ff2': parents['ff2'][:10]})
+
+    for group, parent in parents.items():
+        frames = np.stack([parent + offset for offset in (99, 1, 2, 3, 4)])
+        # Undo the intended flip to construct raw detector frames
+        raw = frames[:, ::-1, :] if group == 'ff1' else frames[:, :, ::-1]
+        with h5py.File(tmp_path / f'{group}.h5', 'w') as stream:
+            stream['entry/data/data'] = raw
+
+    par = np.loadtxt(small_scan.par_file, ndmin=2)
+    par[:, 24] = 4
+    np.savetxt(small_scan.par_file, par)
+    config = replace(
+        small_scan,
+        image_pattern={'ff2': 'ff2.h5', 'ff1': 'ff1.h5'},
+        image_flips={'ff1': 'h', 'ff2': 'v'},
+        cake_width=90,
+    )
+    path = tmp_path / 'dual.yml'
+    path.write_text(config_as_yaml(config))
+    monkeypatch.setattr(sys, 'argv', ['hexrd', 'cake-data', '-y', str(path)])
+    main()
+    output_path = tmp_path / 'out/sample.h5'
+    with h5py.File(output_path) as output:
+        layer = output['Cake/0']
+        np.testing.assert_allclose(layer['ome_key'][1], [0.5, 1.5])
+        for index, offset in enumerate((3, 1)):
+            # Average and floor pixels before caking; par metadata reverses bins
+            cake = view.warp_image({n: image + offset for n, image in panel_images.items()})
+            full, wedges = _profiles(cake[i:i + 9] for i in range(0, 36, 9))
+            np.testing.assert_allclose(layer[f'Ome/{index}/IvTTH'][:], wedges)
+            np.testing.assert_allclose(layer['IvTTHvW'][index], full)
+
+    # Every source is protected from output replacement
+    with pytest.raises(ValueError, match='output paths must differ'):
+        cake_data(replace(config, output_dir=tmp_path, output_par='ff2.h5'))
+    original = output_path.read_bytes()
+    with h5py.File(tmp_path / 'short.h5', 'w') as stream:
+        stream['entry/data/data'] = np.ones((4, 36, 42))
+    with pytest.raises(ValueError, match='equal frame counts'):
+        cake_data(replace(config, image_pattern={'ff1': 'ff1.h5', 'ff2': 'short.h5'}))
+    assert output_path.read_bytes() == original
 
 
 def test_combined_lineout_weights_wedges_equally() -> None:
