@@ -41,7 +41,10 @@ def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
     defaults = CakeDataConfig()
     for item in fields(CakeDataConfig):
         name = item.name
-        value_type = json.loads if dict in types[name] else types[name][0]
+        value_type = (
+            json.loads if dict in types[name] and str not in types[name]
+            else types[name][0]
+        )
         help_text = item.metadata['help']
         if name in GEOMETRY_DEFAULTS:
             help_text += f' (instrument default: {GEOMETRY_DEFAULTS[name]})'

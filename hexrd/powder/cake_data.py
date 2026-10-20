@@ -1,4 +1,4 @@
-"""Create azimuthally segmented powder profiles from composite detector data"""
+"""Create azimuthally segmented powder profiles from detector data"""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from dataclasses import asdict, dataclass, field, fields
 from itertools import pairwise
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import UnionType
 from typing import Any, get_args, get_origin, get_type_hints
 
 import h5py
@@ -60,6 +61,13 @@ class CakeDataConfig:
     named fields ``{sample_name}`` and ``{image_number:04d}``, or legacy ``%s``
     (sample) and ``%d``/``%04d`` (image number) fields. Use doubled braces in
     named templates and ``%%`` in legacy templates for literal delimiters.
+
+    ``image_pattern`` can also map panel names or ROI group names to file
+    globs, such as ``{ff1: '*ff1*.h5', ff2: '*ff2*.h5'}``. These streams share
+    the reader options and omega schedule, and must have equal frame counts.
+    ``image_flips`` maps those names to HEXRD flip operations, applied to the
+    complete parent image before cropping subpanels. Otherwise, inputs must
+    already have the orientation expected by the instrument.
     """
 
     data_dir: str | None = _option(None, 'd', 'raw-data directory template')
@@ -89,13 +97,18 @@ class CakeDataConfig:
     par_version: int = _option(5, 'v', 'CHESS par-file version')
     max_input_frames: int | None = _option(None, 'm', 'maximum raw frames per layer')
 
-    image_pattern: str = _option(
-        'EIG16M_CdTe_*.h5', 'g', 'glob used to locate an image file'
+    image_pattern: str | dict[str, str] = _option(
+        'EIG16M_CdTe_*.h5', 'g',
+        'image file glob (YAML also accepts a panel/group-to-glob mapping)'
     )
     image_format: str = _option('eiger-stream-v1', 'F', 'HEXRD image-series format')
     image_options: dict[str, Any] = field(
         default_factory=dict,
         metadata={'short': 'O', 'help': 'image-series reader options as a JSON object'},
+    )
+    image_flips: dict[str, str] = field(
+        default_factory=dict,
+        metadata={'short': 'X', 'help': 'per-panel/group flips as a JSON object'},
     )
 
     @classmethod
@@ -175,6 +188,22 @@ class CakeDataConfig:
         if self.par_version != 5:
             raise ValueError('cake-data currently supports par version 5 only')
 
+        if isinstance(self.image_pattern, dict):
+            if not self.image_pattern or not all(
+                isinstance(name, str) and name and isinstance(pattern, str) and pattern
+                for name, pattern in self.image_pattern.items()
+            ):
+                msg = 'image_pattern must map panel/group names to nonempty file globs'
+                raise ValueError(msg)
+        elif self.image_flips:
+            raise ValueError('image_flips requires a panel/group image_pattern mapping')
+
+        flips = ('y', 'v', 'x', 'h', 'vh', 'hv', 'r180', 't', 'T', 'ccw90',
+                 'r90', 'cw90', 'r270')
+        for name, flip in self.image_flips.items():
+            if name not in self.image_pattern or flip not in flips:
+                raise ValueError(f'invalid image_flips entry: {name!r}: {flip!r}')
+
         if not all(isinstance(key, str) for key in self.image_options):
             raise ValueError('image_options keys must be strings')
         if 'format' in self.image_options:
@@ -212,7 +241,7 @@ def _field_types() -> dict[str, tuple[type, ...]]:
     """Resolve configuration field types for validation and CLI parsing"""
     result = {}
     for name, hint in get_type_hints(CakeDataConfig).items():
-        types = get_args(hint) if type(None) in get_args(hint) else (hint,)
+        types = get_args(hint) if get_origin(hint) is UnionType else (hint,)
         result[name] = tuple(get_origin(t) or t for t in types)
     return result
 
@@ -287,13 +316,14 @@ def _load_matrix(config: CakeDataConfig, temporary: Path) -> CakeMatrix:
         export_cake_matrix(path, instrument, **kwargs)
 
     operator = CakeMatrix(path)
-    if operator.input_layout != 'composite':
-        raise ValueError('cake-data needs a composite-layout matrix')
+    if operator.input_layout == 'panels' and isinstance(config.image_pattern, str):
+        msg = 'panel-layout matrices require an image_pattern mapping by panel or group'
+        raise ValueError(msg)
 
     return operator
 
 
-def _raw_path(config: CakeDataConfig, image_number: int) -> Path:
+def _raw_path(config: CakeDataConfig, image_number: int, pattern: str) -> Path:
     template = config.data_dir
     if '{' in template or '}' in template:
         try:
@@ -315,9 +345,9 @@ def _raw_path(config: CakeDataConfig, image_number: int) -> Path:
 
         directory = re.sub(r'%%|%[0-9]*[sd]|%', substitute, template)
 
-    matches = sorted(glob.glob(str(Path(directory) / config.image_pattern)))
+    matches = sorted(glob.glob(str(Path(directory) / pattern)))
     if not matches:
-        raise FileNotFoundError(f'no {config.image_pattern!r} file under {directory}')
+        raise FileNotFoundError(f'no {pattern!r} file under {directory}')
     if len(matches) > 1:
         raise ValueError(f'multiple raw image files match under {directory}: {matches}')
 
@@ -327,17 +357,28 @@ def _raw_path(config: CakeDataConfig, image_number: int) -> Path:
 def _read_integrated_frames(
     config: CakeDataConfig,
     operator: CakeMatrix,
-    raw_path: Path,
+    raw_paths: dict[str | None, Path],
     frame_count: int,
     flip: bool = False,
 ) -> Iterator[tuple[float, np.ndarray]]:
     """Yield floored omega averages, reversing bins when par metadata requires it"""
-    series = imageseries.open(
-        raw_path, format=config.image_format, **config.image_options
-    )
+    series = {}
+    for name, path in raw_paths.items():
+        source = imageseries.open(path, format=config.image_format, **config.image_options)
+        if name in config.image_flips:
+            source = imageseries.process.ProcessedImageSeries(
+                source, [('flip', config.image_flips[name])]
+            )
+        series[name] = source
+
+    if len({len(source) for source in series.values()}) != 1:
+        raise ValueError('detector image streams must have equal frame counts')
+
     count = min(frame_count, config.max_input_frames or frame_count)
-    if count > len(series) - config.skip_frames:
-        raise ValueError(f'{raw_path} has fewer than the {count} requested frame(s)')
+    for name, source in series.items():
+        if count > len(source) - config.skip_frames:
+            msg = f'{raw_paths[name]} has fewer than the {count} requested frame(s)'
+            raise ValueError(msg)
 
     bins = _interval_count(config.ome_end - config.ome_start, config.dome, 'omega')
     frames_per_output = frame_count // bins
@@ -351,9 +392,12 @@ def _read_integrated_frames(
 
     for start in starts:
         for index in range(start, start + frames_per_output):
-            image = np.array(
-                series[config.skip_frames + index], dtype=np.float64, copy=True
-            )
+            frames = {
+                name: source[config.skip_frames + index]
+                for name, source in series.items()
+            }
+            pixels = frames[None] if None in frames else operator.assemble(frames)
+            image = np.array(pixels, dtype=np.float64, copy=True)
             if image.shape != operator.input_shape:
                 msg = (
                     f'input image shape {image.shape} must be {operator.input_shape}, '
@@ -455,8 +499,15 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
         msg = 'start_layer must select at least one par-file layer'
         raise ValueError(msg)
 
+    patterns = config.image_pattern
+    if isinstance(patterns, str):
+        patterns = {None: patterns}
     raw_paths = {
-        layer: _raw_path(config, metadata['image_number'][layer]) for layer in layers
+        layer: {
+            name: _raw_path(config, metadata['image_number'][layer], pattern)
+            for name, pattern in patterns.items()
+        }
+        for layer in layers
     }
 
     output_dir = Path(config.output_dir)
@@ -469,7 +520,7 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
         Path(config.par_file).resolve(),
         Path(config.par_file).with_suffix('.json').resolve(),
         Path(config.matrix or config.instrument).resolve(),
-        *(path.resolve() for path in raw_paths.values()),
+        *(path.resolve() for paths in raw_paths.values() for path in paths.values()),
     }
     if h5_path.resolve() == par_path.resolve() or inputs.intersection(
         (h5_path.resolve(), par_path.resolve())
