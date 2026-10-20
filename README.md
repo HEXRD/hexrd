@@ -38,12 +38,9 @@ High energy diffraction data analysis
 positional arguments:
   command
     help                Displays a list of available conda commands and their help strings.
-    test                runs the hexrd test suite
     documentation       Launches the hexrd documentation (work in progress) in a web browser
     find-orientations   Process rotation image series to find grain orientations
     fit-grains          Extracts G vectors, grain position and strain
-    pickle23            modify old material files (pickles) to be compatible with hexrd3; it makes a backup and overwrites the
-                        original file
 
 optional arguments:
   -h, --help            show this help message and exit
