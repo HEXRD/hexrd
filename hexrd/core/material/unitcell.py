@@ -61,6 +61,35 @@ def _calcstar(v, sym, mat):
     return vsym[0:n, :]
 
 
+# 90 degree rotation about x taking b to -z (monoclinic unique axis)
+_IPF_ROT_X90 = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
+
+# 30 degree rotation about z (321 <-> 312, 3m1 <-> 31m)
+_IPF_ROT_Z30 = np.array(
+    [[np.sqrt(3.0) / 2.0, -0.5, 0.0], [0.5, np.sqrt(3.0) / 2.0, 0.0], [0.0, 0.0, 1.0]]
+)
+
+
+def _ipf_frame(sub, sup, lattice_type):
+    """
+    return the first candidate rotation Q with Q g Q^T in the supergroup for
+    every g in sub, i.e. the rotation into the setting the supergroup's
+    sector is defined for.
+    """
+    if lattice_type == "monoclinic":
+        candidates = (_IPF_ROT_X90, np.eye(3))
+    else:
+        candidates = (np.eye(3), _IPF_ROT_Z30)
+    for Q in candidates:
+        if all(any(np.allclose(Q @ g @ Q.T, h, atol=1e-6) for h in sup) for g in sub):
+            return Q
+    warnings.warn(
+        "IPF coloring: the crystal symmetry is not a subgroup of its coloring "
+        "supergroup in any supported setting; colors may be wrong"
+    )
+    return np.eye(3)
+
+
 class unitcell:
     """
     >> @AUTHOR:     Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
@@ -477,42 +506,49 @@ class unitcell:
         self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.0
 
         """
-        the standard setting for the monoclinic system has the b-axis aligned
-        with the 2-fold axis. this needs to be accounted for when reduction to
-        the standard stereographic triangle is performed. the siplest way is to
-        rotate all symmetry elements by 90 about the x-axis
-
-        the supergroups for the monoclinic groups are orthorhombic so they need
-        not be rotated as they have the c* axis already aligned with the z-axis
-        SS 12/10/2020
+        the generators of the monoclinic groups (cs, c2, c2h) are b-unique,
+        but their sectors in sphere_sector have the unique axis along z. the
+        supergroup cs (used for 1, -1 and m) is the only monoclinic supergroup,
+        so rotate it by 90 deg about x. the orthorhombic supergroups already
+        have their unique axis along z.
         """
-        if self.latticeType == "monoclinic":
-            om = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
+        om = _IPF_ROT_X90
+        if supergroup in ("cs", "c2", "c2h"):
+            self.SYM_PG_supergroup = np.einsum(
+                "ij,njk,lk->nil", om, self.SYM_PG_supergroup, om
+            )
+        if supergroup_laue in ("cs", "c2", "c2h"):
+            self.SYM_PG_supergroup_laue = np.einsum(
+                "ij,njk,lk->nil", om, self.SYM_PG_supergroup_laue, om
+            )
 
-            for i, s in enumerate(self.SYM_PG_c):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c[i, :, :] = ss
-
-            for i, s in enumerate(self.SYM_PG_c_laue):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c_laue[i, :, :] = ss
         """
-        for the triclinic group c1, the supergroups are the monoclinic group m
-        therefore we need to rotate the mirror to be perpendicular to the z-axis
-        same shouldn't be done for the group ci, since the supergroup is just the
-        triclinic group c1!!
-        SS 12/10/2020
+        IPF frame: a rotation that brings the crystal symmetry into the setting
+        the supergroup and its sector are defined for (b -> z for monoclinic,
+        a 30 deg turn about z for 321 vs 312 and 3m1 vs 31m). directions are
+        rotated by it in reduce_dirvector. SYM_PG_c and SYM_PG_c_laue stay in
+        the true crystal frame, because other code (phase_transition.variants)
+        uses them.
+
+        _ipf_sub holds the operators that decide bright vs dark in
+        color_directions: the group itself, or for -1, -3 and -4 (which have
+        no jump-free key) its rotation subgroup.
         """
-        if self._pointGroup == "c1":
-            om = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
-
-            for i, s in enumerate(self.SYM_PG_supergroup):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_supergroup[i, :, :] = ss
-
-            for i, s in enumerate(self.SYM_PG_supergroup_laue):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_supergroup_laue[i, :, :] = ss
+        self._ipf_frame = {}
+        self._ipf_sym = {}
+        self._ipf_sub = {}
+        for mode, sym, pgsym, sup in (
+            ("pg", self.SYM_PG_c, self._pointGroup, self.SYM_PG_supergroup),
+            ("laue", self.SYM_PG_c_laue, self._laueGroup, self.SYM_PG_supergroup_laue),
+        ):
+            if pgsym in ("ci", "s4", "s6"):
+                sub = sym[np.linalg.det(sym) > 0]
+            else:
+                sub = sym
+            Q = _ipf_frame(sub, sup, self.latticeType)
+            self._ipf_frame[mode] = Q
+            self._ipf_sym[mode] = np.einsum("ij,njk,lk->nil", Q, sym, Q)
+            self._ipf_sub[mode] = np.einsum("ij,njk,lk->nil", Q, sub, Q)
 
     def CalcOrbit(self, v, reduceToUC=True):
         """
@@ -1198,7 +1234,9 @@ class unitcell:
         this will be used later on in the coloring routines to determine if the
         points needs to be moved to the southern hemisphere or not
         """
-        dir3_copy = np.copy(dir3n)
+        mode = "laue" if switch in ("laue", "superlaue") else "pg"
+        dir3n = dir3n @ self._ipf_frame[mode].T
+        dir3_copy = dir3n.copy()
         dir3_reduced = np.array([])
         idx_copy = np.copy(idx)
         idx_red = np.array([], dtype=np.int32)
@@ -1211,13 +1249,13 @@ class unitcell:
         connectivity = self.sphere_sector.connectivity[switch]
 
         if switch == "pg":
-            sym = self.SYM_PG_c
+            sym = self._ipf_sym["pg"]
 
         elif switch == "super":
             sym = self.SYM_PG_supergroup
 
         elif switch == "laue":
-            sym = self.SYM_PG_c_laue
+            sym = self._ipf_sym["laue"]
 
         elif switch == "superlaue":
             sym = self.SYM_PG_supergroup_laue
@@ -1276,25 +1314,30 @@ class unitcell:
            replaceing barycenter to pi-theta)
         """
 
-        if laueswitch:
-            """
-            this is the case where we color orientations based on the laue group
-            of the crystal. this is always going to be the case with x-ray which
-            introduces inversion symmetry. For other probes, this is not the case.
-            """
-            dir3_red = self.reduce_dirvector(dir3, switch="laue")
-            dir3_red_supergroup = self.reduce_dirvector(dir3, switch="superlaue")
-            switch = "superlaue"
+        # use the correct ipf symmetry
+        mode = "laue" if laueswitch else "pg"
+        switch = "superlaue" if laueswitch else "super"
+        Q = self._ipf_frame[mode]
 
+        dir3 = np.atleast_2d(dir3)
+        dir3 = dir3 / np.linalg.norm(dir3, axis=1)[:, None]
+
+        if self._ipf_sub[mode].shape[0] < self._ipf_sym[mode].shape[0]:
+            # -1, -3, -4: reduce to the group's own sector first, then color
+            # it with the key of its rotation subgroup
+            d = self.reduce_dirvector(dir3, switch=mode)
+            dir3 = d @ Q
         else:
-            """
-            follow the logic in the function description
-            """
-            dir3_red = self.reduce_dirvector(dir3, switch="pg")
-            dir3_red_supergroup = self.reduce_dirvector(dir3, switch="super")
-            switch = "super"
+            d = dir3 @ Q.T
 
-        mask = np.linalg.norm(dir3_red - dir3_red_supergroup, axis=1) < eps
+        dir3_red_supergroup = self.reduce_dirvector(dir3, switch=switch)
+
+        # bright if the supergroup-reduced direction is equivalent to the
+        # direction under the group being colored, dark otherwise
+        images = np.einsum("kij,nj->kni", self._ipf_sub[mode], d)
+        dist = np.linalg.norm(images - dir3_red_supergroup[None], axis=2)
+        mask = np.any(dist < 1e-6, axis=0)
+
         hsl = self.sphere_sector.get_color(dir3_red_supergroup, mask, switch)
 
         rgb = colorspace.hsl2rgb(hsl)
@@ -1783,8 +1826,8 @@ def _sgrange(min, max):
 for coloring the fundamental zone IPF
 """
 _pgDict = {
-    _sgrange(1, 1): ("c1", laue_1, supergroup_1, supergroup_00),  # Triclinic
-    _sgrange(2, 2): ("ci", laue_1, supergroup_00, supergroup_00),  # laue 1
+    _sgrange(1, 1): ("c1", laue_1, supergroup_1, supergroup_1),  # Triclinic
+    _sgrange(2, 2): ("ci", laue_1, supergroup_1, supergroup_1),  # laue 1
     _sgrange(3, 5): ("c2", laue_2, supergroup_2, supergroup_3),  # Monoclinic
     _sgrange(6, 9): ("cs", laue_2, supergroup_1, supergroup_3),
     _sgrange(10, 15): ("c2h", laue_2, supergroup_3, supergroup_3),  # laue 2
@@ -1797,16 +1840,16 @@ _pgDict = {
     _sgrange(25, 46): ("c2v", laue_3, supergroup_2, supergroup_3),
     _sgrange(47, 74): ("d2h", laue_3, supergroup_3, supergroup_3),  # laue 3
     _sgrange(75, 80): ("c4", laue_4, supergroup_4, supergroup_5),  # Tetragonal
-    _sgrange(81, 82): ("s4", laue_4, supergroup_01, supergroup_5),
+    _sgrange(81, 82): ("s4", laue_4, supergroup_2, supergroup_5),
     _sgrange(83, 88): ("c4h", laue_4, supergroup_5, supergroup_5),  # laue 4
     _sgrange(89, 98): ("d4", laue_5, supergroup_5, supergroup_5),
     _sgrange(99, 110): ("c4v", laue_5, supergroup_4, supergroup_5),
     _sgrange(111, 122): ("d2d", laue_5, supergroup_5, supergroup_5),
     _sgrange(123, 142): ("d4h", laue_5, supergroup_5, supergroup_5),  # laue 5
     # Trigonal # laue 6 [also c3i]
-    _sgrange(143, 146): ("c3", laue_6, supergroup_6, supergroup_02),
-    _sgrange(147, 148): ("s6", laue_6, supergroup_02, supergroup_02),
-    _sgrange(149, 155): ("d3", laue_7, supergroup_7, supergroup_9),
+    _sgrange(143, 146): ("c3", laue_6, supergroup_6, supergroup_6),
+    _sgrange(147, 148): ("s6", laue_6, supergroup_6, supergroup_6),
+    _sgrange(149, 155): ("d3", laue_7, supergroup_8, supergroup_9),
     _sgrange(156, 161): ("c3v", laue_7, supergroup_6, supergroup_9),
     _sgrange(162, 167): ("d3d", laue_7, supergroup_9, supergroup_9),  # laue 7
     _sgrange(168, 173): (
@@ -1815,7 +1858,7 @@ _pgDict = {
         supergroup_7,
         supergroup_9,
     ),  # Hexagonal
-    _sgrange(174, 174): ("c3h", laue_8, supergroup_7, supergroup_9),
+    _sgrange(174, 174): ("c3h", laue_8, supergroup_8, supergroup_9),
     _sgrange(175, 176): ("c6h", laue_8, supergroup_9, supergroup_9),  # laue 8
     _sgrange(177, 182): ("d6", laue_9, supergroup_9, supergroup_9),
     _sgrange(183, 186): ("c6v", laue_9, supergroup_7, supergroup_9),

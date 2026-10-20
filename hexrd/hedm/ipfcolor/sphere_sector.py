@@ -76,12 +76,13 @@ pg2vertex = {
                         [-0.5, -np.sqrt(3.)/2., 0.]]).T,
           np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1]]).T, 'upper'],
 
-    'c2': [2, np.array([[0., 0., 1.],
+    'c2': [4, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.],
-                        [-1., 0., 0.]]).T,
-           np.array([[0, 1, 2], [0, 2, 3]]).T,
-           'both'],
+                        [-1., 0., 0.],
+                        [0., 0., -1.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3], [4, 2, 1], [4, 3, 2]]).T,
+           'upper'],
 
     # supergroup 1 in our convention
     'cs': [3, np.array([[0., 0., 1.],
@@ -108,10 +109,10 @@ pg2vertex = {
     # supergroup 2 in our convention
     'c2v': [2, np.array([[0., 0., 1.],
                          [1., 0., 0.],
-                         [0., 1., 0.],
-                         [0., 0., -1.]]).T,
-            np.array([[0, 1, 2], [3, 1, 2]]).T,
-            'both'],
+                         [0., 0., -1.],
+                         [0., 1., 0.]]).T,
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     # supergroup 3 in our convention
     'd2h': [1, np.array([[0., 0., 1.],
@@ -120,11 +121,12 @@ pg2vertex = {
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
-    'c4': [1, np.array([[0., 0., 1.],
+    'c4': [2, np.array([[0., 0., 1.],
                         [1., 0., 0.],
+                        [0., 0., -1.],
                         [0., 1., 0.]]).T,
-           np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           np.array([[0, 1, 3], [2, 3, 1]]).T,
+           'upper'],
 
     # supergroup 01 in our convention
     's4': [2, np.array([[0., 0., 1.],
@@ -147,11 +149,12 @@ pg2vertex = {
            'upper'],
 
     # supergroup 4 in our convention
-    'c4v': [1, np.array([[0., 0., 1.],
+    'c4v': [2, np.array([[0., 0., 1.],
                          [1., 0., 0.],
+                         [0., 0., -1.],
                          [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
-            np.atleast_2d(np.array([0, 1, 2])).T,
-            'both'],
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     'd2d': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
@@ -166,11 +169,12 @@ pg2vertex = {
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
-    'c3': [1, np.array([[0., 0., 1.],
+    'c3': [2, np.array([[0., 0., 1.],
                         [np.sqrt(3.)/2., -0.5, 0.],
+                        [0., 0., -1.],
                         [0., 1., 0.]]).T,
-           np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           np.array([[0, 1, 3], [2, 3, 1]]).T,
+           'upper'],
 
     # supergroup 02 in our convention
     's6': [1, np.array([[0., 0., 1.],
@@ -186,11 +190,12 @@ pg2vertex = {
            'upper'],
 
     # supergroup 6 in our convention
-    'c3v': [1, np.array([[0., 0., 1.],
+    'c3v': [2, np.array([[0., 0., 1.],
                          [np.sqrt(3.)/2., -0.5, 0.],
+                         [0., 0., -1.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.atleast_2d(np.array([0, 1, 2])).T,
-            'both'],
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     'd3d': [1, np.array([[0., 0., 1.],
                          [np.sqrt(3.)/2., -0.5, 0.],
@@ -198,11 +203,12 @@ pg2vertex = {
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
-    'c6': [1, np.array([[0., 0., 1.],
+    'c6': [2, np.array([[0., 0., 1.],
                         [1., 0., 0.],
+                        [0., 0., -1.],
                         [0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           np.array([[0, 1, 3], [2, 3, 1]]).T,
+           'upper'],
 
     'c3h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
@@ -220,18 +226,19 @@ pg2vertex = {
                         [1., 0., 0.],
                         [0.5, np.sqrt(3.)/2., 0.]]).T,
            np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           'upper'],
 
     # supergroup 7 in our convention
-    'c6v': [1, np.array([[0., 0., 1.],
+    'c6v': [2, np.array([[0., 0., 1.],
                          [1., 0., 0.],
+                         [0., 0., -1.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.atleast_2d(np.array([0, 1, 2])).T,
-            'both'],
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     # supergroup 8 in our convention
     'd3h': [1, np.array([[0., 0., 1.],
-                         [1., 0., 0.],
+                         [np.sqrt(3.)/2., -0.5, 0.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
@@ -512,30 +519,24 @@ class sector:
         '''
         vertex = self.vertices[switch]
         fregion = self.fillet_region(dir3, switch)
-        dir3_b = np.zeros(dir3.shape)
         nn = vertex.shape[1]
 
-        for i in range(fregion.shape[0]):
-            f = fregion[i]
-            d = dir3[i, :]
-
-            A = vertex[:, np.mod(f, nn)]
-            B = vertex[:, np.mod(f + 1, nn)]
-
-            nhat = np.cross(B, A)
-            nhat = nhat / np.linalg.norm(nhat)
-
-            lam = np.dot(nhat, d)
-            deldir = lam * nhat
-
-            dp = d - deldir
-            ndp = np.linalg.norm(dp)
-            if ndp > 0.0:
-                dp = dp / ndp
-            else:
-                dp = d
-
-            dir3_b[i, :] = dp
+        # intersect the great circle from the barycenter through each
+        # direction with the edge of its fillet (not the perpendicular
+        # projection onto the edge, which differs between neighboring
+        # fillets and makes the hue jump along barycenter-vertex lines)
+        A = vertex[:, np.mod(fregion, nn)].T
+        B = vertex[:, np.mod(fregion + 1, nn)].T
+        p = np.cross(
+            np.cross(np.atleast_2d(self.barycenter[switch]), dir3), np.cross(A, B)
+        )
+        pn = np.linalg.norm(p, axis=1)
+        at_center = pn < eps
+        p[at_center] = A[at_center]
+        pn[at_center] = 1.0
+        dir3_b = p / pn[:, None]
+        flip = np.einsum('ij,ij->i', dir3_b, dir3) < 0.0
+        dir3_b[flip] = -dir3_b[flip]
 
         return dir3_b, fregion
 
