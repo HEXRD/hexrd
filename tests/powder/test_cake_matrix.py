@@ -187,7 +187,9 @@ def test_invalid_grid_is_rejected(tmp_path: Path, instrument: HEDMInstrument) ->
         ('indptr', 'short-tail'),
     ],
 )
-def test_corrupt_csr_is_rejected(tmp_path, instrument, name, corruption):
+def test_corrupt_csr_is_rejected(
+    tmp_path: Path, instrument: HEDMInstrument, name: str, corruption: str
+) -> None:
     path = tmp_path / 'matrix.hexrdcake'
     export_cake_matrix(path, instrument, **GRID)
     with h5py.File(path, 'r+') as stream:

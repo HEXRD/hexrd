@@ -202,10 +202,12 @@ class PolarView:
         return (self.neta, self.ntth)
 
     @property
-    def angular_grid(self):
+    def angular_grid(self) -> tuple[np.ndarray, np.ndarray]:
         return self._generate_angular_grid()
 
-    def _generate_angular_grid(self, eta_slice: slice | None = None):
+    def _generate_angular_grid(
+        self, eta_slice: slice | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
         """Generate all two-theta columns and optionally a slice of eta rows."""
         tth_vec = (
             np.radians(self.tth_pixel_size * (np.arange(self.ntth)))

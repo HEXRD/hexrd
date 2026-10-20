@@ -333,7 +333,7 @@ def _raw_path(config: CakeDataConfig, image_number: int, pattern: str) -> Path:
         except (IndexError, KeyError, ValueError) as exc:
             raise ValueError(f'invalid data_dir template: {exc}') from exc
     else:
-        def substitute(match):
+        def substitute(match: re.Match[str]) -> str:
             token = match.group()
             if token == '%%':
                 return '%'
@@ -467,7 +467,13 @@ def _profiles(
     return full, profiles
 
 
-def _write_layer_profiles(group, frames, wedges, tth, eta_key):
+def _write_layer_profiles(
+    group: h5py.Group,
+    frames: Iterable[tuple[float, np.ndarray]],
+    wedges: list[CakeMatrix],
+    tth: np.ndarray,
+    eta_key: np.ndarray,
+) -> None:
     full_profiles = []
     omega = []
     for index, (angle, frame) in enumerate(frames):

@@ -1,19 +1,21 @@
-descr = "Displays a list of available conda commands and their help strings."
+import argparse
+
+descr = 'Display available HEXRD commands and their help'
 
 
-def configure_parser(sub_parsers):
+def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
     p = sub_parsers.add_parser('help', description=descr, help=descr)
     p.add_argument(
         'command',
         metavar='COMMAND',
         action="store",
         nargs='?',
-        help="print help information for COMMAND " "(same as: conda COMMAND -h)",
+        help='print help for COMMAND (same as: hexrd COMMAND -h)',
     )
     p.set_defaults(func=execute)
 
 
-def execute(args, parser):
+def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if not args.command:
         parser.print_help()
         return
@@ -21,4 +23,8 @@ def execute(args, parser):
     import sys
     import subprocess
 
-    subprocess.call([sys.executable, sys.argv[0], args.command, '-h'])
+    result = subprocess.run(
+        [sys.executable, '-m', 'hexrd.cli.main', args.command, '-h'], check=False
+    )
+    if result.returncode:
+        parser.exit(result.returncode)

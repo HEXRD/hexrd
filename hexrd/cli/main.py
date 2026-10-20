@@ -26,7 +26,7 @@ except PackageNotFoundError:
     _version = None
 
 
-def main():
+def main() -> None:
     if sys.platform.startswith('win'):
         # Hack for multiprocessing.freeze_support() to work from a
         # setuptools-generated entry point.
@@ -83,3 +83,7 @@ def main():
 
     if args.inst_profile:
         profiler.dump_results(args.inst_profile)
+
+
+if __name__ == '__main__':
+    main()
