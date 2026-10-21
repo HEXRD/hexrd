@@ -6,6 +6,12 @@ from numpy.typing import NDArray
 
 FloatArray: TypeAlias = NDArray[np.float64]
 
+def _npzIndex(buffer: object, metadata_only: bool) -> dict[str, tuple[int, int, int, int]] | None: ...
+def _csrPixelIds(offsets: NDArray, columns: NDArray, width: int, output: NDArray[np.int64]) -> None: ...
+def _ringMasks(tth: FloatArray, eta: NDArray, ranges: FloatArray, n_eta: int) -> tuple[NDArray[np.int64], NDArray[np.bool_]]: ...
+def _binPixels(offsets: NDArray, ids: NDArray, values: FloatArray, rows: NDArray, masks: NDArray, eta: NDArray, threshold: float, output: FloatArray) -> None: ...
+def _scoreOrientationBins(bins: NDArray[np.int32], status: NDArray[np.int8]) -> FloatArray: ...
+
 Vec3: TypeAlias = FloatArray
 Mat3: TypeAlias = FloatArray
 
@@ -240,6 +246,7 @@ def scoreOrientations(
     dpix_omega: int,
     threshold: float,
     hit_status: NDArray[np.int8] | None = ...,
+    bin_indices: NDArray[np.int32] | None = ...,
     /,
 ) -> NDArray[np.float64]: ...
 def oscillAnglesOfHKLs(

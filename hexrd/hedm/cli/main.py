@@ -3,8 +3,11 @@
 import argparse
 import logging
 import sys
-import multiprocessing
+import os
 from importlib.metadata import version, PackageNotFoundError
+
+if 'find-orientations' in sys.argv:
+    os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 
 # These can't be relative imports on Windows because of the hack
 # in main() for multiprocessing.freeze_support()
@@ -27,6 +30,8 @@ except PackageNotFoundError:
 
 def main():
     if sys.platform.startswith('win'):
+        import multiprocessing
+
         # Hack for multiprocessing.freeze_support() to work from a
         # setuptools-generated entry point.
         if __name__ != "__main__":

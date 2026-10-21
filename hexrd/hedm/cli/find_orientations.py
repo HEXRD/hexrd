@@ -3,9 +3,6 @@
 import logging
 import os
 import sys
-import cProfile
-import io
-import pstats
 from contextlib import nullcontext
 from dataclasses import replace
 
@@ -117,6 +114,11 @@ def execute(args, parser):
         )
         logger.info('logging to %s', logfile)
         logger.addHandler(fh)
+
+        if getattr(args, 'profile', False):
+            import cProfile
+            import io
+            import pstats
 
         with (
             cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()

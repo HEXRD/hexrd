@@ -17,8 +17,7 @@ from hexrd.hedm.experiment import (
 from hexrd.core.extensions import transforms_c_api, transforms as native
 from hexrd.core.material.material_data import Material, PlaneData, load_plane_data_cached
 from hexrd.core.transforms import xfcapi
-from hexrd.core.utils.decorators import _lazy_njit
-from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
+from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache, savez_compressed
 
 def _prefetch_heavy_imports(blob=False):
     """Import peak-finding and clustering dependencies in a worker thread."""
@@ -40,6 +39,24 @@ class EtaOmegaMaps:
     two_theta_ranges: np.ndarray  # (n_rings, 2)
     ring_ids: np.ndarray          # (n_rings,) index among the non-excluded hkls
     eta_step: float               # radians
+
+
+class _LazyEtaOmegaMaps(EtaOmegaMaps):
+    @property
+    def ring_maps(self):
+        if callable(self._ring_maps):
+            self._ring_maps = self._ring_maps()
+        return self._ring_maps
+
+    @ring_maps.setter
+    def ring_maps(self, value):
+        self._ring_maps = value
+
+
+def _map_key(maps):
+    if isinstance(maps, _LazyEtaOmegaMaps) and callable(maps._ring_maps):
+        return maps._content_key
+    return fingerprint({}, arrays=(maps.ring_maps,))
 
 
 @dataclass
@@ -109,7 +126,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         min_samples = 1
     else:
         fibers = _load_or_generate_fibers(experiment, plane_data, maps, fiber_cache)
-        min_samples = (estimate_min_samples(experiment, plane_data, maps)
+        min_samples = (_cached_min_samples(experiment, plane_data, maps)
                        if fibers.shape[1] else 1)
 
     completeness = score_orientations(experiment, plane_data, maps, fibers)
@@ -140,15 +157,17 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
     """
     om = experiment.find_orientations.orientation_maps
     path = experiment.eta_ome_maps_file
+    source_cache = os.path.join(experiment.analysis_dir, '.hexrd', 'map-source.npz')
     if clean or not os.path.exists(path):
         maps = build_eta_omega_maps(experiment, plane_data)
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
         _save_eta_omega_maps(maps, path)
+        save_array_cache(source_cache, fingerprint({}, files=(path,)), content_key=_map_key(maps))
         if clean:
             return maps
     else:
         maps = _load_eta_omega_maps(path, plane_data,
-                                    experiment.active_material.two_theta_width)
+                                    experiment.active_material.two_theta_width, source_cache)
     _filter_maps(maps, om.filter_maps, om.filter_fwhm)
     return maps
 
@@ -206,8 +225,6 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     Returns:
         Intensity maps and their eta, omega, two-theta, and ring metadata.
     """
-    import numba
-
     fo = experiment.find_orientations
 
     ring_ids = _resolve_active_rings(fo.orientation_maps.active_hkls, plane_data)
@@ -223,8 +240,6 @@ def build_eta_omega_maps(experiment: HedmExperiment,
         experiment.image_series_list[0].omega)
     ring_maps = np.full((len(two_theta_ranges), len(omegas), n_eta), np.nan)
 
-    numba.set_num_threads(
-        max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
     active = [ims for ims in experiment.image_series_list
               if ims.panel in experiment.detectors]
 
@@ -299,51 +314,9 @@ def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
     yield from chunk_pixels(pixels(), row_of_frame, max_pixels)
 
 
-@_lazy_njit
-def _csr_pixel_ids(indptr, columns, n_columns, out):
-    """Write flat pixel IDs from CSR indices without allocating COO rows.
+_csr_pixel_ids = native._csrPixelIds
 
-    Args:
-        indptr: CSR row offsets.
-        columns: CSR column indices.
-        n_columns: Number of columns in the image.
-        out: Preallocated array receiving the row-major pixel IDs.
-    """
-    for row in range(len(indptr) - 1):
-        for pixel in range(indptr[row], indptr[row + 1]):
-            out[pixel] = row * n_columns + columns[pixel]
-
-@_lazy_njit(parallel=True)
-def _bin_pixels(offsets, ids, vals, rows, ring_mask, eta_bin, threshold, out):
-    """Accumulate stored pixel intensities into ring, omega, and eta bins.
-
-    Parallel over frames: within one image series every frame owns its own
-    map row, so writes never collide.
-
-    Args:
-        offsets: Start offset for each frame in ``ids`` and ``vals``.
-        ids: Row-major pixel IDs for all frames in the chunk.
-        vals: Pixel intensities corresponding to ``ids``.
-        rows: Eta-omega map row for each frame.
-        ring_mask: Bit-packed ring membership for each detector pixel.
-        eta_bin: Eta-bin index for each detector pixel.
-        threshold: Minimum pixel intensity to accumulate.
-        out: Ring maps updated in place.
-    """
-    for f in numba.prange(len(rows)):
-        row = rows[f]
-        for k in range(offsets[f], offsets[f + 1]):
-            value = vals[k]
-            if value < threshold:
-                continue
-            pixel = ids[k]
-            mask = ring_mask[pixel]
-            ring = 0
-            while mask:
-                if mask & 1:
-                    out[ring, row, eta_bin[pixel]] += value
-                mask >>= 1
-                ring += 1
+_bin_pixels = native._binPixels
 
 
 def _omega_grid(omega: np.ndarray):
@@ -401,7 +374,7 @@ def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str) -> None:
         maps: Maps and metadata to save.
         path: Destination NPZ path.
     """
-    np.savez_compressed(
+    savez_compressed(
         path,
         ring_maps=maps.ring_maps,
         eta_edges=maps.eta_edges, omega_edges=maps.omega_edges,
@@ -411,7 +384,7 @@ def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str) -> None:
 
 
 def _load_eta_omega_maps(path: str, plane_data: PlaneData,
-                         two_theta_width: float) -> EtaOmegaMaps:
+                         two_theta_width: float, source_cache=None) -> EtaOmegaMaps:
     """Load a current or legacy HEXRD eta-omega map archive.
 
     Args:
@@ -424,9 +397,16 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
     """
     from hexrd.core.experiment import _NpzReader
 
+    key = fingerprint({}, files=(path,)) if source_cache else None
+    cached = load_array_cache(source_cache, key) if source_cache else None
+    lazy = cached is not None and 'content_key' in cached and cached['content_key'].shape == ()
+    def read_maps():
+        with _NpzReader(path) as archive:
+            return np.array(archive['dataStore'], dtype=np.float64) if legacy else archive['ring_maps']
+
     with _NpzReader(path) as d:
-        if 'dataStore' in d:  # legacy hexrd archive
-            ring_maps = np.array(d['dataStore'], dtype=np.float64)
+        legacy = 'dataStore' in d
+        if legacy:  # legacy hexrd archive
             eta_edges, omega_edges = d['etaEdges'], d['omeEdges']
             omegas = d['omegas']
             # the archive's iHKLList holds master hkl IDs; convert to ring indices
@@ -438,13 +418,19 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
             period = omega_edges[0] + np.r_[0.0, 2 * np.pi]
             eta_step = float(d['etas'][1] - d['etas'][0])
         else:                 # plain-array archive
-            ring_maps = d['ring_maps']
             eta_edges, omega_edges = d['eta_edges'], d['omega_edges']
             omegas, period = d['omegas'], d['omega_period']
             two_theta_ranges, ring_ids = d['two_theta_ranges'], d['ring_ids']
             eta_step = float(d['eta_step'])
-    return EtaOmegaMaps(ring_maps, eta_edges, omega_edges, omegas, period,
-                        two_theta_ranges, ring_ids, eta_step)
+    maps = _LazyEtaOmegaMaps(read_maps, eta_edges, omega_edges, omegas, period,
+                             two_theta_ranges, ring_ids, eta_step)
+    if lazy:
+        maps._content_key = str(cached['content_key'])
+    else:
+        content_key = fingerprint({}, arrays=(maps.ring_maps,))
+        if source_cache:
+            save_array_cache(source_cache, key, content_key=content_key)
+    return maps
 
 
 def _filter_maps(maps: EtaOmegaMaps, median: bool,
@@ -555,32 +541,7 @@ def _panel_bin_data(detector, beam_vector, two_theta_ranges, eta_edges):
     return eta_bin, masks, coverage
 
 
-@_lazy_njit
-def _ring_masks(panel_tth, eta_bin, two_theta_ranges, n_eta):
-    """Build bit-packed ring membership and eta-bin coverage arrays.
-
-    Each mask block holds up to 63 rings.
-
-    Args:
-        panel_tth: Flat per-pixel two-theta angles in radians.
-        eta_bin: Eta-bin index for each detector pixel, or ``-1`` if invalid.
-        two_theta_ranges: Lower and upper two-theta bounds for each ring.
-        n_eta: Number of eta bins.
-
-    Returns:
-        A tuple containing per-pixel ring masks and per-ring eta-bin coverage.
-    """
-    n_rings = len(two_theta_ranges)
-    masks = np.zeros(((n_rings + 62) // 63, len(panel_tth)), dtype=np.int64)
-    coverage = np.zeros((n_rings, n_eta), dtype=np.bool_)
-    for ring in range(n_rings):
-        lo, hi = two_theta_ranges[ring]
-        block, bit = ring // 63, 1 << (ring % 63)
-        for pixel in range(len(panel_tth)):
-            if eta_bin[pixel] >= 0 and lo <= panel_tth[pixel] <= hi:
-                masks[block, pixel] |= bit
-                coverage[ring, eta_bin[pixel]] = True
-    return masks, coverage
+_ring_masks = native._ringMasks
 
 
 def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
@@ -591,23 +552,26 @@ def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
     from hexrd.core.extensions import transforms, inverse_distortion
 
     detector = experiment.detectors[panel]
-    sources = [Path(__file__), Path(_lazy_njit.__code__.co_filename),
+    sources = [Path(__file__),
                Path(transforms_c_api.__file__), Path(transforms.__file__),
                Path(inverse_distortion.__file__)]
     sources.extend(sorted(Path(distortion_pkg.__file__).parent.glob('*.py')))
-    if detector.distortion.function_name:
+    name = detector.distortion.function_name
+    mapping_type = distortion_pkg.Registry.distortion_registry.get(name)
+    if name and (mapping_type is not None or
+                 name.lower().removesuffix('_newton') not in distortion_pkg._builtin_modules):
         import inspect
 
-        mapping = distortion_pkg.get_mapping(
-            detector.distortion.function_name, detector.distortion.parameters)
+        if mapping_type is None:
+            mapping_type = type(distortion_pkg.get_mapping(name, detector.distortion.parameters))
         try:
-            sources.append(Path(inspect.getfile(type(mapping))))
+            sources.append(Path(inspect.getfile(mapping_type)))
         except TypeError:
             return _panel_bin_data(detector, experiment.beam.vector,
                                    two_theta_ranges, eta_edges)
     key = fingerprint(asdict(detector),
                       arrays=(experiment.beam.vector, two_theta_ranges, eta_edges),
-                      files=sources, packages=('numpy', 'numba'))
+                      files=sources, packages=('numpy',))
     name = hashlib.sha256(panel.encode()).hexdigest()[:16]
     path = Path(experiment.analysis_dir) / '.hexrd' / f'panel-{name}.npz'
     saved = load_array_cache(path, key)
@@ -629,12 +593,13 @@ def _load_or_generate_fibers(experiment, plane_data, maps, cache_file):
 
     settings = dict(seed=asdict(experiment.find_orientations.seed_search),
                     chi=experiment.oscillation_stage.chi,
-                    laue_group=plane_data.laue_group, eta_step=maps.eta_step)
-    sources = [__file__, _lazy_njit.__code__.co_filename,
+                    laue_group=plane_data.laue_group, eta_step=maps.eta_step,
+                    maps=_map_key(maps))
+    sources = [__file__,
                rotations.__file__, mutil.__file__, xfcapi.__file__,
                xfcapi.cpp_transforms.__file__, transforms_c_api.__file__, const.__file__]
     key = fingerprint(settings, files=sources, packages=('numpy', 'scipy', 'scikit-image'),
-                      arrays=(maps.ring_maps, maps.eta_edges, maps.omega_edges, maps.omegas,
+                      arrays=(maps.eta_edges, maps.omega_edges, maps.omegas,
                               maps.two_theta_ranges, maps.ring_ids,
                               plane_data.unexcluded_hkls, plane_data.B, plane_data.q_sym))
     cached = load_array_cache(cache_file, key)
@@ -813,17 +778,44 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     dpix_eta = int(round(
         fo.eta.tolerance / abs(maps.eta_edges[1] - maps.eta_edges[0])))
 
-    ring_maps = np.ascontiguousarray(maps.ring_maps)
     bmat = np.ascontiguousarray(plane_data.B)
     beam_vector = np.ascontiguousarray(experiment.beam.vector, dtype=np.float64)
     n = q_fibers.shape[1]
     workers = max(1, min(experiment.max_workers, max(1, n // 2048)))
-    hit_status = None
+    shape = (len(maps.ring_ids), len(maps.omega_edges)-1, len(maps.eta_edges)-1)
+    cache_dir = os.path.join(experiment.analysis_dir, '.hexrd')
+    sources = (__file__, native.__file__, rotations.__file__, const.__file__)
+    bins_key = fingerprint(dict(wavelength=plane_data.wavelength, offset=ome_offset, shape=shape),
+        files=sources, packages=('numpy',), arrays=(q_fibers, symm_hkls, bmat, beam_vector,
+            maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ring_for_hkl))
+    bins_file = os.path.join(cache_dir, 'reflection-bins.npz')
+    cached = load_array_cache(bins_file, bins_key, mmap=True)
+    bins = cached.get('bins') if cached is not None else None
+    if bins is not None and (bins.shape != (n, 2, len(symm_hkls)) or bins.dtype != np.int32):
+        bins = None
+    status_key = fingerprint(dict(maps=_map_key(maps), de=dpix_eta, dome=dpix_ome,
+                                  threshold=fo.threshold), files=(native.__file__,))
+    status_file = os.path.join(cache_dir, 'hit-status.npz')
+    cached = load_array_cache(status_file, status_key, mmap=True)
+    hit_status = cached.get('status') if cached is not None else None
+    if hit_status is not None and (hit_status.shape != shape or hit_status.dtype != np.int8):
+        hit_status = None
+    if bins is not None and hit_status is not None:
+        return native._scoreOrientationBins(bins, hit_status)
+
+    ring_maps = np.ascontiguousarray(maps.ring_maps)
+    cache_bins = (bins_key is not None and np.prod(shape) <= np.iinfo(np.int32).max and
+                  n*len(symm_hkls)*8 <= 128*1024**2)
     window_area = (2 * dpix_eta + 1) * (2 * dpix_ome + 1)
     # Serial lookup construction must pay for each worker's share of scoring.
-    if (n * len(symm_hkls) * window_area >= 8 * workers * ring_maps.size and window_area > 1
+    if hit_status is None and (cache_bins or
+            n * len(symm_hkls) * window_area >= 8 * workers * ring_maps.size and window_area > 1
             and np.prod(ring_maps.shape[1:]) < np.iinfo(np.int32).max):
         hit_status = _hit_status_maps(ring_maps, dpix_eta, dpix_ome, fo.threshold)
+        save_array_cache(status_file, status_key, status=hit_status)
+    if bins is not None and hit_status is not None:
+        return native._scoreOrientationBins(bins, hit_status)
+    bins = np.empty((n, 2, len(symm_hkls)), dtype=np.int32) if cache_bins else None
     # The native scorer predicts and counts one trial at a time with private
     # bounded scratch, releasing the GIL for parallel chunks. No angle cube
     # or Python-to-C call per quaternion, and no scoring JIT warmup.
@@ -834,12 +826,17 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
         return native.scoreOrientations(
             rmats, symm_hkls, bmat, plane_data.wavelength, beam_vector,
             maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ome_offset,
-            ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status)
+            ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status,
+            bins[start:stop] if bins is not None else None)
 
     if workers == 1:
-        return score_chunk(0, n)
-    with ThreadPoolExecutor(workers) as pool:
-        return np.concatenate(list(pool.map(score_chunk, bounds[:-1], bounds[1:])))
+        scores = score_chunk(0, n)
+    else:
+        with ThreadPoolExecutor(workers) as pool:
+            scores = np.concatenate(list(pool.map(score_chunk, bounds[:-1], bounds[1:])))
+    if bins is not None:
+        save_array_cache(bins_file, bins_key, bins=bins)
+    return scores
 
 def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
                      offset: float) -> np.ndarray:
@@ -889,6 +886,26 @@ def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
         raise ValueError('Angle ranges overlap')
 
     return result
+
+
+def _cached_min_samples(experiment, plane_data, maps):
+    from dataclasses import asdict
+
+    fo = experiment.find_orientations
+    key = fingerprint(dict(chi=experiment.oscillation_stage.chi, wavelength=plane_data.wavelength,
+        completeness=fo.clustering.completeness,
+        detectors={name: asdict(panel) for name, panel in experiment.detectors.items()}),
+        arrays=(plane_data.B, experiment.beam.vector, experiment.image_series_list[0].omega,
+                maps.ring_ids, fo.seed_search.hkl_seeds, fo.eta.range, *plane_data.symm_hkls),
+        files=(__file__, native.__file__, rotations.__file__, xfcapi.__file__, const.__file__),
+        packages=('numpy',))
+    path = os.path.join(experiment.analysis_dir, '.hexrd', 'min-samples.npz')
+    cached = load_array_cache(path, key)
+    if cached is not None and 'value' in cached and cached['value'].shape == ():
+        return int(cached['value'])
+    value = estimate_min_samples(experiment, plane_data, maps)
+    save_array_cache(path, key, value=value)
+    return value
 
 
 def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
@@ -1187,7 +1204,7 @@ def write_results(results: FindOrientationsResult,
     os.makedirs(analysis_dir, exist_ok=True)
     np.savetxt(experiment.accepted_orientations_file,
                qbar.T, fmt='%.18e', delimiter='\t')
-    np.savez_compressed(
+    np.savez(
         experiment.scored_orientations_file,
         test_quaternions=results.test_orientations, score=results.completeness)
     _write_grains_out(os.path.join(analysis_dir, 'grains.out'), qbar)

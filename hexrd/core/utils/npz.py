@@ -1,5 +1,6 @@
 """Lazy numeric NPZ reads and invalidated, atomic intermediate caches."""
 import hashlib
+from functools import lru_cache
 from importlib.metadata import version, PackageNotFoundError
 import io
 import json
@@ -15,6 +16,8 @@ import zipfile
 
 import numpy as np
 
+version = lru_cache(maxsize=None)(version)
+
 try:
     from isal import isal_zlib as zlib
 except ImportError:
@@ -26,7 +29,7 @@ _NUMERIC_HEADER = re.compile(
     rb"'shape': \(((?:[0-9]+(?:, [0-9]+)*,?)?)\),? \}")
 
 
-def _read_array(raw):
+def _read_array(raw, *, copy=True):
     """Read standard numeric NPY members without literal-evaluating every header.
 
     Frame caches contain thousands of small, ordinary np.save members. The
@@ -36,7 +39,7 @@ def _read_array(raw):
     if raw[:6] == b'\x93NUMPY' and raw[6:8] in (b'\x01\x00', b'\x02\x00', b'\x03\x00'):
         start = 10 if raw[6] == 1 else 12
         length = int.from_bytes(raw[8:start], 'little')
-        header = raw[start:start + length]
+        header = bytes(raw[start:start + length])
         match = _NUMERIC_HEADER.fullmatch(header.strip()) if length <= 10000 else None
         if match is not None:
             descr, fortran, dimensions = match.groups()
@@ -46,9 +49,9 @@ def _read_array(raw):
             if dtype.itemsize:
                 shape = tuple(int(n) for n in dimensions.split(b',') if n.strip())
                 count = math.prod(shape)
-                return np.frombuffer(raw, dtype=dtype, count=count,
-                                     offset=start + length).copy().reshape(
-                                         shape, order='F' if fortran == b'True' else 'C')
+                array = np.frombuffer(raw, dtype=dtype, count=count, offset=start + length)
+                return (array.copy() if copy else array).reshape(
+                    shape, order='F' if fortran == b'True' else 'C')
     return np.lib.format.read_array(io.BytesIO(raw), allow_pickle=False)
 
 
@@ -59,47 +62,79 @@ class _NpzReader:
     the compressed archive avoids reading every detector frame for metadata.
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename, *, metadata_only=False, copy=True):
+        self._filename, self._metadata_only = filename, metadata_only
+        self._copy = copy
         with open(filename, 'rb') as stream:
-            with zipfile.ZipFile(stream) as archive:
-                self._members = {i.filename: i for i in archive.infolist()}
             self._buf = mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ)
+        self._index()
+
+    def _index(self):
+        from hexrd.core.extensions import transforms
+
+        self._members = transforms._npzIndex(self._buf, self._metadata_only)
+        if self._members is None:
+            with zipfile.ZipFile(self._filename) as archive:
+                self._members = {i.filename: (i.header_offset, i.compress_size, i.compress_type, i.CRC)
+                                 for i in archive.infolist()}
+            self._metadata_only = False
+
+    def _complete(self, name=None):
+        if self._metadata_only and (name is None or name + '.npy' not in self._members):
+            self._metadata_only = False
+            self._index()
 
     def __getitem__(self, name):
-        info = self._members[name + '.npy']
-        name_len, extra_len = struct.unpack_from('<HH', self._buf, info.header_offset + 26)
-        start = info.header_offset + 30 + name_len + extra_len
-        raw = self._buf[start:start + info.compress_size]
-        if info.compress_type == zipfile.ZIP_DEFLATED:
+        self._complete(name)
+        offset, size, method, crc = self._members[name + '.npy']
+        name_len, extra_len = struct.unpack_from('<HH', self._buf, offset + 26)
+        start = offset + 30 + name_len + extra_len
+        raw = self._buf[start:start + size] if self._copy else memoryview(self._buf)[start:start + size]
+        if method == zipfile.ZIP_DEFLATED:
             raw = zlib.decompress(raw, wbits=-15)
-        elif info.compress_type != zipfile.ZIP_STORED:
+        elif method != zipfile.ZIP_STORED:
             # Preserve np.load compatibility for less common ZIP codecs.
             with zipfile.ZipFile(io.BytesIO(self._buf)) as archive:
                 raw = archive.read(name + '.npy')
-        if zlib.crc32(raw) & 0xffffffff != info.CRC:
+        if zlib.crc32(raw) & 0xffffffff != crc:
             raise zipfile.BadZipFile(f'Bad CRC-32 for {name}.npy')
-        return _read_array(raw)
+        return _read_array(raw, copy=self._copy)
 
     def __contains__(self, name):
+        self._complete(name)
         return name + '.npy' in self._members
 
     def __iter__(self):
+        self._complete()
         return (name[:-4] for name in self._members if name.endswith('.npy'))
 
     def __enter__(self):
         return self
 
     def __exit__(self, *exc):
-        self._buf.close()
+        try:
+            self._buf.close()
+        except BufferError:
+            pass  # Array views own the mapping until their final reference is released.
 
 
 logger = logging.getLogger(__name__)
 
 
+def savez_compressed(path, **arrays):
+    """Write standard deflated NPZ members using the available zlib backend."""
+    with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, array in arrays.items():
+            with archive.open(name + '.npy', 'w', force_zip64=True) as member:
+                member._compressor = zlib.compressobj(wbits=-15)
+                np.lib.format.write_array(member, np.asanyarray(array), allow_pickle=False)
+
+
 def fingerprint(settings, *, arrays=(), files=(), packages=()):
     """Hash inputs and their implementation; unavailable sources disable reuse."""
     try:
-        context = (settings, {name: version(name) for name in packages})
+        context = (settings, {name: np.__version__ if name == 'numpy' else version(name)
+                              for name in packages})
         digest = hashlib.sha256(json.dumps(
             context, sort_keys=True, default=lambda a: a.tolist()).encode())
         for array in arrays:
@@ -116,11 +151,11 @@ def fingerprint(settings, *, arrays=(), files=(), packages=()):
         return None
 
 
-def load_array_cache(path, fingerprint):
+def load_array_cache(path, fingerprint, *, mmap=False):
     if fingerprint is None:
         return None
     try:
-        with _NpzReader(path) as saved:
+        with _NpzReader(path, copy=not mmap) as saved:
             if str(saved['fingerprint']) == fingerprint:
                 return {name: saved[name] for name in saved if name != 'fingerprint'}
     except (OSError, ValueError, KeyError, EOFError, zipfile.BadZipFile, zlib.error):
@@ -136,7 +171,7 @@ def save_array_cache(path, fingerprint, *, compressed=False, **arrays):
         path.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=path.parent) as directory:
             temporary = Path(directory) / 'arrays.npz'
-            save = np.savez_compressed if compressed else np.savez
+            save = savez_compressed if compressed else np.savez
             save(temporary, fingerprint=fingerprint, **arrays)
             os.replace(temporary, path)
     except OSError:

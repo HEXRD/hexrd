@@ -6,6 +6,8 @@
 #include <array>
 #include <cstdint>
 #include <vector>
+#include <string>
+#include <cstring>
 #include <pybind11/numpy.h>
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
@@ -720,6 +722,111 @@ static py::array_t<double> quaternionRotations(CArray<double> quats) {
   return output;
 }
 
+// Fast path for ordinary numeric NPZ directories; zipfile handles extensions
+// such as ZIP64, encryption, non-ASCII names and self-extracting prefixes.
+static py::object npzIndex(py::buffer buffer, bool metadataOnly) {
+  auto view = buffer.request();
+  if (view.ndim != 1 || view.itemsize != 1 || view.strides[0] != 1)
+    throw py::value_error("expected a contiguous byte buffer");
+  const auto *data = static_cast<const unsigned char *>(view.ptr);
+  Index size = view.size*view.itemsize;
+  auto word = [&](Index offset, int bytes = 4) -> uint32_t {
+    if (offset < 0 || offset > size-bytes) throw py::value_error("truncated ZIP directory");
+    uint32_t value = 0;
+    for (int i = 0; i < bytes; ++i) value |= uint32_t(data[offset+i]) << (8*i);
+    return value;
+  };
+  Index end = size-22;
+  while (end >= std::max(Index(0), size-65557) &&
+         !(word(end) == 0x06054b50 && end+22+word(end+20, 2) == size)) --end;
+  if (end < std::max(Index(0), size-65557)) return py::none();
+  Index count = word(end+10, 2), pos = word(end+16), stop = end;
+  if (word(end+4) || word(end+8, 2) != count || count == 65535 ||
+      pos+word(end+12) != end) return py::none();
+  py::dict members;
+  for (Index i = 0; i < count; ++i) {
+    if (word(pos) != 0x02014b50 || pos > stop-46) return py::none();
+    Index length = word(pos+28, 2), next = pos+46+length+word(pos+30, 2)+word(pos+32, 2);
+    if (next > stop || word(pos+20) == UINT32_MAX || word(pos+24) == UINT32_MAX ||
+        word(pos+42) == UINT32_MAX || (word(pos+8, 2)&1)) return py::none();
+    std::string name(reinterpret_cast<const char *>(data+pos+46), length);
+    if (std::any_of(name.begin(), name.end(), [](unsigned char c) { return c >= 128; })) return py::none();
+    if (!metadataOnly || name == "shape.npy" || name == "dtype.npy" ||
+        name == "nframes.npy" || name == "omega.npy")
+      members[py::str(name)] = py::make_tuple(word(pos+42), word(pos+20), word(pos+10, 2), word(pos+16));
+    pos = next;
+  }
+  return pos == stop ? py::object(members) : py::none();
+}
+
+static void csrPixelIds(CArray<Index> offsets, CArray<Index> columns, Index width,
+                        py::array_t<int64_t, py::array::c_style> output) {
+  checkShape(offsets, {-1}); checkShape(columns, {-1});
+  checkShape(output, {columns.size()});
+  auto ids = output.mutable_data();
+  py::gil_scoped_release release;
+  for (Index row = 0; row+1 < offsets.size(); ++row) {
+    Index lo = offsets.data()[row], hi = offsets.data()[row+1];
+    if (lo < 0 || hi < lo || hi > columns.size()) throw py::value_error("invalid CSR offsets");
+    for (Index p = lo; p < hi; ++p) ids[p] = row*width+columns.data()[p];
+  }
+}
+
+static py::tuple ringMasks(CArray<double> tth, CArray<Index> eta,
+                           CArray<double> ranges, Index nEta) {
+  checkShape(tth, {-1}); checkShape(eta, {tth.size()}); checkShape(ranges, {-1, 2});
+  if (nEta < 0) throw py::value_error("negative eta-bin count");
+  Index pixels = tth.size(), rings = ranges.shape(0);
+  py::array_t<int64_t> masks({(rings+62)/63, pixels});
+  py::array_t<bool> coverage({rings, nEta});
+  auto bits = masks.mutable_data(); auto covered = coverage.mutable_data();
+  { py::gil_scoped_release release;
+    std::fill(bits, bits+masks.size(), 0);
+    std::fill(covered, covered+coverage.size(), false);
+    for (Index ring = 0; ring < rings; ++ring) for (Index p = 0; p < pixels; ++p) {
+      Index bin = eta.data()[p];
+      if (bin >= nEta) throw py::value_error("eta bin is out of bounds");
+      if (bin >= 0 && ranges.data()[2*ring] <= tth.data()[p] &&
+          tth.data()[p] <= ranges.data()[2*ring+1]) {
+        bits[(ring/63)*pixels+p] |= int64_t(1) << (ring%63);
+        covered[ring*nEta+bin] = true;
+      }
+    }
+  }
+  return py::make_tuple(masks, coverage);
+}
+
+static void binPixels(CArray<Index> offsets, CArray<Index> ids, CArray<double> values,
+    CArray<Index> rows, CArray<int64_t> masks, CArray<int32_t> eta, double threshold,
+    py::array_t<double, py::array::c_style> output) {
+  checkShape(rows, {-1}); checkShape(offsets, {rows.size()+1}); checkShape(ids, {-1});
+  checkShape(values, {ids.size()}); checkShape(masks, {-1}); checkShape(eta, {masks.size()});
+  checkShape(output, {-1, -1, -1});
+  Index nRing = output.shape(0), nRow = output.shape(1), nEta = output.shape(2);
+  Index nPixels = masks.size(), nValues = ids.size(), nFrames = rows.size();
+  auto out = output.mutable_data();
+  py::gil_scoped_release release;
+  for (Index f = 0; f < nFrames; ++f) {
+    Index row = rows.data()[f], lo = offsets.data()[f], hi = offsets.data()[f+1];
+    if (row < 0 || row >= nRow || lo < 0 || hi < lo || hi > nValues)
+      throw py::value_error("invalid frame row or pixel offsets");
+    for (Index p = lo; p < hi; ++p) {
+      double value = values.data()[p];
+      if (value < threshold) continue;
+      Index pixel = ids.data()[p];
+      if (pixel < 0 || pixel >= nPixels) throw py::value_error("pixel is out of bounds");
+      int64_t mask = masks.data()[pixel];
+      Index bin = eta.data()[pixel], ring = 0;
+      if (mask < 0 || (mask && (bin < 0 || bin >= nEta))) throw py::value_error("invalid ring bin");
+      while (mask) {
+        if (ring >= nRing) throw py::value_error("ring is out of bounds");
+        if (mask & 1) out[(ring*nRow+row)*nEta+bin] += value;
+        mask >>= 1; ++ring;
+      }
+    }
+  }
+}
+
 // First hit or NaN in row-major window order, in two linear scans per ring.
 static py::array_t<int8_t> orientationHitStatus(CArray<double> maps,
                                                Index de, Index dome, double threshold) {
@@ -768,11 +875,33 @@ static double orientationMod(double value, double offset) {
   return result < 0 ? result+2.*pi+offset : result+offset;
 }
 
+static py::array_t<double> scoreOrientationBins(
+    py::array_t<int32_t, py::array::c_style | py::array::forcecast> bins, CArray<int8_t> status) {
+  checkShape(bins, {-1, 2, -1}); checkShape(status, {-1, -1, -1});
+  Index n = bins.shape(0), count = 2*bins.shape(2), size = status.size();
+  py::array_t<double> scores(n); auto out = scores.mutable_data();
+  const auto *indices = static_cast<const char *>(bins.request().ptr);
+  py::gil_scoped_release release;
+  for (Index q = 0; q < n; ++q) {
+    Index hits = 0, total = 0;
+    for (Index h = 0; h < count; ++h) {
+      int32_t cell;
+      std::memcpy(&cell, indices+sizeof(cell)*(q*count+h), sizeof(cell));
+      if (cell < 0) continue;
+      if (cell >= size) throw py::value_error("reflection bin is out of bounds");
+      int hit = status.data()[cell];
+      total += hit >= 0; hits += std::max(hit, 0);
+    }
+    out[q] = total ? double(hits)/total : 0.;
+  }
+  return scores;
+}
+
 static py::array_t<double> scoreOrientations(CArray<double> rmats, CArray<double> hkls,
     CArray<double> bmat, double wavelength, CArray<double> beam,
     CArray<double> etaEdges, CArray<double> omeEdges, CArray<double> validEta,
     CArray<double> validOme, double offset, CArray<double> maps, CArray<Index> rings,
-    Index de, Index dome, double threshold, py::object statusObject) {
+    Index de, Index dome, double threshold, py::object statusObject, py::object binsObject) {
   checkShape(rmats, {-1, 3, 3}); checkShape(beam, {3});
   checkShape(hkls, {-1, 3});
   checkShape(maps, {-1, -1, -1}); checkShape(rings, {hkls.shape(0)});
@@ -800,6 +929,15 @@ static py::array_t<double> scoreOrientations(CArray<double> rmats, CArray<double
   const double vinv[6] = {1, 1, 1, 0, 0, 0}, eta[3] = {1, 0, 0};
   OscillationGeometry geometry(0., wavelength, vinv, beam.data(), eta);
   const int8_t *lookup = statusObject.is_none() ? nullptr : status.data();
+  CArray<int32_t> bins;
+  int32_t *cells = nullptr;
+  if (!binsObject.is_none()) {
+    bins = CArray<int32_t>::ensure(binsObject);
+    if (!bins || maps.size() > INT32_MAX) throw py::value_error("unsupported reflection-bin array");
+    checkShape(bins, {n, 2, nhkl});
+    cells = bins.mutable_data();
+    std::fill(cells, cells+bins.size(), -1);
+  }
   py::gil_scoped_release release;
   for (Index q = 0; q < n; ++q) {
     geometry.predict(nhkl, reciprocal.data(), rmats.data()+9*q, angles.data(), angles.data()+3*nhkl);
@@ -814,6 +952,7 @@ static py::array_t<double> scoreOrientations(CArray<double> rmats, CArray<double
       Index oi = rangeIndex(o, omeEdges.data(), nome+1)-1;
       if (ei < 0 || oi < 0 || ei >= neta || oi >= nome) continue;
       Index cell = (rings.data()[h]*nome+oi)*neta+ei;
+      if (cells) cells[(2*q+solution)*nhkl+h] = int32_t(cell);
       int hit = lookup ? lookup[cell] : 0;
       if (!lookup) {
         Index ostop = dome < nome-1-oi ? oi+dome+1 : nome;
@@ -863,13 +1002,22 @@ PYBIND11_MODULE(transforms, m) {
   m.def("rotate_vecs_about_axis", &rotateVectors);
   m.def("quat_distance", &quatDistance);
   m.def("quaternionRotations", &quaternionRotations);
+  m.def("_npzIndex", &npzIndex);
+  m.def("_csrPixelIds", &csrPixelIds, py::arg("offsets"), py::arg("columns"),
+        py::arg("width"), py::arg("output").noconvert());
+  m.def("_ringMasks", &ringMasks);
+  m.def("_binPixels", &binPixels, py::arg("offsets"), py::arg("ids"), py::arg("values"),
+        py::arg("rows"), py::arg("masks"), py::arg("eta"), py::arg("threshold"),
+        py::arg("output").noconvert());
   m.def("orientationHitStatus", &orientationHitStatus);
+  m.def("_scoreOrientationBins", &scoreOrientationBins);
   m.def("scoreOrientations", &scoreOrientations,
         py::arg("rmats"), py::arg("hkls"), py::arg("bmat"), py::arg("wavelength"),
         py::arg("beam"), py::arg("eta_edges"), py::arg("omega_edges"),
         py::arg("valid_eta"), py::arg("valid_omega"), py::arg("omega_offset"),
         py::arg("ring_maps"), py::arg("ring_for_hkl"), py::arg("dpix_eta"),
-        py::arg("dpix_omega"), py::arg("threshold"), py::arg("hit_status") = py::none());
+        py::arg("dpix_omega"), py::arg("threshold"), py::arg("hit_status") = py::none(),
+        py::arg("bin_indices") = py::none());
 
   m.def("make_binary_rot_mat", &makeBinaryRotMat,
         "Function that computes a rotation matrix from a binary vector");

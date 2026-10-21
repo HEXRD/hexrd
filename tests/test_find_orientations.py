@@ -76,7 +76,13 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
 import sys
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.find_orientations import find_orientations
+from hexrd.core.utils.npz import _NpzReader
 assert 'numba' not in sys.modules
+read = _NpzReader.__getitem__
+def metadata_only(self, name):
+    assert name not in ('ring_maps', 'dataStore'), 'cached scoring must not decompress maps'
+    return read(self, name)
+_NpzReader.__getitem__ = metadata_only
 experiment = HedmExperiment(sys.argv[1], working_dir=sys.argv[2])
 result = find_orientations(experiment)
 assert len(result.completeness) == 13680
@@ -197,6 +203,13 @@ def test_native_scoring_matches_reference(count, beam):
     np.testing.assert_array_equal(native.scoreOrientations(*args), expected)
     status = _hit_status_maps(args[10], args[12], args[13], args[14])
     np.testing.assert_array_equal(native.scoreOrientations(*args, status), expected)
+    bins = np.empty((count, 2, len(hkls)), dtype=np.int32)
+    np.testing.assert_array_equal(native.scoreOrientations(*args, status, bins), expected)
+    np.testing.assert_array_equal(native._scoreOrientationBins(bins, status), expected)
+    args[14] = 0.9
+    status = _hit_status_maps(args[10], args[12], args[13], args[14])
+    np.testing.assert_array_equal(native._scoreOrientationBins(bins, status),
+                                  _reference_scores(angles, args))
 
 
 @pytest.mark.parametrize('index,value', [
@@ -427,3 +440,112 @@ def test_numeric_header_fast_path_rejects_malformed_shapes():
     malformed = stream.getvalue().replace(b'(2, 3)', b'(2,,3)')
     with pytest.raises(ValueError):
         _read_array(malformed)
+
+
+def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeypatch):
+    import hexrd.hedm.find_orientations as fo
+
+    args = _scoring_inputs(97, [0., 0., -1.])
+    args[8] = np.array([-np.pi, np.pi])
+    quats = np.random.default_rng(52).normal(size=(97, 4))
+    quats /= np.linalg.norm(quats, axis=1, keepdims=True)
+    maps = SimpleNamespace(ring_maps=args[10], ring_ids=np.arange(2),
+                           eta_edges=args[5], omega_edges=args[6])
+    plane = SimpleNamespace(symm_hkls=[args[1][:2].T, args[1][2:].T],
+                            B=args[2], wavelength=args[3])
+    settings = SimpleNamespace(threshold=args[14],
+        eta=SimpleNamespace(range=args[7].reshape(-1, 2), tolerance=2*np.pi/32),
+        omega=SimpleNamespace(period=np.array([-np.pi, np.pi]), tolerance=4*np.pi/21))
+    experiment = SimpleNamespace(find_orientations=settings, max_workers=1,
+        beam=SimpleNamespace(vector=args[4]), analysis_dir=str(tmp_path))
+    predict = native.scoreOrientations
+    calls = []
+    def record(*a):
+        calls.append(1)
+        return predict(*a)
+    monkeypatch.setattr(native, 'scoreOrientations', record)
+    for change in ('initial', 'cached', 'threshold', 'map', 'geometry', 'damaged'):
+        if change == 'threshold':
+            settings.threshold = args[14] = 0.95
+        elif change == 'map':
+            args[10][:] = 1.
+        elif change == 'geometry':
+            plane.B[0, 0] *= 1.02
+        elif change == 'damaged':
+            (tmp_path/'.hexrd/reflection-bins.npz').write_bytes(b'broken cache')
+        np.testing.assert_array_equal(fo.score_orientations(experiment, plane, maps, quats.T),
+                                      predict(*args))
+        assert len(calls) == {'initial': 1, 'cached': 1, 'threshold': 1,
+                             'map': 1, 'geometry': 2, 'damaged': 3}[change]
+
+
+def test_cpp_ring_masks_preserve_multiple_blocks():
+    tth = np.array([np.nan, 0., .1, .5, 1.])
+    eta = np.array([-1, 0, 1, 2, 0])
+    ranges = np.tile([0., .5], (130, 1))
+    ranges[::3] = [.1, 1.]
+    expected = np.zeros((3, len(tth)), dtype=np.int64)
+    coverage = np.zeros((130, 3), dtype=bool)
+    for ring, (lo, hi) in enumerate(ranges):
+        for pixel, value in enumerate(tth):
+            if eta[pixel] >= 0 and lo <= value <= hi:
+                expected[ring//63, pixel] |= 1 << (ring%63)
+                coverage[ring, eta[pixel]] = True
+    masks, covered = native._ringMasks(tth, eta, ranges, 3)
+    np.testing.assert_array_equal(masks, expected)
+    np.testing.assert_array_equal(covered, coverage)
+
+
+@pytest.mark.parametrize('extension', ['unicode', 'prefix', 'zip64', 'comment'])
+def test_npz_index_falls_back_for_extended_archives(tmp_path, monkeypatch, extension):
+    name = 'dátá' if extension == 'unicode' else 'data'
+    expected = np.arange(8)
+    stream = io.BytesIO()
+    np.save(stream, expected)
+    if extension == 'zip64':
+        monkeypatch.setattr(zipfile, 'ZIP64_LIMIT', 20)
+    path = tmp_path/'extended.npz'
+    with zipfile.ZipFile(path, 'w') as archive:
+        archive.writestr(name+'.npy', stream.getvalue())
+        if extension == 'comment':
+            archive.comment = b'EOCD signature in a comment: PK\x05\x06'
+    if extension == 'prefix':
+        path.write_bytes(b'self-extracting-prefix'+path.read_bytes())
+    with _NpzReader(path) as reader:
+        np.testing.assert_array_equal(reader[name], expected)
+
+
+def test_npz_metadata_index_expands_on_demand(tmp_path):
+    from hexrd.core.utils.npz import savez_compressed
+
+    path = tmp_path/'frames.npz'
+    savez_compressed(path, shape=np.array([2, 3]), dtype=np.array(b'uint16'),
+                      nframes=np.array(1), omega=np.array([[0., 1.]]),
+                      **{'0_data': np.array([40000], dtype=np.uint16)})
+    with _NpzReader(path, metadata_only=True) as reader:
+        assert reader._metadata_only
+        assert len(reader._members) == 4
+        np.testing.assert_array_equal(reader['omega'], [[0., 1.]])
+        np.testing.assert_array_equal(reader['0_data'], [40000])
+        assert not reader._metadata_only
+    with np.load(path) as reader:
+        np.testing.assert_array_equal(reader['0_data'], [40000])
+
+
+def test_scoring_cache_views_outlive_reader_and_support_unaligned_bins(tmp_path):
+    from hexrd.core.utils.npz import load_array_cache, save_array_cache
+
+    path = tmp_path/'cache.npz'
+    expected = np.array([[[0, -1], [1, 2]]], dtype=np.int32)
+    save_array_cache(path, 'key', bins=expected)
+    data = load_array_cache(path, 'key', mmap=True)
+    assert not data['bins'].flags.writeable
+    np.testing.assert_array_equal(data['bins'], expected)
+    # NPY data inside ZIP members need not satisfy native int32 alignment.
+    raw = bytearray(1+expected.nbytes)
+    bins = np.ndarray(expected.shape, dtype=np.int32, buffer=raw, offset=1)
+    bins[:] = expected
+    assert not bins.flags.aligned
+    status = np.array([[[1, -1, 0]]], dtype=np.int8)
+    np.testing.assert_array_equal(native._scoreOrientationBins(bins, status), [.5])
+    np.testing.assert_array_equal(native._scoreOrientationBins(data['bins'], status), [.5])

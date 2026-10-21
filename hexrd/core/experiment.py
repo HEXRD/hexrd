@@ -15,8 +15,9 @@ from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
 
 import numpy as np
-import h5py
 import yaml
+
+_YamlLoader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
 
 if TYPE_CHECKING:
     from scipy.sparse import csr_array
@@ -206,7 +207,7 @@ class ImageSeries:
 
     def __init__(self, panel: str, filename: str, max_workers: int = 8):
         self.panel = panel
-        self._arrs = _NpzReader(filename)
+        self._arrs = _NpzReader(filename, metadata_only=True)
         self._shape = tuple(self._arrs['shape'])
         self._dtype = self._arrs['dtype'].tobytes().decode()
         self._n_frames = int(self._arrs['nframes'])
@@ -250,6 +251,9 @@ class ImageSeries:
             return ids, data.astype(self._dtype, copy=False)
 
         workers = max(1, min(self._max_workers, 8))
+        if workers == 1:
+            yield from _pixel_chunks(map(load_frame, range(len(self))), row_of_frame, max_pixels)
+            return
         with ThreadPoolExecutor(workers) as pool:
             frames = (frame for batch in range(0, len(self), workers)
                       for frame in pool.map(load_frame,
@@ -321,6 +325,8 @@ def _merge_config(base: dict, overlay: dict) -> dict:
 
 def _h5_to_dict(group) -> dict:
     """An HDF5 group tree as nested plain dicts, mirroring the yaml layout."""
+    import h5py
+
     out = {}
     for key, value in group.items():
         if isinstance(value, h5py.Group):
@@ -340,11 +346,19 @@ def _h5_to_dict(group) -> dict:
 
 def _load_instrument(path: str) -> dict:
     """An instrument definition from a yaml file or a .hexrd HDF5 archive."""
-    if h5py.is_hdf5(path):
-        with h5py.File(path, 'r') as f:
-            return _h5_to_dict(f['instrument'])
-    with open(path) as f:
-        return yaml.safe_load(f)
+    with open(path, 'rb') as f:
+        # HDF5 signatures can follow a user block at powers of two >= 512.
+        offset, size = 0, os.fstat(f.fileno()).st_size
+        while offset + 8 <= size:
+            f.seek(offset)
+            if f.read(8) == b'\x89HDF\r\n\x1a\n':
+                import h5py
+
+                with h5py.File(path, 'r') as archive:
+                    return _h5_to_dict(archive['instrument'])
+            offset = 2 * offset if offset else 512
+        f.seek(0)
+        return yaml.load(f, Loader=_YamlLoader)
 
 
 class Experiment:
@@ -359,7 +373,7 @@ class Experiment:
     def __init__(self, filename: str, study: int | None = None):
         self.experiment_dir = os.path.dirname(filename)
         with open(filename) as f:
-            config, *studies = yaml.safe_load_all(f)
+            config, *studies = yaml.load_all(f, Loader=_YamlLoader)
         self.studies = list(studies)
         if study is not None:
             for overlay in self.studies[:study + 1]:
@@ -428,11 +442,15 @@ class Experiment:
 
     def get_materials(self) -> list[Material]:
         """Load every crystal material defined in the materials HDF5 file."""
+        import h5py
+
         with h5py.File(self._materials_file, 'r') as f:
             return [self._material(name, f) for name in f]
 
     def get_active_material(self) -> Material:
         """Load the material selected for this analysis (config ``material: active``)."""
+        import h5py
+
         name = self.active_material.active
         with h5py.File(self._materials_file, 'r') as f:
             return self._material(name, f)

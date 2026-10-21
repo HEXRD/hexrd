@@ -128,7 +128,8 @@ def test_transform_rotation_matrix():
     assert np.allclose(rmat @ [1, 0, 0], [0, 1, 0])
 
 
-def test_load_instrument_hdf5(tmp_path):
+@pytest.mark.parametrize('userblock', [0, 512, 4096])
+def test_load_instrument_hdf5(tmp_path, userblock):
     """A .hexrd HDF5 instrument archive loads like its yaml equivalent."""
     from hexrd.core.experiment import _load_instrument
 
@@ -154,7 +155,7 @@ def test_load_instrument_hdf5(tmp_path):
                 group[key] = value
 
     path = tmp_path / 'instrument.hexrd'
-    with h5py.File(path, 'w') as f:
+    with h5py.File(path, 'w', userblock_size=userblock) as f:
         write_group(f.create_group('instrument'), spec)
         # scalars often come back from hexrd archives as 1-element datasets
         del f['instrument/beam/energy']

@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-import h5py
 import numpy as np
 
 from hexrd.core import material as _material
@@ -135,6 +134,8 @@ class Material:
 def load_materials(definitions, **kwargs) -> dict[str, Material]:
     """Every material defined in a materials HDF5 file (path or open handle),
     keyed by name.  Keyword arguments are passed to :class:`Material`."""
+    import h5py
+
     if isinstance(definitions, h5py.Group):
         names = list(definitions)
     else:
