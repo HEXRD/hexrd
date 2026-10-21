@@ -29,9 +29,9 @@
 # Module containing functions relevant to rotations
 #
 import sys
+from hexrd.core.utils.decorators import _lazy_njit
 
 import numpy as np
-from numba import njit
 from numpy.typing import NDArray
 from typing import Literal, Optional, Sequence
 
@@ -568,7 +568,7 @@ def rotMatOfExpMap_opt(expMap):  # pragma: no cover
     return rotMatOfExpMap(expMap)
 
 
-@njit(cache=True, nogil=True)
+@_lazy_njit
 def _rotmatofquat(quat):
     n = quat.shape[1]
     # Write the result directly. Array expressions and hstack allocate many
@@ -624,7 +624,14 @@ def rotMatOfQuat(quat):
         if quat.shape[0] != 4:
             raise RuntimeError("input is the wrong shape")
 
-    rmat = _rotmatofquat(quat)
+    if quat.dtype == np.float64:
+        # The standard workflow needs no JIT initialization to convert a
+        # handful of symmetry quaternions or a batch of trial orientations.
+        from hexrd.core.extensions import transforms
+
+        rmat = transforms.quaternionRotations(np.ascontiguousarray(quat.T))
+    else:
+        rmat = _rotmatofquat(quat)
 
     return np.squeeze(rmat)
 

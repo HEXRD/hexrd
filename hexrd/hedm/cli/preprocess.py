@@ -1,7 +1,6 @@
 import dataclasses
 import logging
 from hexrd.hedm.preprocess.profiles import HexrdPPScript_Arguments
-from hexrd.hedm.preprocess.preprocessors import preprocess
 from dataclasses import fields
 import json
 import copy
@@ -30,6 +29,8 @@ def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
 
 
 def execute(args: argparse.Namespace, _: argparse.ArgumentParser) -> None:
+    from hexrd.hedm.preprocess.preprocessors import preprocess
+
     kwargs, extra = _remove_non_dataclass_args(vars(args))
 
     if extra["generate_default_config"]:

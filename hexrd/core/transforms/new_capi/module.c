@@ -51,21 +51,13 @@
  * =============================================================================
  */
 #include "transforms_types.h"
-#include "transforms_utils.h"
-#include "transforms_prototypes.h"
 #include "ndargs_helper.h"
 
 #include "ndargs_helper.c"
-#include "gvec_to_xy.c"
-#include "xy_to_gvec.c"
-#include "oscill_angles_of_HKLs.c"
 #include "unit_row_vector.c"
 #include "make_detector_rmat.c"
 #include "make_sample_rmat.c"
-#include "make_beam_rmat.c"
 #include "validate_angle_ranges.c"
-#include "rotate_vecs_about_axis.c"
-#include "quat_distance.c"
 
 
 
@@ -78,18 +70,11 @@
     { STR(name), CONCAT(python_, name), METH_VARARGS, "" }
 
 static PyMethodDef _module_methods[] = {
-    EXPORT_METHOD(gvecToDetectorXY),  /* gvec_to_xy */
-    EXPORT_METHOD(gvecToDetectorXYArray), /* gvec_to_xy */
-    EXPORT_METHOD(detectorXYToGvec), /* xy_to_gvec */
-    EXPORT_METHOD(oscillAnglesOfHKLs), /* solve_omega */
     EXPORT_METHOD(unitRowVector), /* unit_vector */
     EXPORT_METHOD(unitRowVectors), /* unit_vector */
     EXPORT_METHOD(makeOscillRotMat), /* make_sample_rmat */
     EXPORT_METHOD(makeDetectorRotMat), /* make_detector_rmat */
-    EXPORT_METHOD(makeEtaFrameRotMat), /* make_beam_rmat */
     EXPORT_METHOD(validateAngleRanges), /* validate_angle_ranges */
-    EXPORT_METHOD(rotate_vecs_about_axis), /* rotate_vecs_about_axis */
-    EXPORT_METHOD(quat_distance), /* quat_distance */
     {NULL,NULL,0,NULL} /* sentinel */
 };
 
@@ -113,6 +98,27 @@ PyMODINIT_FUNC CONCAT(PyInit_, THIS_MODULE_NAME)(void)
     }
 
     import_array();
+
+    /* Preserve legacy entry points while the implementations live in C++. */
+    PyObject *cpp = PyImport_ImportModule("hexrd.core.extensions.transforms");
+    if (cpp == NULL) { Py_DECREF(module); return NULL; }
+    const char *aliases[][2] = {
+        {"oscillAnglesOfHKLs", "oscillAnglesOfHKLs"},
+        {"quat_distance", "quat_distance"}, {"detectorXYToGvec", "detectorXYToGvec"},
+        {"makeEtaFrameRotMat", "makeEtaFrameRotMat"},
+        {"rotate_vecs_about_axis", "rotate_vecs_about_axis"},
+        {"gvecToDetectorXY", "projectGvecs"}, {"gvecToDetectorXYArray", "projectGvecsArray"},
+    };
+    for (size_t i = 0; i < sizeof(aliases)/sizeof(*aliases); ++i) {
+        PyObject *function = PyObject_GetAttrString(cpp, aliases[i][1]);
+        if (function == NULL || PyModule_AddObject(module, aliases[i][0], function) < 0) {
+            Py_XDECREF(function);
+            Py_DECREF(cpp);
+            Py_DECREF(module);
+            return NULL;
+        }
+    }
+    Py_DECREF(cpp);
 
     return module;
 }

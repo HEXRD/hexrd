@@ -5,7 +5,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Optional
 
-import numba
 import numpy as np
 
 from hexrd.core import constants as const
@@ -15,14 +14,19 @@ from hexrd.core import rotations
 from hexrd.hedm.experiment import (
     ClusteringAlgorithm, HedmExperiment, SeedSearchMethod,
 )
-from hexrd.core.extensions import transforms_c_api
-from hexrd.core.material.material_data import Material, PlaneData
+from hexrd.core.extensions import transforms_c_api, transforms as native
+from hexrd.core.material.material_data import Material, PlaneData, load_plane_data_cached
 from hexrd.core.transforms import xfcapi
+from hexrd.core.utils.decorators import _lazy_njit
+from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
 
-def _prefetch_heavy_imports():
+def _prefetch_heavy_imports(blob=False):
     """Import peak-finding and clustering dependencies in a worker thread."""
     from scipy import ndimage  # noqa: F401
     from scipy.spatial.transform import Rotation  # noqa: F401
+    if blob:
+        from skimage.exposure import rescale_intensity  # noqa: F401
+        from skimage.feature import blob_dog, blob_log  # noqa: F401
 
 
 @dataclass
@@ -56,12 +60,6 @@ class FindOrientationsResult:
         return self.grain_orientations.shape[1]
 
 
-def _prefetch_skimage():
-    """Import blob-detection dependencies in a worker thread."""
-    from skimage.exposure import rescale_intensity  # noqa: F401
-    from skimage.feature import blob_dog, blob_log  # noqa: F401
-
-
 def find_orientations(experiment: HedmExperiment, material: Optional[Material] = None,
                       clean: bool = False) -> FindOrientationsResult:
     """Find grain orientations in a rotation series.
@@ -77,20 +75,32 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         The accepted grain orientations, trial orientations, and completeness
         scores.
     """
-    # Material initialization also runs parallel Numba kernels (structure
-    # factors), so honor the worker limit before loading the material.
-    numba.set_num_threads(
-        max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
-    threading.Thread(target=_prefetch_heavy_imports, daemon=True).start()
+    grid_file = experiment.quaternion_grid_file
+    fiber_cache = os.path.join(experiment.analysis_dir, '.hexrd', 'fibers.npz')
+    if grid_file is None and not os.path.exists(fiber_cache):
+        blob = experiment.find_orientations.seed_search.method is not SeedSearchMethod.LABEL
+        threading.Thread(target=_prefetch_heavy_imports, args=(blob,), daemon=True).start()
 
     if material is None:
-        material = experiment.get_active_material()
-    plane_data = material.plane_data
+        from dataclasses import asdict
 
-    grid_file = experiment.quaternion_grid_file
-    if (grid_file is None
-            and experiment.find_orientations.seed_search.method is not SeedSearchMethod.LABEL):
-        threading.Thread(target=_prefetch_skimage, daemon=True).start()
+        def load_material():
+            import numba
+
+            # Set the limit before structure factors run, but leave the JIT
+            # thread pool dormant when the numeric snapshot is already valid.
+            numba.set_num_threads(max(1, min(
+                experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
+            return experiment.get_active_material()
+
+        plane_data = load_plane_data_cached(
+            experiment._materials_file,
+            os.path.join(experiment.analysis_dir, '.hexrd', 'plane-data.npz'),
+            dict(material=asdict(experiment.active_material),
+                 beam_energy=experiment.beam.energy),
+            load_material)
+    else:
+        plane_data = material.plane_data
 
     maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
 
@@ -98,7 +108,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         fibers = np.load(grid_file)
         min_samples = 1
     else:
-        fibers = generate_orientation_fibers(experiment, plane_data, maps)
+        fibers = _load_or_generate_fibers(experiment, plane_data, maps, fiber_cache)
         min_samples = (estimate_min_samples(experiment, plane_data, maps)
                        if fibers.shape[1] else 1)
 
@@ -196,6 +206,8 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     Returns:
         Intensity maps and their eta, omega, two-theta, and ring metadata.
     """
+    import numba
+
     fo = experiment.find_orientations
 
     ring_ids = _resolve_active_rings(fo.orientation_maps.active_hkls, plane_data)
@@ -216,24 +228,10 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     active = [ims for ims in experiment.image_series_list
               if ims.panel in experiment.detectors]
 
-    # Overlap geometry with frame decompression.
-    with ThreadPoolExecutor(max(1, min(experiment.max_workers, 16))) as pool:
-        panel_futures = {panel: pool.submit(
-            _panel_bin_data, experiment.detectors[panel], experiment.beam.vector,
-            two_theta_ranges, eta_edges)
-                         for panel in {ims.panel for ims in active}}
-        image_futures = [pool.submit(lambda series: series.images, ims)
-                         for ims in active]
-        panel_data = {panel: f.result() for panel, f in panel_futures.items()}
-        for future in image_futures:
-            future.result()
-
-    for ims in active:
-        eta_bin, ring_masks, coverage = panel_data[ims.panel]
-        frames = ims.images
-
+    for ims, (eta_bin, ring_masks, coverage) in _iter_panel_bins(
+            experiment, active, two_theta_ranges, eta_edges):
         # Preserve NaN gaps; covered bins sum intensities across panels.
-        rows = row_of_frame[:len(frames)]
+        rows = row_of_frame[:len(ims)]
         for ring, bins in enumerate(coverage):
             covered = np.ix_(rows, np.flatnonzero(bins))
             ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered])
@@ -244,7 +242,9 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                   if np.any(coverage[63 * block:63 * (block + 1)])]
         if not blocks:
             continue
-        for ids, vals, offsets, chunk_rows in _pixel_chunks(frames, rows):
+        chunks = (ims.pixel_chunks(rows) if hasattr(ims, 'pixel_chunks')
+                  else _pixel_chunks(ims.images, rows))
+        for ids, vals, offsets, chunk_rows in chunks:
             for first, ring_mask in blocks:
                 _bin_pixels(offsets, ids, vals, chunk_rows, ring_mask,
                             eta_bin, threshold,
@@ -252,6 +252,26 @@ def build_eta_omega_maps(experiment: HedmExperiment,
 
     return EtaOmegaMaps(ring_maps, eta_edges, omega_edges, omegas, period,
                         two_theta_ranges, ring_ids, eta_step)
+
+
+def _iter_panel_bins(experiment, active, two_theta_ranges, eta_edges):
+    """Keep only current/next panel geometry, overlapping IO with binning."""
+    def load(series):
+        return _cached_panel_bin_data(
+            experiment, series.panel, two_theta_ranges, eta_edges)
+
+    if experiment.max_workers == 1:
+        for series in active:
+            yield series, load(series)
+        return
+    if not active:
+        return
+    with ThreadPoolExecutor(1) as pool:
+        future = pool.submit(load, active[0])
+        for i, series in enumerate(active):
+            data = future.result()
+            future = pool.submit(load, active[i + 1]) if i + 1 < len(active) else None
+            yield series, data
 
 
 def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
@@ -267,25 +287,19 @@ def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
         Tuples containing flat pixel IDs, float64 intensity values, per-frame
         offsets into those arrays, and the corresponding map rows.
     """
-    start = 0
-    while start < len(frames):
-        stop, total = start, 0
-        while stop < len(frames) and (
-                stop == start or total + frames[stop].nnz <= max_pixels):
-            total += frames[stop].nnz
-            stop += 1
-        if total > 0:
-            ids = np.empty(total, dtype=np.int64)
-            vals = np.empty(total, dtype=np.float64)
-            offsets = np.r_[0, np.cumsum([f.nnz for f in frames[start:stop]])]
-            for frame, lo, hi in zip(frames[start:stop], offsets[:-1], offsets[1:]):
-                _csr_pixel_ids(frame.indptr, frame.indices, frame.shape[1], ids[lo:hi])
-                vals[lo:hi] = frame.data
-            yield ids, vals, offsets, np.asarray(row_of_frame[start:stop])
-        start = stop
+
+    from hexrd.core.experiment import _pixel_chunks as chunk_pixels
+
+    def pixels():
+        for frame in frames:
+            ids = np.empty(frame.nnz, dtype=np.int64)
+            _csr_pixel_ids(frame.indptr, frame.indices, frame.shape[1], ids)
+            yield ids, frame.data
+
+    yield from chunk_pixels(pixels(), row_of_frame, max_pixels)
 
 
-@numba.njit(nogil=True, cache=True)
+@_lazy_njit
 def _csr_pixel_ids(indptr, columns, n_columns, out):
     """Write flat pixel IDs from CSR indices without allocating COO rows.
 
@@ -299,8 +313,7 @@ def _csr_pixel_ids(indptr, columns, n_columns, out):
         for pixel in range(indptr[row], indptr[row + 1]):
             out[pixel] = row * n_columns + columns[pixel]
 
-
-@numba.njit(nogil=True, cache=True, parallel=True)
+@_lazy_njit(parallel=True)
 def _bin_pixels(offsets, ids, vals, rows, ring_mask, eta_bin, threshold, out):
     """Accumulate stored pixel intensities into ring, omega, and eta bins.
 
@@ -409,7 +422,9 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
     Returns:
         The maps and normalized metadata from the archive.
     """
-    with np.load(path) as d:
+    from hexrd.core.experiment import _NpzReader
+
+    with _NpzReader(path) as d:
         if 'dataStore' in d:  # legacy hexrd archive
             ring_maps = np.array(d['dataStore'], dtype=np.float64)
             eta_edges, omega_edges = d['etaEdges'], d['omeEdges']
@@ -529,6 +544,7 @@ def _panel_bin_data(detector, beam_vector, two_theta_ranges, eta_edges):
         A tuple containing per-pixel eta bins, bit-packed ring masks, and the
         eta-bin coverage of each ring.
     """
+
     ptth, peta = _panel_pixel_angles(detector, beam_vector)
     n_eta = len(eta_edges) - 1
     # Histogram bins are left-closed, with the final bin also right-closed.
@@ -539,7 +555,7 @@ def _panel_bin_data(detector, beam_vector, two_theta_ranges, eta_edges):
     return eta_bin, masks, coverage
 
 
-@numba.njit(nogil=True, cache=True)
+@_lazy_njit
 def _ring_masks(panel_tth, eta_bin, two_theta_ranges, n_eta):
     """Build bit-packed ring membership and eta-bin coverage arrays.
 
@@ -565,6 +581,70 @@ def _ring_masks(panel_tth, eta_bin, two_theta_ranges, n_eta):
                 masks[block, pixel] |= bit
                 coverage[ring, eta_bin[pixel]] = True
     return masks, coverage
+
+
+def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
+    """Reuse geometry across scans while still rebuilding maps from live pixels."""
+    from dataclasses import asdict
+    import hashlib
+    from pathlib import Path
+    from hexrd.core.extensions import transforms, inverse_distortion
+
+    detector = experiment.detectors[panel]
+    sources = [Path(__file__), Path(_lazy_njit.__code__.co_filename),
+               Path(transforms_c_api.__file__), Path(transforms.__file__),
+               Path(inverse_distortion.__file__)]
+    sources.extend(sorted(Path(distortion_pkg.__file__).parent.glob('*.py')))
+    if detector.distortion.function_name:
+        import inspect
+
+        mapping = distortion_pkg.get_mapping(
+            detector.distortion.function_name, detector.distortion.parameters)
+        try:
+            sources.append(Path(inspect.getfile(type(mapping))))
+        except TypeError:
+            return _panel_bin_data(detector, experiment.beam.vector,
+                                   two_theta_ranges, eta_edges)
+    key = fingerprint(asdict(detector),
+                      arrays=(experiment.beam.vector, two_theta_ranges, eta_edges),
+                      files=sources, packages=('numpy', 'numba'))
+    name = hashlib.sha256(panel.encode()).hexdigest()[:16]
+    path = Path(experiment.analysis_dir) / '.hexrd' / f'panel-{name}.npz'
+    saved = load_array_cache(path, key)
+    if saved is not None and {'eta_bin', 'ring_masks', 'coverage'} <= saved.keys():
+        return saved['eta_bin'], saved['ring_masks'], saved['coverage']
+
+    eta_bin, masks, coverage = _panel_bin_data(
+        detector, experiment.beam.vector, two_theta_ranges, eta_edges)
+    eta_bin = eta_bin.astype(np.int32)
+    save_array_cache(path, key, compressed=True, eta_bin=eta_bin,
+                     ring_masks=masks, coverage=coverage)
+    return eta_bin, masks, coverage
+
+
+def _load_or_generate_fibers(experiment, plane_data, maps, cache_file):
+    """Reuse seed search across scoring changes, validating the actual map data."""
+    from dataclasses import asdict
+    from pathlib import Path
+
+    settings = dict(seed=asdict(experiment.find_orientations.seed_search),
+                    chi=experiment.oscillation_stage.chi,
+                    laue_group=plane_data.laue_group, eta_step=maps.eta_step)
+    sources = [__file__, _lazy_njit.__code__.co_filename,
+               rotations.__file__, mutil.__file__, xfcapi.__file__,
+               xfcapi.cpp_transforms.__file__, transforms_c_api.__file__, const.__file__]
+    key = fingerprint(settings, files=sources, packages=('numpy', 'scipy', 'scikit-image'),
+                      arrays=(maps.ring_maps, maps.eta_edges, maps.omega_edges, maps.omegas,
+                              maps.two_theta_ranges, maps.ring_ids,
+                              plane_data.unexcluded_hkls, plane_data.B, plane_data.q_sym))
+    cached = load_array_cache(cache_file, key)
+    if cached is not None and 'fibers' in cached:
+        fibers = cached['fibers']
+        if fibers.ndim == 2 and fibers.shape[0] == 4 and fibers.dtype == np.float64:
+            return fibers
+    fibers = generate_orientation_fibers(experiment, plane_data, maps)
+    save_array_cache(cache_file, key, fibers=fibers)
+    return fibers
 
 
 def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneData,
@@ -693,6 +773,9 @@ def _fiber(hkl, tth, eta_c, ome_c, chi, b_matrix, fiber_ndiv, csym):
     return mutil.uniqueVectors(fiber)
 
 
+_hit_status_maps = native.orientationHitStatus
+
+
 def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
                        maps: EtaOmegaMaps, q_fibers: np.ndarray) -> np.ndarray:
     """Score each trial orientation by reflection completeness.
@@ -733,28 +816,30 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     ring_maps = np.ascontiguousarray(maps.ring_maps)
     bmat = np.ascontiguousarray(plane_data.B)
     beam_vector = np.ascontiguousarray(experiment.beam.vector, dtype=np.float64)
-    v_inv = np.array([1., 1., 1., 0., 0., 0.])
-    eta_vector = np.array([1., 0., 0.])
     n = q_fibers.shape[1]
-    scores = np.empty(n)
-    numba.set_num_threads(
-        max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
+    workers = max(1, min(experiment.max_workers, max(1, n // 2048)))
+    hit_status = None
+    window_area = (2 * dpix_eta + 1) * (2 * dpix_ome + 1)
+    # Serial lookup construction must pay for each worker's share of scoring.
+    if (n * len(symm_hkls) * window_area >= 8 * workers * ring_maps.size and window_area > 1
+            and np.prod(ring_maps.shape[1:]) < np.iinfo(np.int32).max):
+        hit_status = _hit_status_maps(ring_maps, dpix_eta, dpix_ome, fo.threshold)
+    # The native scorer predicts and counts one trial at a time with private
+    # bounded scratch, releasing the GIL for parallel chunks. No angle cube
+    # or Python-to-C call per quaternion, and no scoring JIT warmup.
+    bounds = np.linspace(0, n, workers + 1, dtype=int)
 
-    chunk_size = max(1, min(8192, (16 * 1024**2) // (6 * 8 * len(symm_hkls))))
-    angs = np.empty((2, min(n, chunk_size), len(symm_hkls), 3))
-    for start in range(0, n, chunk_size):
-        stop = min(start + chunk_size, n)
+    def score_chunk(start, stop):
         rmats = rotations.rotMatOfQuat(q_fibers[:, start:stop]).reshape(-1, 3, 3)
-        for i, rmat in enumerate(rmats):
-            angs[0, i], angs[1, i] = transforms_c_api.oscillAnglesOfHKLs(
-                symm_hkls, 0.0, rmat, bmat, plane_data.wavelength,
-                v_inv, beam_vector, eta_vector)
-        scores[start:stop] = _count_hits_all(
-            angs[0, :stop - start], angs[1, :stop - start],
-            ring_for_hkl, maps.eta_edges, maps.omega_edges,
-            valid_eta, valid_ome, ome_offset, ring_maps,
-            dpix_eta, dpix_ome, float(fo.threshold))
-    return scores
+        return native.scoreOrientations(
+            rmats, symm_hkls, bmat, plane_data.wavelength, beam_vector,
+            maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ome_offset,
+            ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status)
+
+    if workers == 1:
+        return score_chunk(0, n)
+    with ThreadPoolExecutor(workers) as pool:
+        return np.concatenate(list(pool.map(score_chunk, bounds[:-1], bounds[1:])))
 
 def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
                      offset: float) -> np.ndarray:
@@ -804,142 +889,6 @@ def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
         raise ValueError('Angle ranges overlap')
 
     return result
-
-
-@numba.njit(nogil=True, cache=True)
-def _find_in_range(value, spans):
-    """Find a value's insertion index in interleaved range boundaries.
-
-    An odd result means the value lies inside a valid span. A result of ``-2``
-    means it lies outside the complete range.
-
-    Args:
-        value: Value to locate.
-        spans: Sorted, interleaved start and stop boundaries.
-
-    Returns:
-        The insertion index, or ``-2`` when the value is out of range.
-    """
-    if value < spans[0] or value >= spans[-1]:
-        return -2
-    li, ri = 0, len(spans)
-    while li < ri:
-        mi = (li + ri) // 2
-        if value < spans[mi]:
-            ri = mi
-        else:
-            li = mi + 1
-    return li
-
-
-@numba.njit(nogil=True, cache=True)
-def _dilated_hit(eta, ome, dpix_eta, dpix_ome, ring_map, threshold):
-    """Inspect a tolerance window for an observed or unavailable reflection.
-
-    Args:
-        eta: Center eta-bin index.
-        ome: Center omega-bin index.
-        dpix_eta: Eta tolerance in pixels.
-        dpix_ome: Omega tolerance in pixels.
-        ring_map: Eta-omega intensity map for one ring.
-        threshold: Minimum intensity that counts as an observed reflection.
-
-    Returns:
-        ``1`` for a hit, ``-1`` for an unavailable NaN bin encountered before
-        a hit, or ``0`` otherwise.
-    """
-    n_ome, n_eta = ring_map.shape
-    for i in range(max(ome - dpix_ome, 0), min(ome + dpix_ome + 1, n_ome)):
-        for j in range(max(eta - dpix_eta, 0), min(eta + dpix_eta + 1, n_eta)):
-            if ring_map[i, j] > threshold:
-                return 1
-            if np.isnan(ring_map[i, j]):
-                return -1
-    return 0
-
-
-@numba.njit(nogil=True, cache=True, parallel=True)
-def _count_hits_all(angs_0, angs_1, ring_for_hkl, eta_edges, ome_edges,
-                    valid_eta_spans, valid_ome_spans, ome_offset, ring_maps,
-                    dpix_eta, dpix_ome, threshold):
-    """Compute reflection completeness for all trial orientations in parallel.
-
-    Args:
-        angs_0: First Bragg-solution angles for every trial and HKL.
-        angs_1: Second Bragg-solution angles for every trial and HKL.
-        ring_for_hkl: Ring-map index for each symmetry-equivalent HKL.
-        eta_edges: Eta-bin edges in radians.
-        ome_edges: Omega-bin edges in radians.
-        valid_eta_spans: Interleaved valid eta-range boundaries.
-        valid_ome_spans: Interleaved valid omega-range boundaries.
-        ome_offset: Lower bound of the normalized omega interval.
-        ring_maps: Eta-omega intensity maps.
-        dpix_eta: Eta tolerance in pixels.
-        dpix_ome: Omega tolerance in pixels.
-        threshold: Minimum map intensity that counts as a hit.
-
-    Returns:
-        Completeness score for each trial orientation.
-    """
-    scores = np.empty(angs_0.shape[0])
-    for q in numba.prange(angs_0.shape[0]):
-        scores[q] = _count_hits(
-            angs_0[q], angs_1[q], ring_for_hkl, eta_edges, ome_edges,
-            valid_eta_spans, valid_ome_spans, ome_offset, ring_maps,
-            dpix_eta, dpix_ome, threshold)
-    return scores
-
-
-@numba.njit(nogil=True, cache=True)
-def _count_hits(angs_0, angs_1, ring_for_hkl, eta_edges, ome_edges,
-                valid_eta_spans, valid_ome_spans, ome_offset, ring_maps,
-                dpix_eta, dpix_ome, threshold):
-    """Compute reflection completeness for one trial orientation.
-
-    A reflection counts toward the total if its predicted (eta, omega) lands
-    in the valid spans and on the maps (NaN map bins don't count); it is a
-    hit if the map exceeds the threshold anywhere within the
-    (dpix_eta, dpix_ome) tolerance window.
-
-    Args:
-        angs_0: First Bragg-solution angles for each HKL.
-        angs_1: Second Bragg-solution angles for each HKL.
-        ring_for_hkl: Ring-map index for each symmetry-equivalent HKL.
-        eta_edges: Eta-bin edges in radians.
-        ome_edges: Omega-bin edges in radians.
-        valid_eta_spans: Interleaved valid eta-range boundaries.
-        valid_ome_spans: Interleaved valid omega-range boundaries.
-        ome_offset: Lower bound of the normalized omega interval.
-        ring_maps: Eta-omega intensity maps.
-        dpix_eta: Eta tolerance in pixels.
-        dpix_ome: Omega tolerance in pixels.
-        threshold: Minimum map intensity that counts as a hit.
-
-    Returns:
-        The fraction of available predicted reflections that were observed.
-    """
-    hits = 0
-    total = 0
-    for solution in (angs_0, angs_1):
-        for i in range(len(solution)):
-            if np.isnan(solution[i, 0]):
-                continue
-            eta = np.mod(solution[i, 1] + np.pi, 2 * np.pi) - np.pi
-            if _find_in_range(eta, valid_eta_spans) & 1 == 0:
-                continue
-            ome = np.mod(solution[i, 2] - ome_offset, 2 * np.pi) + ome_offset
-            if _find_in_range(ome, valid_ome_spans) & 1 == 0:
-                continue
-            eta_idx = _find_in_range(eta, eta_edges) - 1
-            ome_idx = _find_in_range(ome, ome_edges) - 1
-            if eta_idx < 0 or ome_idx < 0:
-                continue
-            hit = _dilated_hit(eta_idx, ome_idx, dpix_eta, dpix_ome,
-                               ring_maps[ring_for_hkl[i]], threshold)
-            if hit >= 0:
-                total += 1
-                hits += hit
-    return hits / total if total > 0 else 0.0
 
 
 def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
@@ -1200,6 +1149,14 @@ def _merge_duplicates(qbar, qsym, quat_distance, radius) -> np.ndarray:
     Returns:
         Grain orientations after symmetry-aware duplicate merging.
     """
+    # The usual few well-separated grains need no hierarchical clustering
+    # (or SciPy import). Keep the established ordering for actual merges.
+    if qbar.shape[1] <= 32:
+        cutoff = np.radians(radius)
+        if all(quat_distance(qbar[:, i], qbar[:, j]) > cutoff
+               for i in range(qbar.shape[1]) for j in range(i)):
+            return qbar
+
     from scipy.cluster.hierarchy import fclusterdata
 
     cl = fclusterdata(qbar.T, np.radians(radius),

@@ -6,29 +6,24 @@ the material selection, and the analysis naming.  Workflow packages extend
 it with their own analysis parameters (e.g.
 :class:`hexrd.hedm.experiment.HedmExperiment`).
 """
-import io
+from __future__ import annotations
+
 import os
-import struct
 import threading
-import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 import h5py
 import yaml
-from scipy.sparse import csr_array
+
+if TYPE_CHECKING:
+    from scipy.sparse import csr_array
 
 from hexrd.core.material.material_data import Material
 from hexrd.core.extensions import transforms
-
-try:
-    # ISA-L inflates ~3x faster than zlib and is bit-identical (DEFLATE is
-    # lossless); an optional dependency, installed via `hexrd[performance]`
-    from isal import isal_zlib as zlib
-except ImportError:
-    import zlib
+from hexrd.core.utils.npz import _NpzReader
 
 
 @dataclass
@@ -168,6 +163,8 @@ def _frame_csr(data, row, col, shape, dtype) -> csr_array:
     result is identical to what the (data, (row, col)) constructor canonicalizes
     to. Falls back to that constructor otherwise.
     """
+    from scipy.sparse import csr_array
+
     flat = row.astype(np.int64) * shape[1] + col
     if flat.size == 0 or np.all(np.diff(flat) > 0):
         indptr = np.searchsorted(row, np.arange(shape[0] + 1))
@@ -175,30 +172,28 @@ def _frame_csr(data, row, col, shape, dtype) -> csr_array:
     return csr_array((data, (row, col)), shape=shape, dtype=dtype)
 
 
-class _NpzReader:
-    """Random access to an .npz held in memory, bypassing zipfile's read path.
+def _pixel_chunks(frames, row_of_frame, max_pixels):
+    """Pack streamed (pixel IDs, weights) into bounded float64 frame batches."""
+    ids, values, counts = [], [], []
+    first, total = 0, 0
 
-    np.load spends most of its time in per-member Python plumbing under the
-    GIL; slicing the compressed bytes directly and handing them to
-    zlib.decompress (which releases the GIL) yields the same bytes and lets
-    member reads run in parallel.
-    """
+    def pack(stop):
+        return (np.concatenate(ids), np.concatenate(values).astype(np.float64, copy=False),
+                np.r_[0, np.cumsum(counts)], np.asarray(row_of_frame[first:stop]))
 
-    def __init__(self, filename: str):
-        with open(filename, 'rb') as f:
-            self._buf = f.read()
-        with zipfile.ZipFile(io.BytesIO(self._buf)) as zf:
-            self._members = {i.filename: i for i in zf.infolist()}
-
-    def __getitem__(self, name: str) -> np.ndarray:
-        info = self._members[name + '.npy']
-        # local file header: sizes of the variable name/extra fields at 26/28
-        name_len, extra_len = struct.unpack_from('<HH', self._buf, info.header_offset + 26)
-        start = info.header_offset + 30 + name_len + extra_len
-        raw = self._buf[start:start + info.compress_size]
-        if info.compress_type == zipfile.ZIP_DEFLATED:
-            raw = zlib.decompress(raw, wbits=-15)
-        return np.lib.format.read_array(io.BytesIO(raw), allow_pickle=False)
+    stop = 0
+    for stop, (pixels, weights) in enumerate(frames, 1):
+        if counts and total + len(pixels) > max_pixels:
+            if total:
+                yield pack(stop - 1)
+            ids, values, counts = [], [], []
+            first, total = stop - 1, 0
+        ids.append(pixels)
+        values.append(weights)
+        counts.append(len(pixels))
+        total += len(pixels)
+    if total:
+        yield pack(stop)
 
 
 class ImageSeries:
@@ -237,6 +232,29 @@ class ImageSeries:
                     parts = ex.map(load_frames, bounds[:-1], bounds[1:])
                 self._images = [im for part in parts for im in part]
         return self._images
+
+    def pixel_chunks(self, row_of_frame, max_pixels=8_000_000):
+        """Stream COO pixels into bounded chunks, without materializing CSR frames.
+
+        Decompress only a bounded batch at a time. Keeping the original
+        float64 weights also prevents overflow when duplicate uint16 pixels
+        contribute to the same map bin.
+        """
+        def load_frame(i):
+            data = self._arrs[f'{i}_data']
+            row, col = self._arrs[f'{i}_row'], self._arrs[f'{i}_col']
+            if (np.any(row < 0) or np.any(row >= self._shape[0])
+                    or np.any(col < 0) or np.any(col >= self._shape[1])):
+                raise ValueError('frame-cache pixel index is out of bounds')
+            ids = row.astype(np.int64) * self._shape[1] + col
+            return ids, data.astype(self._dtype, copy=False)
+
+        workers = max(1, min(self._max_workers, 8))
+        with ThreadPoolExecutor(workers) as pool:
+            frames = (frame for batch in range(0, len(self), workers)
+                      for frame in pool.map(load_frame,
+                          range(batch, min(batch + workers, len(self)))))
+            yield from _pixel_chunks(frames, row_of_frame, max_pixels)
 
     def __len__(self):
         return self._n_frames

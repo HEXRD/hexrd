@@ -217,3 +217,69 @@ def anglesToDetectorXY(
     -------
     Detector XY, shape (N, 2). May contain NaNs for invalid intersections.
     """
+
+
+def quaternionRotations(quaternions: NDArray[np.float64], /) -> NDArray[np.float64]: ...
+def orientationHitStatus(
+    ring_maps: NDArray[np.float64], dpix_eta: int, dpix_omega: int, threshold: float, /,
+) -> NDArray[np.int8]: ...
+def scoreOrientations(
+    rotation_matrices: NDArray[np.float64],
+    hkls: NDArray[np.float64],
+    bmat: NDArray[np.float64],
+    wavelength: float,
+    beam: NDArray[np.float64],
+    eta_edges: NDArray[np.float64],
+    omega_edges: NDArray[np.float64],
+    valid_eta: NDArray[np.float64],
+    valid_omega: NDArray[np.float64],
+    omega_offset: float,
+    ring_maps: NDArray[np.float64],
+    ring_for_hkl: NDArray[np.intp],
+    dpix_eta: int,
+    dpix_omega: int,
+    threshold: float,
+    hit_status: NDArray[np.int8] | None = ...,
+    /,
+) -> NDArray[np.float64]: ...
+def oscillAnglesOfHKLs(
+    hkls: FloatArray, chi: float, rmat_c: Mat3, bmat: Mat3, wavelength: float,
+    v_inv: FloatArray, beam_vec: Vec3, eta_vec: Vec3, /,
+) -> tuple[FloatArray, FloatArray]: ...
+
+def quat_distance(q1: FloatArray, q2: FloatArray, qsym: FloatArray, /) -> float: ...
+
+def detectorXYToGvec(
+    xy_det: NDArray[np.float64],
+    rmat_d: NDArray[np.float64],
+    rmat_s: NDArray[np.float64],
+    tvec_d: NDArray[np.float64],
+    tvec_s: NDArray[np.float64],
+    tvec_c: NDArray[np.float64],
+    beam_vec: NDArray[np.float64],
+    eta_vec: NDArray[np.float64],
+    /,
+) -> tuple[NDArray[np.float64], ...]: ...
+
+def makeEtaFrameRotMat(
+    bvec_l: NDArray[np.float64],
+    evec_l: NDArray[np.float64],
+    /,
+) -> NDArray[np.float64]: ...
+
+def rotate_vecs_about_axis(
+    angles: NDArray[np.float64],
+    axis: NDArray[np.float64],
+    vecs: NDArray[np.float64],
+    /,
+) -> NDArray[np.float64]: ...
+
+def projectGvecs(
+    vectors: FloatArray, rmat_d: Mat3, rmat_s: FloatArray, rmat_c: Mat3,
+    tvec_d: Vec3, tvec_s: Vec3, tvec_c: Vec3, beam: Vec3 | None = ..., /,
+) -> DetectorXY: ...
+
+def projectGvecsArray(
+    vectors: FloatArray, rmat_d: Mat3, rmat_s: FloatArray, rmat_c: Mat3,
+    tvec_d: Vec3, tvec_s: Vec3, tvec_c: Vec3, beam: Vec3 | None = ..., /,
+) -> DetectorXY: ...

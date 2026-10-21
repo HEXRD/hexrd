@@ -1,13 +1,59 @@
 """Material bridge exposing crystallographic arrays to workflows."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
 
 import h5py
 import numpy as np
 
 from hexrd.core import material as _material
 from hexrd.core import valunits
+from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
+
+
+def _plane_data_fingerprint(definitions, settings):
+    """Invalidate snapshots on material, selection, implementation, or data edits."""
+    core = Path(__file__).resolve().parents[1]
+    from hexrd.core.extensions import transforms
+
+    sources = [Path(definitions), Path(__file__), core / 'constants.py',
+               core / 'rotations.py', Path(transforms.__file__),
+               core / 'matrixutil.py', core / 'utils/decorators.py',
+               core / 'valunits.py', core.parent / 'powder/wppf/xtal.py',
+               core / 'resources/Anomalous.h5']
+    sources.extend(sorted((core / 'material').glob('*.py')))
+    return fingerprint(settings, files=sources, packages=('numpy', 'scipy', 'numba'))
+
+
+def load_plane_data_cached(definitions, cache_file, settings, load_material):
+    """Reuse numeric crystallography without constructing a full Material.
+
+    This is a derived-data cache, never a pickle. Both contents and the code
+    producing them are fingerprinted; writes are atomic, and unavailable or
+    damaged caches fall back to the normal material loader.
+    """
+    key = _plane_data_fingerprint(definitions, settings)
+    data = load_array_cache(cache_file, key)
+    if data is not None:
+        try:
+            sizes = data.pop('symm_sizes')
+            data['symm_hkls'] = np.split(
+                data['symm_hkls'], np.cumsum(sizes)[:-1], axis=1) if sizes.size else []
+            data['laue_group'] = str(data['laue_group'])
+            data['wavelength'] = float(data['wavelength'])
+            return PlaneData(**data)
+        except (KeyError, ValueError, TypeError):
+            pass
+
+    plane_data = load_material().plane_data
+    arrays = asdict(plane_data)
+    arrays.update(
+        symm_sizes=np.array([a.shape[1] for a in plane_data.symm_hkls]),
+        symm_hkls=(np.hstack(plane_data.symm_hkls)
+                   if plane_data.symm_hkls else np.empty((3, 0))))
+    save_array_cache(cache_file, key, **arrays)
+    return plane_data
 
 
 @dataclass(frozen=True, slots=True)

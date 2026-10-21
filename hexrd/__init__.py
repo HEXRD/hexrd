@@ -1,38 +1,29 @@
 import importlib
-import sys
 import types
 
-from .core.material import crystallography
-from .core.material import mksupport
-from .core.material import spacegroup
-from .core.material import symbols
-from .core.material import symmetry
-from .core.material import unitcell
+from pathlib import Path
+
+from . import module_map
 
 # These are aliases for import paths, so we don't break old HEXRD scripts.
 # We will verify the alias files *do not* exist, to avoid confusion.
 module_aliases = {
-    'hexrd.crystallography': crystallography,
-    'hexrd.mksupport': mksupport,
-    'hexrd.spacegroup': spacegroup,
-    'hexrd.symbols': symbols,
-    'hexrd.symmetry': symmetry,
-    'hexrd.unitcell': unitcell,
+    'hexrd.crystallography': 'hexrd.core.material.crystallography',
+    'hexrd.mksupport': 'hexrd.core.material.mksupport',
+    'hexrd.spacegroup': 'hexrd.core.material.spacegroup',
+    'hexrd.symbols': 'hexrd.core.material.symbols',
+    'hexrd.symmetry': 'hexrd.core.material.symmetry',
+    'hexrd.unitcell': 'hexrd.core.material.unitcell',
 }
 
-for alias, module in module_aliases.items():
-    try:
-        file_exists = importlib.import_module(alias).__name__ == alias
-    except ImportError:
-        file_exists = False
-
-    if file_exists:
+for alias, target in module_aliases.items():
+    if Path(__file__).with_name(alias.rsplit('.', 1)[1] + '.py').exists():
         raise ImportError(f'"{alias}" is an alias path and should not exist')
-
-    sys.modules[alias] = module
-
-
-from . import module_map
+    # Register with the existing alias importer without importing material,
+    # SciPy, and Numba merely to import hexrd (or display CLI help).
+    target_path = Path(__file__).parent.parent.joinpath(*target.split('.')).with_suffix('.py')
+    module_map.module_map[alias] = (target, target_path)
+    module_map.flattened_module_map[alias] = target
 
 
 def __getattr__(name: str) -> types.ModuleType:

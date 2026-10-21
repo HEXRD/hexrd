@@ -7,11 +7,36 @@ go into another topical module in :mod:`hexrd.core.utils`.
 """
 
 from collections import OrderedDict
-from functools import wraps
+from functools import cached_property, wraps
 
-import numba
 import numpy as np
 import xxhash
+
+
+class _LazyKernel:
+    """Keep dispatcher features available without importing Numba at startup."""
+    def __init__(self, function, options):
+        self.function, self.options = function, options
+        wraps(function)(self)
+
+    @cached_property
+    def compiled(self):
+        import numba
+
+        self.function.__globals__['numba'] = numba
+        return numba.njit(cache=True, nogil=True, **self.options)(self.function)
+
+    def __call__(self, *args, **kwargs):
+        return self.compiled(*args, **kwargs)
+
+    def __getattr__(self, name):
+        return getattr(self.compiled, name)
+
+
+def _lazy_njit(function=None, **options):
+    if function is None:
+        return lambda function: _LazyKernel(function, options)
+    return _LazyKernel(function, options)
 
 
 def undoc(func):
@@ -124,6 +149,8 @@ def _make_hashable(items):
 
 # A decorator to limit the number of numba threads
 def limit_numba_threads(max_threads):
+    import numba
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             prev_num_threads = numba.get_num_threads()
