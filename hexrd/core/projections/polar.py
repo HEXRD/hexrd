@@ -202,7 +202,13 @@ class PolarView:
         return (self.neta, self.ntth)
 
     @property
-    def angular_grid(self):
+    def angular_grid(self) -> tuple[np.ndarray, np.ndarray]:
+        return self._generate_angular_grid()
+
+    def _generate_angular_grid(
+        self, eta_slice: slice | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Generate all two-theta columns and optionally a slice of eta rows."""
         tth_vec = (
             np.radians(self.tth_pixel_size * (np.arange(self.ntth)))
             + self.tth_min
@@ -213,6 +219,8 @@ class PolarView:
             + self.eta_min
             + 0.5 * np.radians(self.eta_pixel_size)
         )
+        if eta_slice is not None:
+            eta_vec = eta_vec[eta_slice]
         return np.meshgrid(eta_vec, tth_vec, indexing='ij')
 
     @property
@@ -313,7 +321,9 @@ class PolarView:
             do_interpolation=do_interpolation,
         )
 
-    def _generate_coordinate_mapping(self) -> dict[str, dict[str, np.ndarray]]:
+    def _generate_coordinate_mapping(
+        self, eta_slice: slice | None = None
+    ) -> dict[str, dict[str, np.ndarray]]:
         """Generate mapping of detector coordinates to generate polar view
 
         This function is, in general, the most time consuming part of creating
@@ -333,8 +343,14 @@ class PolarView:
         The nested dict has "xypts" and "on_panel" as keys, and the
         respective arrays as the values.
         """
-        angpts = self.angular_grid
-        dummy_ome = np.zeros(self.ntth * self.neta)
+        # Slice the canonical grid before making 2D arrays, retaining exact bin
+        # centers while bounding memory. Mapping row indices are slice-relative.
+        angpts = (
+            self.angular_grid
+            if eta_slice is None
+            else self._generate_angular_grid(eta_slice)
+        )
+        dummy_ome = np.zeros(angpts[0].size)
 
         mapping = {}
         for detector_id, panel in self.detectors.items():

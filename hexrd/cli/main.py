@@ -4,20 +4,21 @@ import argparse
 import logging
 import sys
 import multiprocessing
+from importlib import import_module
 from importlib.metadata import version, PackageNotFoundError
 
-# These can't be relative imports on Windows because of the hack
-# in main() for multiprocessing.freeze_support()
-from hexrd.hedm.cli import help
-from hexrd.hedm.cli import test
-from hexrd.hedm.cli import documentation
 from hexrd.core.utils import profiler
 
-from hexrd.hedm.cli import find_orientations
-from hexrd.hedm.cli import fit_grains
-from hexrd.hedm.cli import pickle23
-from hexrd.hedm.cli import preprocess
 
+# Register workflow commands here, outside core.
+COMMAND_MODULES = (
+    'hexrd.cli.help',
+    'hexrd.cli.documentation',
+    'hexrd.hedm.cli.find_orientations',
+    'hexrd.hedm.cli.fit_grains',
+    'hexrd.hedm.cli.preprocess',
+    'hexrd.powder.cli.cake_data',
+)
 
 try:
     _version = version("hexrd")
@@ -25,7 +26,7 @@ except PackageNotFoundError:
     _version = None
 
 
-def main():
+def main() -> None:
     if sys.platform.startswith('win'):
         # Hack for multiprocessing.freeze_support() to work from a
         # setuptools-generated entry point.
@@ -58,14 +59,8 @@ def main():
         dest='cmd',
     )
 
-    help.configure_parser(sub_parsers)
-    test.configure_parser(sub_parsers)
-    documentation.configure_parser(sub_parsers)
-
-    find_orientations.configure_parser(sub_parsers)
-    fit_grains.configure_parser(sub_parsers)
-    pickle23.configure_parser(sub_parsers)
-    preprocess.configure_parser(sub_parsers)
+    for module_name in COMMAND_MODULES:
+        import_module(module_name).configure_parser(sub_parsers)
 
     try:
         import argcomplete
@@ -88,3 +83,7 @@ def main():
 
     if args.inst_profile:
         profiler.dump_results(args.inst_profile)
+
+
+if __name__ == '__main__':
+    main()

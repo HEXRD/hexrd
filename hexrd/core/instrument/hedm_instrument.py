@@ -534,15 +534,15 @@ class HEDMInstrument(object):
 
     def __init__(
         self,
-        instrument_config: Optional[InstrumentConfig] = None,
-        image_series=None,
-        eta_vector=None,
-        instrument_name=None,
-        tilt_calibration_mapping=None,
-        max_workers=max_workers_DFLT,
-        physics_package=None,
+        instrument_config: Optional[InstrumentConfig | h5py.File | h5py.Group] = None,
+        image_series: object | None = None,
+        eta_vector: Sequence[float] | NDArray[np.float64] | None = None,
+        instrument_name: str | None = None,
+        tilt_calibration_mapping: object | None = None,
+        max_workers: int | None = max_workers_DFLT,
+        physics_package: object | None = None,
         active_beam_name: Optional[str] = None,
-    ):
+    ) -> None:
         self._id = instrument_name_DFLT
 
         self._active_beam_name = active_beam_name
@@ -562,13 +562,17 @@ class HEDMInstrument(object):
 
         if instrument_config is not None:
             if isinstance(instrument_config, h5py.File):
+                instrument_config = instrument_config['instrument']
+            if isinstance(instrument_config, h5py.Group):
+                if active_beam_name is None:
+                    self._active_beam_name = instrument_config.attrs.get('active_beam')
                 tmp: dict[Any, Any] = {}
                 unwrap_h5_to_dict(instrument_config, tmp)
-                instrument_config = tmp['instrument']
+                instrument_config = tmp
             elif not isinstance(instrument_config, dict):
                 raise RuntimeError(
-                    "instrument_config must be either an HDF5 file object"
-                    + "or a dictionary.  You gave a %s" % type(instrument_config)
+                    "instrument_config must be an HDF5 file, instrument group, "
+                    "or dictionary. You gave a %s" % type(instrument_config)
                 )
             assert instrument_config is not None
             if instrument_name is None:
@@ -585,7 +589,8 @@ class HEDMInstrument(object):
             xrs_config = instrument_config['beam']
             if 'energy' in xrs_config and 'vector' in xrs_config:
                 # Assume single beam. Load the same way as multibeam
-                self._create_default_beam()
+                if self._active_beam_name is None:
+                    self._create_default_beam()
                 self._beam_dict[self.active_beam_name] = {
                     'energy': xrs_config['energy'],
                     'vector': calc_beam_vec(
@@ -968,8 +973,14 @@ class HEDMInstrument(object):
     # METHODS
     # =========================================================================
 
-    def write_config(self, file=None, style='yaml', calibration_dict={}):
-        """WRITE OUT YAML FILE"""
+    def write_config(
+        self,
+        file: str | Path | h5py.File | None = None,
+        style: str = 'yaml',
+        calibration_dict: dict[str, Any] = {},
+        **dataset_options: Any,
+    ) -> dict[str, Any]:
+        """Write YAML or HDF5, forwarding dataset options for numeric HDF5 arrays."""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
             raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
@@ -1029,9 +1040,11 @@ class HEDMInstrument(object):
                     yaml.dump(par_dict, stream=f, Dumper=NumpyToNativeDumper)
             else:
 
-                def _write_group(file):
+                def _write_group(file: h5py.File) -> None:
                     instr_grp = file.create_group('instrument')
-                    unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+                    unwrap_dict_to_h5(instr_grp, par_dict, asattr=False, **dataset_options)
+                    if self.active_beam_name is not None:
+                        instr_grp.attrs['active_beam'] = self.active_beam_name
 
                 # hdf5
                 if isinstance(file, str):

@@ -182,7 +182,7 @@ def get_extension_modules():
 ext_modules = get_extension_modules()
 
 # use entry_points, not scripts:
-entry_points = {'console_scripts': ["hexrd = hexrd.hedm.cli.main:main"]}
+entry_points = {'console_scripts': ["hexrd = hexrd.cli.main:main"]}
 
 setup(
     name='hexrd',
