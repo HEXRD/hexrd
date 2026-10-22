@@ -811,9 +811,6 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     hit_status = cached.get('status') if cached is not None else None
     if hit_status is not None and (hit_status.shape != shape or hit_status.dtype != np.int8):
         hit_status = None
-    if bins is not None and hit_status is not None:
-        return native._scoreOrientationBins(bins, hit_status)
-
     # Only the shape is needed when hit status is cached.
     ring_maps = (np.ascontiguousarray(maps.ring_maps) if hit_status is None else
                  np.broadcast_to(np.zeros(()), shape))

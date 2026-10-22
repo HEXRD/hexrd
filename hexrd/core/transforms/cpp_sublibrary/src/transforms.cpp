@@ -716,18 +716,18 @@ HEXRD_AVX2 static Batch atan2(Batch y, Batch x) {
   return copysign(angle, y);
 }
 }
-using ScoringBatch = scoring_simd::Batch;
 #endif
 
 struct OscillationGeometry {
   double beam[3], cchi, schi, wavelength;
   std::array<double, 9> frame = {};
-  const double *vinv;
+  std::array<double, 6> stretch;
   bool consistent;
 
   OscillationGeometry(double chi, double wave, const double *stretch,
                       const double *bvec, const double *evec)
-      : cchi(std::cos(chi)), schi(std::sin(chi)), wavelength(wave), vinv(stretch) {
+      : cchi(std::cos(chi)), schi(std::sin(chi)), wavelength(wave) {
+    std::copy(stretch, stretch+6, this->stretch.begin());
     double eta[3], dot = 0;
     normalize3(bvec, beam);
     normalize3(evec, eta);
@@ -739,11 +739,6 @@ struct OscillationGeometry {
   void predict(Index n, const double *reciprocal, const double *rmat,
                double *out0, double *out1, const double *lengths = nullptr,
                const Index *opposites = nullptr, const double *visibility = nullptr) const {
-    const double cchi = this->cchi, schi = this->schi, wavelength = this->wavelength;
-    const auto frame = this->frame;
-    const std::array<double, 3> beam = {this->beam[0], this->beam[1], this->beam[2]};
-    std::array<double, 6> stretch;
-    std::copy(vinv, vinv+6, stretch.begin());
     for (Index i = 0; i < n; ++i) {
       if (visibility) {
         double y = std::abs(rmat[3]*reciprocal[3*i]+rmat[4]*reciprocal[3*i+1]+
@@ -835,33 +830,9 @@ static py::tuple oscillAnglesOfHKLs(CArray<double> hkls, double chi,
   return py::make_tuple(out0, out1);
 }
 
-#ifdef HEXRD_AVX2
-static HEXRD_AVX2 void selectFiberSymmetry(const StridedArray<double> &fiber,
-    const StridedArray<double> &symmetry, Index q, double result[3][4]) {
-  using namespace scoring_simd;
-  Batch v[4] = {0., 0., 0., 0.};
-  Index step = fiber.strides(1)/Index(sizeof(double));
-  auto indices = _mm256_set_epi64x(3*step, 2*step, step, 0);
-  for (int r = 0; r < 4; ++r) v[r] = _mm256_i64gather_pd(fiber.data(r, q), indices, 8);
-  Batch best(-1.), second(-1.), selected(0.);
-  for (Index s = 0; s < symmetry.shape(0); ++s) {
-    auto value = abs(((Batch(*symmetry.data(s, 0, 0))*v[0]+
-        Batch(*symmetry.data(s, 0, 1))*v[1])+
-        Batch(*symmetry.data(s, 0, 2))*v[2])+Batch(*symmetry.data(s, 0, 3))*v[3]);
-    auto greater = value > best;
-    second = select(greater, best, select(value > second, value, second));
-    selected = select(greater, Batch(double(s)), selected);
-    best = select(greater, value, best);
-  }
-  best.store_unaligned(result[0]); second.store_unaligned(result[1]);
-  selected.store_unaligned(result[2]);
-}
-#endif
-
 static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> symmetry) {
   checkShape(fiber, {4, -1}); checkShape(symmetry, {-1, 4, 4});
   Index n = fiber.shape(1), count = symmetry.shape(0);
-  Index stride = symmetry.strides(2)/Index(sizeof(double));
   if (!count) throw py::value_error("fiber symmetry cannot be empty");
   // NumPy's dot kernel preserves the active BLAS implementation's rounding.
   auto array = reinterpret_cast<PyArrayObject *>(fiber.ptr());
@@ -873,35 +844,39 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
   std::vector<double> reduced(4*n);
   std::vector<std::array<Index, 4>> groups(n);
   std::vector<Index> order(n), unique;
-  bool ambiguous = false;
-#ifdef HEXRD_AVX2
-  Index vectorEnd = __builtin_cpu_supports("avx2") ? n-n%4 : 0;
-  double selection[3][4];
-#endif
+  bool invalid_norm = false;
   {
     py::gil_scoped_release release;
+    using Strides = Eigen::Stride<Eigen::Dynamic, Eigen::Dynamic>;
+    using View = Eigen::Map<const Eigen::MatrixXd, 0, Strides>;
+    View scalar_rows(symmetry.data(), count, 4,
+        Strides(symmetry.strides(2)/Index(sizeof(double)),
+                symmetry.strides(0)/Index(sizeof(double))));
+    View fibers(fiber.data(), 4, n,
+        Strides(fiber.strides(1)/Index(sizeof(double)),
+                fiber.strides(0)/Index(sizeof(double))));
+    constexpr Index batch_size = 64;
+    Eigen::MatrixXd scalars;
     for (Index q = 0; q < n; ++q) {
-      double v[4], best = -1., second = -1.; Index selected = 0;
-      for (int r = 0; r < 4; ++r) v[r] = *fiber.data(r, q);
-#ifdef HEXRD_AVX2
-      if (q < vectorEnd) {
-        if (q%4 == 0) selectFiberSymmetry(fiber, symmetry, q, selection);
-        best = selection[0][q%4]; second = selection[1][q%4];
-        selected = Index(selection[2][q%4]);
-      } else
-#endif
-      for (Index s = 0; s < count; ++s) {
-        const double *m = symmetry.data(s, 0, 0);
-        double scalar = std::abs(m[0]*v[0]+m[stride]*v[1]+m[2*stride]*v[2]+m[3*stride]*v[3]);
-        if (scalar > best) { second = best; best = scalar; selected = s; }
-        else second = std::max(second, scalar);
+      Index column = q%batch_size;
+      if (!column) {
+        auto block = fibers.middleCols(q, std::min(batch_size, n-q));
+        // Accumulate components in reference order to preserve rounding.
+        scalars.noalias() = scalar_rows.col(0)*block.row(0);
+        for (int r = 1; r < 4; ++r) scalars.noalias() += scalar_rows.col(r)*block.row(r);
+        scalars = scalars.cwiseAbs();
       }
+      double v[4]; Index selected;
+      for (int r = 0; r < 4; ++r) v[r] = *fiber.data(r, q);
+      double best = scalars.col(column).maxCoeff(&selected);
+      scalars(selected, column) = -1.; // Exclude the winner to find the runner-up.
+      double second = scalars.col(column).maxCoeff();
       auto evaluate = [&](Index s, double *value) {
         for (int r = 0; r < 4; ++r)
           dot(const_cast<double *>(symmetry.data(s, r, 0)), symmetry.strides(2),
               v, sizeof(double), value+r, 4, array);
         double norm = std::sqrt(((value[0]*value[0]+value[1]*value[1])+value[2]*value[2])+value[3]*value[3]);
-        if (!(norm > 10.*eps) || !std::isfinite(norm)) { ambiguous = true; return; }
+        if (!(norm > 10.*eps) || !std::isfinite(norm)) { invalid_norm = true; return; }
         bool negative = value[0] < 0;
         for (int r = 0; r < 4; ++r) {
           value[r] /= norm;
@@ -919,10 +894,10 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
           }
         }
       } else evaluate(selected, value);
-      if (ambiguous) break;
+      if (invalid_norm) break;
       for (int r = 0; r < 4; ++r) reduced[r*n+q] = value[r];
     }
-    if (!ambiguous) {
+    if (!invalid_norm) {
       for (Index q = 0; q < n; ++q) order[q] = q;
       for (int r = 0; r < 4; ++r) {
         std::stable_sort(order.begin(), order.end(), [&](Index a, Index b) {
@@ -943,7 +918,7 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
         if (unique.empty() || groups[q] != groups[unique.back()]) unique.push_back(q);
     }
   }
-  if (ambiguous) return py::none(); // Non-finite/degenerate inputs use Python's reference.
+  if (invalid_norm) return py::none(); // Non-finite/degenerate inputs use Python's reference.
   py::array_t<double> output({Index(4), Index(unique.size())});
   for (int r = 0; r < 4; ++r) for (Index j = 0; j < Index(unique.size()); ++j)
     output.mutable_data()[r*unique.size()+j] = reduced[r*n+unique[j]];
@@ -1160,6 +1135,14 @@ static bool nearBinEdge(double value, const double *edges, Index count, Index bi
   return std::abs(value-edges[bin]) <= 1e-7 || std::abs(value-edges[bin+1]) <= 1e-7;
 }
 
+static int packedHitStatus(const int8_t *lookup, Index ring, Index o, Index e,
+                           Index nome, Index neta) {
+  Index tile = (ring*((nome+7)/8)+o/8)*((neta+7)/8)+e/8;
+  Index local = (o%8)*8+e%8;
+  int code = (uint8_t(lookup[16*tile+local/4]) >> (2*(local%4))) & 3;
+  return (code >> 1)-int(!(code & 1));
+}
+
 #ifdef HEXRD_AVX2
 struct VectorScorer {
   const double *etaEdges, *omeEdges, *validEta, *validOme;
@@ -1172,7 +1155,7 @@ struct VectorScorer {
   const OscillationGeometry *geometry;
 
   HEXRD_AVX2 unsigned score(const double *q, Index stride, Index step, double *output) const {
-    using B = ScoringBatch;
+    using B = scoring_simd::Batch;
     using namespace scoring_simd;
     auto load = [&](const double *p) HEXRD_AVX2 HEXRD_FORCEINLINE {
       return step == 1 ? B::load_unaligned(p) :
@@ -1210,10 +1193,8 @@ struct VectorScorer {
         Index oi = orientationBin(o, omeEdges, nome, omeScale);
         if (ei < 0 || oi < 0 || !(rangeIndex(e, validEta, nvalidEta)&1) ||
             !(rangeIndex(o, validOme, nvalidOme)&1)) continue;
-        Index tile = (rings[reflection]*((nome+7)/8)+oi/8)*((neta+7)/8)+ei/8;
-        Index local = (oi%8)*8+ei%8;
-        int code = (uint8_t(lookup[16*tile+local/4]) >> (2*(local%4))) & 3;
-        tv[j] = code != 0; hv[j] = code == 3;
+        int hit = packedHitStatus(lookup, rings[reflection], oi, ei, nome, neta);
+        tv[j] = hit >= 0; hv[j] = hit > 0;
       }
       hits = _mm_add_epi32(hits, _mm_loadu_si128(reinterpret_cast<const __m128i *>(hv)));
       total = _mm_add_epi32(total, _mm_loadu_si128(reinterpret_cast<const __m128i *>(tv)));
@@ -1251,23 +1232,9 @@ struct VectorScorer {
       auto zero = _mm_setzero_si128(), mask = mask128(inside);
       auto accepted = _mm_and_si128(mask, _mm_and_si128(_mm_cmpgt_epi32(ve, zero), _mm_cmpgt_epi32(vo, zero)));
       auto unknown = _mm_and_si128(mask, _mm_or_si128(_mm_cmpgt_epi32(zero, ve), _mm_cmpgt_epi32(zero, vo)));
-      unsigned exceptional = _mm_movemask_ps(_mm_castsi128_ps(unknown));
-      if (exceptional) {
-        double ev[4], ov[4]; int32_t accept[4];
-        e.store_unaligned(ev); o.store_unaligned(ov);
-        _mm_storeu_si128(reinterpret_cast<__m128i *>(accept), accepted);
-        for (int j = 0; j < 4; ++j) if (exceptional & (1u << j)) {
-          Index ie = rangeIndex(ev[j], validEta, nvalidEta), io = rangeIndex(ov[j], validOme, nvalidOme);
-          if (nearBinEdge(ev[j], validEta, nvalidEta-1, ie-1) ||
-              nearBinEdge(ov[j], validOme, nvalidOme-1, io-1)) {
-            exact(Batch(_mm256_castsi256_pd(_mm256_set_epi64x(
-                j == 3 ? -1 : 0, j == 2 ? -1 : 0, j == 1 ? -1 : 0, j == 0 ? -1 : 0))),
-                h, solution, opposite);
-            accept[j] = 0;
-          } else accept[j] = (ie&1) && (io&1) ? -1 : 0;
-        }
-        accepted = _mm_loadu_si128(reinterpret_cast<const __m128i *>(accept));
-      }
+      // Resolve bins that straddle valid-range boundaries with the exact predictor.
+      if (!_mm_testz_si128(unknown, unknown))
+        exact(B(_mm256_castsi256_pd(_mm256_cvtepi32_epi64(unknown))), h, solution, opposite);
       auto set = [](Index x) HEXRD_AVX2 { return _mm_set1_epi32(int32_t(x)); };
       auto row = _mm_add_epi32(_mm_srli_epi32(oi, 3), set(rings[h]*((nome+7)/8)));
       auto tile = _mm_add_epi32(_mm_mullo_epi32(row, set((neta+7)/8)), _mm_srli_epi32(ei, 3));
@@ -1436,10 +1403,7 @@ static py::array_t<double> scoreOrientations(
   py::gil_scoped_release release;
   auto statusAt = [&](Index ring, Index o, Index e) {
     if (!packed) return int(lookup[(ring*nome+o)*neta+e]);
-    Index tile = (ring*((nome+7)/8)+o/8)*((neta+7)/8)+e/8;
-    Index local = (o%8)*8+e%8;
-    int code = (uint8_t(lookup[16*tile+local/4]) >> (2*(local%4))) & 3;
-    return (code >> 1)-int(!(code & 1));
+    return packedHitStatus(lookup, ring, o, e, nome, neta);
   };
   // |g_y| = |g| cos(theta) |sin(eta)|; prune by coverage, not intensity.
   // Expand angular and vector bounds to retain boundary cases.
