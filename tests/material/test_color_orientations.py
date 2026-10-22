@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
+from hexrd.hedm.ipfcolor.colorspace import hsl2rgb
 from hexrd.material.material import Material
 
 
@@ -62,3 +63,6 @@ def test_color_orientations() -> None:
     rgb_nh_calc = mat.unitcell.color_directions(dir3_nh, False)
 
     np.testing.assert_allclose(rgb_nh, rgb_nh_calc, atol=1e-6)
+
+    # a single hsl triple is accepted (pure red)
+    np.testing.assert_allclose(hsl2rgb(np.array([0.0, 1.0, 0.5])), [[1.0, 0.0, 0.0]])

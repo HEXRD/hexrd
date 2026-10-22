@@ -686,9 +686,6 @@ class sector:
         @DETAIL  calculate hue. this is aggigned based on the azimuthal angle in the
         stereographic triangle. the laueswitch controls which fundamental sector to use.
 
-        @performance improvement suggested by claude opus 5.5 is to build a
-        look up table and interpolate
-
         the original integrated hue_speed with a 1000-point trapezoid rule from
         0 to rho for every direction. here the integral is tabulated once on a
         fine grid (cached on the sector) and interpolated, and the trapezoid

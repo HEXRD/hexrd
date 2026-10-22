@@ -45,19 +45,17 @@ def hsl2rgb(hsl):
     it is assumed that the hsl array has values in [0,1] for the 
     different components
     '''
+    hsl = np.atleast_2d(hsl)
     if hsl.ndim != 2 or hsl.shape[1] != 3:
         raise RuntimeError(
             f"hsl2rgb: hsl must be an n x 3 array, got shape {hsl.shape}"
         )
-    hsl = np.atleast_2d(hsl)
     hsl[np.abs(hsl) < eps] = 0.0
     hsl[np.abs(hsl - np.ones(hsl.shape)) < eps] = 1.0
 
     if (hsl.min() < 0.0) or (hsl.max() > 1.0):
         raise RuntimeError("value of not in range [0,1].")
 
-    if hsl.ndim != 2:
-        raise RuntimeError("hsl_rgb: shape of hsl array is invalid.")
     rgb = np.zeros(hsl.shape)
 
     '''
