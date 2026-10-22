@@ -23,6 +23,16 @@ from hexrd.hedm.find_orientations import (
 )
 
 
+@pytest.mark.parametrize('step', [0.1, 0.25, 1.0])
+def test_eta_grid_preserves_master_arithmetic(step):
+    from hexrd.core.instrument import PlanarDetector
+    from hexrd.hedm.find_orientations import _eta_bin_edges
+
+    expected = PlanarDetector().make_powder_rings(
+        [5.], delta_tth=0.25, delta_eta=step, full_output=True)[-1]
+    np.testing.assert_array_equal(_eta_bin_edges(step), expected)
+
+
 @pytest.mark.skipif(
     'HEXRD_EXAMPLE_REPO_PATH' not in os.environ,
     reason='requires the NIST ruby example data',

@@ -72,7 +72,9 @@ def test_beam_from_dict():
         'vector': {'azimuth': 90.0, 'polar_angle': 90.0},
     })
     assert beam.energy == 80.725
-    assert np.allclose(beam.vector, [0.0, 0.0, -1.0])
+    from hexrd.core.instrument import calc_beam_vec
+
+    np.testing.assert_array_equal(beam.vector, calc_beam_vec(90., 90.))
     assert np.isinf(beam.source_distance)
 
     beams = {'XRS1': {'energy': 10.25, 'source_distance': 31.0}}
@@ -415,6 +417,7 @@ def test_experiment_parses_synthetic_config(synthetic_config):
     assert exp.analysis_dir == str(synthetic_config.parent / 'analysis')
     assert exp.analysis_id == 'analysis_ruby'
     assert exp.active_material.two_theta_width == 0.2
+    assert exp.active_material.reset_exclusions is True
 
     (ims,) = exp.image_series_list
     assert len(ims) == 3
@@ -591,3 +594,37 @@ def test_material_bridge_parameters(ruby_materials_file):
     for symm, hkl in zip(pd.symm_hkls, pd.unexcluded_hkls):
         assert symm.shape[0] == 3
         assert any(np.array_equal(col, hkl) for col in symm.T)
+
+
+def test_experiment_preserves_saved_material_selection(
+        synthetic_config, ruby_materials_file):
+    from hexrd.core.material.material_data import Material
+
+    saved = Material('ruby', ruby_materials_file, dmin=1.6,
+                     beam_energy=80.0)._material
+    saved.planeData.exclusions = np.arange(saved.planeData.getNhklRef()) % 3 == 0
+    saved.dump_material(str(synthetic_config.parent/'materials.h5'))
+    documents = list(yaml.safe_load_all(synthetic_config.read_text()))
+    documents[0]['material'].update(reset_exclusions=False, dmin=0.35,
+                                     min_sfac_ratio=0.99)
+    synthetic_config.write_text(yaml.safe_dump_all(documents))
+
+    experiment = HedmExperiment(str(synthetic_config))
+    actual = experiment.get_active_material().plane_data
+    assert experiment.active_material.reset_exclusions is False
+    assert len(actual.hkls) == saved.planeData.getNhklRef()
+    np.testing.assert_array_equal(actual.exclusions, saved.planeData.exclusions)
+    np.testing.assert_array_equal(actual.unexcluded_hkls, saved.planeData.hkls.T)
+
+    # Recover automatically from maps built while saved exclusions were ignored.
+    from hexrd.hedm.find_orientations import (
+        EtaOmegaMaps, _save_eta_omega_maps, load_or_build_eta_omega_maps,
+    )
+    os.makedirs(experiment.analysis_dir, exist_ok=True)
+    edges = np.array([-np.pi, np.pi])
+    stale = EtaOmegaMaps(np.zeros((1, 1, 1)), edges, edges, np.array([0.]),
+                         edges, np.array([[0., 1.]]),
+                         np.array([len(actual.unexcluded_hkls)]), 2*np.pi)
+    _save_eta_omega_maps(stale, experiment.eta_ome_maps_file)
+    maps = load_or_build_eta_omega_maps(experiment, actual)
+    np.testing.assert_array_equal(maps.ring_ids, np.arange(len(actual.unexcluded_hkls)))

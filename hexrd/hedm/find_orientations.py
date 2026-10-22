@@ -168,6 +168,8 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
     else:
         maps = _load_eta_omega_maps(path, plane_data,
                                     experiment.active_material.two_theta_width, source_cache)
+        if np.any((maps.ring_ids < 0) | (maps.ring_ids >= len(plane_data.unexcluded_hkls))):
+            maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=True)
     _filter_maps(maps, om.filter_maps, om.filter_fwhm)
     return maps
 
@@ -234,7 +236,7 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     two_theta_ranges = np.column_stack([ring_tths - half, ring_tths + half])
 
     eta_step = np.radians(fo.orientation_maps.eta_step)
-    eta_edges = _eta_bin_edges(eta_step)
+    eta_edges = _eta_bin_edges(fo.orientation_maps.eta_step)
     n_eta = len(eta_edges) - 1
     row_of_frame, omegas, omega_edges, period = _omega_grid(
         experiment.image_series_list[0].omega)
@@ -265,6 +267,8 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                             eta_bin, threshold,
                             ring_maps[first:first + 63])
 
+    eta_centers = eta_edges[:2] + 0.5 * eta_step
+    eta_step = float(eta_centers[1] - eta_centers[0])
     return EtaOmegaMaps(ring_maps, eta_edges, omega_edges, omegas, period,
                         two_theta_ranges, ring_ids, eta_step)
 
@@ -461,16 +465,13 @@ def _eta_bin_edges(step: float) -> np.ndarray:
     """Construct eta-bin edges over a full circle.
 
     Args:
-        step: Requested eta-bin width in radians.
+        step: Requested eta-bin width in degrees, as in make_powder_rings.
 
     Returns:
         Eta-bin edges with the branch cut at ``-pi`` and ``pi``.
     """
-    n = int(2 * np.pi / step)
-    ang = np.nan_to_num(step * np.linspace(0.0, n, num=n + 1) - np.pi)
-    edges = np.mod(ang + np.pi, 2 * np.pi) - np.pi
-    edges[np.logical_and(edges == -np.pi, ang > -np.pi)] = np.pi
-    return edges
+    n = int(360.0 / step)
+    return rotations.mapAngle(np.radians(step * np.linspace(0.0, n, num=n + 1)) - np.pi)
 
 
 def _panel_pixel_angles(detector, beam_vector):

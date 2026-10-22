@@ -34,11 +34,13 @@ class ActiveMaterial:
     dmin: float                # angstrom
     two_theta_width: float     # degrees
     min_sfac_ratio: float
+    reset_exclusions: bool = True
 
     @classmethod
     def from_dict(cls, d):
         return cls(d.get('definitions'), d.get('active'), d.get('dmin'),
-                   d.get('tth_width'), d.get('min_sfac_ratio'))
+                   d.get('tth_width'), d.get('min_sfac_ratio'),
+                   d.get('reset_exclusions', True))
 
 
 @dataclass
@@ -125,7 +127,6 @@ class Beam:
         vector = -np.array([np.sin(polar) * np.cos(azimuth),
                             np.cos(polar),
                             np.sin(polar) * np.sin(azimuth)])
-        vector[np.abs(vector) < np.finfo(float).eps] = 0.0
         return cls(float(d.get('energy', 0.0)), vector,
                    float(d.get('source_distance', np.inf)),
                    d.get('energy_correction'))
@@ -459,7 +460,8 @@ class Experiment:
         return Material(name, definitions,
                         dmin=self.active_material.dmin,
                         sfacmin=self.active_material.min_sfac_ratio,
-                        beam_energy=self.beam.energy)
+                        beam_energy=self.beam.energy,
+                        reset_exclusions=self.active_material.reset_exclusions)
 
     @property
     def beam_energy(self) -> float:

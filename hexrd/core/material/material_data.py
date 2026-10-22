@@ -100,12 +100,14 @@ class Material:
         dmin: float | None = None,
         sfacmin: float | None = None,
         beam_energy: float | None = None,
+        reset_exclusions: bool = True,
     ):
         self.name = name
         self.dmin = dmin
         self.sfacmin = sfacmin
+        self.reset_exclusions = reset_exclusions
         kwargs = {}
-        if dmin is not None:
+        if reset_exclusions and dmin is not None:
             kwargs['dmin'] = valunits.valWUnit('dmin', 'length', dmin, 'angstrom')
         if beam_energy is not None:
             kwargs['kev'] = valunits.valWUnit('kev', 'energy', beam_energy, 'keV')
@@ -116,7 +118,8 @@ class Material:
 
     def _make_plane_data(self) -> PlaneData:
         pd = self._material.planeData
-        pd.exclude(dmin=self.dmin, sfacmin=self.sfacmin)
+        if self.reset_exclusions:
+            pd.exclude(dmin=self.dmin, sfacmin=self.sfacmin)
         hkls = np.vstack([d['hkl'] for d in pd.hklDataList])
         return PlaneData(
             hkls=hkls,
