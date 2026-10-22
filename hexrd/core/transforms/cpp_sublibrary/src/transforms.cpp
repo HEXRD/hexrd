@@ -666,8 +666,6 @@ static double scoringAtan2(double y, double x) {
 }
 
 #ifdef HEXRD_AVX2
-// This small AVX2 adapter is confined to target-attributed functions. The
-// extension's public functions retain their portable build flags and ABI.
 namespace scoring_simd {
 struct Batch {
   __m256d value;
@@ -705,14 +703,14 @@ HEXRD_AVX2 static Batch copysign(Batch a, Batch b) {
 }
 HEXRD_AVX2 static Batch atan2(Batch y, Batch x) {
   auto ax = abs(x), ay = abs(y), ratio = min(ax, ay)/max(ax, ay);
-  auto i = _mm256_cvttpd_epi32((ratio*Batch(512.)).value);
-  auto anchor = Batch(_mm256_cvtepi32_pd(i))*Batch(1./512.);
-  auto indices = _mm_slli_epi32(i, 1);
-  auto table = reinterpret_cast<const double *>(scoringAtans.data());
-  Batch value(_mm256_i32gather_pd(table, indices, 8));
-  Batch derivative(_mm256_i32gather_pd(table+1, indices, 8));
-  auto residual = ratio-anchor;
-  auto angle = value+residual*derivative*(Batch(1.)-residual*anchor*derivative);
+  // Degree-9 Chebyshev fit of atan(sqrt(t))/sqrt(t); angle error <2e-9 rad.
+  auto t = ratio*ratio, t2 = t*t;
+  auto p0 = Batch(0.9999999971605468)+t*Batch(-0.3333327629200022);
+  auto p1 = Batch(0.19998075281505315)+t*Batch(-0.1426001608570026);
+  auto p2 = Batch(0.1093234151327955)+t*Batch(-0.08349724996759872);
+  auto p3 = Batch(0.05708955633078856)+t*Batch(-0.030351865114653258);
+  auto p4 = Batch(0.010487649399874501)+t*Batch(-0.0017011700903822203);
+  auto angle = ratio*(p0+t2*(p1+t2*(p2+t2*(p3+t2*p4))));
   angle = select(ay > ax, Batch(pi/2.)-angle, angle);
   angle = select(x < Batch(0.), Batch(pi)-angle, angle);
   return copysign(angle, y);
@@ -767,8 +765,6 @@ struct OscillationGeometry {
       }
       double gc[3], gs[3], tmp[3];
       matvec3(rmat, reciprocal+3*i, gs);
-      // Scoring's unstrained, nominal-beam case has a direct Bragg solution.
-      // Boundary cases are recomputed with the original predictor below.
       if (lengths && lengths[i] > eps) {
         double x = gs[0], y = gs[1], z = gs[2], squared = lengths[i]*lengths[i];
         double st = 0.5*wavelength*squared, root2 = x*x+z*z-st*st;
@@ -839,13 +835,35 @@ static py::tuple oscillAnglesOfHKLs(CArray<double> hkls, double chi,
   return py::make_tuple(out0, out1);
 }
 
-// Keep symmetry selection, normalization and duplicate grouping in one native
-// call. NumPy's dot kernel preserves the active BLAS implementation's rounding.
+#ifdef HEXRD_AVX2
+static HEXRD_AVX2 void selectFiberSymmetry(const StridedArray<double> &fiber,
+    const StridedArray<double> &symmetry, Index q, double result[3][4]) {
+  using namespace scoring_simd;
+  Batch v[4] = {0., 0., 0., 0.};
+  Index step = fiber.strides(1)/Index(sizeof(double));
+  auto indices = _mm256_set_epi64x(3*step, 2*step, step, 0);
+  for (int r = 0; r < 4; ++r) v[r] = _mm256_i64gather_pd(fiber.data(r, q), indices, 8);
+  Batch best(-1.), second(-1.), selected(0.);
+  for (Index s = 0; s < symmetry.shape(0); ++s) {
+    auto value = abs(((Batch(*symmetry.data(s, 0, 0))*v[0]+
+        Batch(*symmetry.data(s, 0, 1))*v[1])+
+        Batch(*symmetry.data(s, 0, 2))*v[2])+Batch(*symmetry.data(s, 0, 3))*v[3]);
+    auto greater = value > best;
+    second = select(greater, best, select(value > second, value, second));
+    selected = select(greater, Batch(double(s)), selected);
+    best = select(greater, value, best);
+  }
+  best.store_unaligned(result[0]); second.store_unaligned(result[1]);
+  selected.store_unaligned(result[2]);
+}
+#endif
+
 static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> symmetry) {
   checkShape(fiber, {4, -1}); checkShape(symmetry, {-1, 4, 4});
   Index n = fiber.shape(1), count = symmetry.shape(0);
   Index stride = symmetry.strides(2)/Index(sizeof(double));
   if (!count) throw py::value_error("fiber symmetry cannot be empty");
+  // NumPy's dot kernel preserves the active BLAS implementation's rounding.
   auto array = reinterpret_cast<PyArrayObject *>(fiber.ptr());
 #if NPY_ABI_VERSION >= 0x02000000
   auto dot = PyDataType_GetArrFuncs(PyArray_DESCR(array))->dotfunc;
@@ -856,11 +874,22 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
   std::vector<std::array<Index, 4>> groups(n);
   std::vector<Index> order(n), unique;
   bool ambiguous = false;
+#ifdef HEXRD_AVX2
+  Index vectorEnd = __builtin_cpu_supports("avx2") ? n-n%4 : 0;
+  double selection[3][4];
+#endif
   {
     py::gil_scoped_release release;
     for (Index q = 0; q < n; ++q) {
       double v[4], best = -1., second = -1.; Index selected = 0;
       for (int r = 0; r < 4; ++r) v[r] = *fiber.data(r, q);
+#ifdef HEXRD_AVX2
+      if (q < vectorEnd) {
+        if (q%4 == 0) selectFiberSymmetry(fiber, symmetry, q, selection);
+        best = selection[0][q%4]; second = selection[1][q%4];
+        selected = Index(selection[2][q%4]);
+      } else
+#endif
       for (Index s = 0; s < count; ++s) {
         const double *m = symmetry.data(s, 0, 0);
         double scalar = std::abs(m[0]*v[0]+m[stride]*v[1]+m[2*stride]*v[2]+m[3*stride]*v[3]);
@@ -896,7 +925,7 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
     if (!ambiguous) {
       for (Index q = 0; q < n; ++q) order[q] = q;
       for (int r = 0; r < 4; ++r) {
-        std::sort(order.begin(), order.end(), [&](Index a, Index b) {
+        std::stable_sort(order.begin(), order.end(), [&](Index a, Index b) {
           return reduced[r*n+a] < reduced[r*n+b];
         });
         Index label = 0;
@@ -1132,8 +1161,6 @@ static bool nearBinEdge(double value, const double *edges, Index count, Index bi
 }
 
 #ifdef HEXRD_AVX2
-// Lanes share an HKL and ring. Publish only complete, safely classified batches;
-// bin boundaries and unusual geometry retain the original scalar calculation.
 struct VectorScorer {
   const double *etaEdges, *omeEdges, *validEta, *validOme;
   const int *etaValid, *omeValid;
@@ -1142,6 +1169,7 @@ struct VectorScorer {
   const int8_t *lookup;
   Index neta, nome, nhkl, nvalidEta, nvalidOme;
   double etaScale, omeScale, offset, wavelength;
+  const OscillationGeometry *geometry;
 
   HEXRD_AVX2 unsigned score(const double *q, Index stride, Index step, double *output) const {
     using B = ScoringBatch;
@@ -1155,13 +1183,42 @@ struct VectorScorer {
               B(2.)*a*d+B(2.)*b*c, a*a-b*b+c*c-d*d, B(2.)*c*d-B(2.)*a*b,
               B(2.)*b*d-B(2.)*a*c, B(2.)*a*b+B(2.)*c*d, a*a-b*b-c*c+d*d};
     B active = B(0.) <= B(1.);
+    const bool halfPeriod = omeEdges[0] == 0. &&
+        std::abs(omeEdges[nome]-2.*pi) < 1e-12 && offset == -pi;
     for (int i = 0; i < 3; ++i) for (int j = 0; j <= i; ++j) {
       B dot(0.);
       for (int k = 0; k < 3; ++k) dot = dot+r[3*k+i]*r[3*k+j];
       active = active & (abs(dot-B(i == j ? 1. : 0.)) <= B(1e-14));
     }
     __m128i hits = _mm_setzero_si128(), total = _mm_setzero_si128();
-    auto bin = [&](B eta, B omega, B present, Index h) HEXRD_AVX2 HEXRD_FORCEINLINE {
+    auto exact = [&](B mask, Index h, int solution, B opposite) HEXRD_AVX2 __attribute__((noinline, cold)) {
+      unsigned lanes = _mm256_movemask_pd(mask.value);
+      if (!lanes) return;
+      unsigned matesMask = _mm256_movemask_pd(opposite.value);
+      double rotations[9][4];
+      for (int k = 0; k < 9; ++k) r[k].store_unaligned(rotations[k]);
+      int32_t hv[4] = {}, tv[4] = {};
+      for (int j = 0; j < 4; ++j) if (lanes & (1u << j)) {
+        Index reflection = matesMask & (1u << j) ? mates[h] : h;
+        double rotation[9], angles[6];
+        for (int k = 0; k < 9; ++k) rotation[k] = rotations[k][j];
+        geometry->predict(1, reciprocal+3*reflection, rotation, angles, angles+3);
+        const double *a = angles+3*solution;
+        if (std::isnan(a[0])) continue;
+        double e = orientationMod(a[1], -pi), o = orientationMod(a[2], offset);
+        Index ei = orientationBin(e, etaEdges, neta, etaScale);
+        Index oi = orientationBin(o, omeEdges, nome, omeScale);
+        if (ei < 0 || oi < 0 || !(rangeIndex(e, validEta, nvalidEta)&1) ||
+            !(rangeIndex(o, validOme, nvalidOme)&1)) continue;
+        Index tile = (rings[reflection]*((nome+7)/8)+oi/8)*((neta+7)/8)+ei/8;
+        Index local = (oi%8)*8+ei%8;
+        int code = (uint8_t(lookup[16*tile+local/4]) >> (2*(local%4))) & 3;
+        tv[j] = code != 0; hv[j] = code == 3;
+      }
+      hits = _mm_add_epi32(hits, _mm_loadu_si128(reinterpret_cast<const __m128i *>(hv)));
+      total = _mm_add_epi32(total, _mm_loadu_si128(reinterpret_cast<const __m128i *>(tv)));
+    };
+    auto bin = [&](B eta, B omega, B present, Index h, int solution, B opposite) HEXRD_AVX2 HEXRD_FORCEINLINE {
       auto wrap = [](B angle, double origin) HEXRD_AVX2 HEXRD_FORCEINLINE {
         auto x = angle-B(origin);
         x = select(x < B(0.), x+B(2.*pi), x);
@@ -1170,7 +1227,9 @@ struct VectorScorer {
       };
       present = present & active;
       if (!any(present)) return;
-      auto e = wrap(eta, -pi), o = wrap(omega, offset);
+      // Predicted eta is in [-pi, pi]; folded omega is in (0, pi).
+      auto e = select(B(pi) <= eta, eta-B(2.*pi), eta);
+      auto o = halfPeriod && mates[h] >= 0 ? omega : wrap(omega, offset);
       auto normalized = (B(-pi) <= e) & (e < B(pi)) & (B(offset) <= o) & (o < B(offset+2.*pi));
       active = active & ~(present & ~normalized);
       present = present & active;
@@ -1182,7 +1241,8 @@ struct VectorScorer {
                     (min(od, B(1.)-od) > B(2e-7*omeScale));
       auto outside = present & ((e < B(etaEdges[0]-2e-7)) | (e > B(etaEdges[neta]+2e-7)) |
                                  (o < B(omeEdges[0]-2e-7)) | (o > B(omeEdges[nome]+2e-7)));
-      active = active & ~(present & ~(inside | outside));
+      auto boundary = present & ~(inside | outside);
+      if (any(boundary)) exact(boundary, h, solution, opposite);
       inside = inside & active;
       if (!any(inside)) return;
       auto ei = _mm256_cvttpd_epi32(select(inside, es, B(0.)).value);
@@ -1200,8 +1260,9 @@ struct VectorScorer {
           Index ie = rangeIndex(ev[j], validEta, nvalidEta), io = rangeIndex(ov[j], validOme, nvalidOme);
           if (nearBinEdge(ev[j], validEta, nvalidEta-1, ie-1) ||
               nearBinEdge(ov[j], validOme, nvalidOme-1, io-1)) {
-            active = active & Batch(_mm256_castsi256_pd(_mm256_set_epi64x(
-                j == 3 ? 0 : -1, j == 2 ? 0 : -1, j == 1 ? 0 : -1, j == 0 ? 0 : -1)));
+            exact(Batch(_mm256_castsi256_pd(_mm256_set_epi64x(
+                j == 3 ? -1 : 0, j == 2 ? -1 : 0, j == 1 ? -1 : 0, j == 0 ? -1 : 0))),
+                h, solution, opposite);
             accept[j] = 0;
           } else accept[j] = (ie&1) && (io&1) ? -1 : 0;
         }
@@ -1244,10 +1305,17 @@ struct VectorScorer {
       }
       auto eta0 = atan2(y, root), eta1 = copysign(B(pi), y)-eta0;
       auto omega0 = atan2(p, u), omega1 = atan2(v, w);
-      bin(eta0, omega0, present, h); bin(eta1, omega1, present, h);
-      if (mates[h] >= 0) {
-        bin(-eta0, omega0+B(pi), present, mates[h]);
-        bin(-eta1, omega1+B(pi), present, mates[h]);
+      for (int solution = 0; solution < 2; ++solution) {
+        B e = solution ? eta1 : eta0, o = solution ? omega1 : omega0;
+        if (halfPeriod && mates[h] >= 0) {
+          // Only one opposite reflection lies inside both periods.
+          active = active & ~(present & (abs(o) <= B(2e-7)));
+          auto negative = o < B(0.);
+          bin(select(negative, -e, e), select(negative, o+B(pi), o), present, h, solution, negative);
+        } else {
+          bin(e, o, present, h, solution, B(0.));
+          if (mates[h] >= 0) bin(-e, o+B(pi), present, mates[h], solution, B(0.));
+        }
       }
     }
     int32_t hv[4], tv[4];
@@ -1266,9 +1334,8 @@ static py::array_t<double> scoreOrientations(
     CArray<double> hkls,
     CArray<double> bmat, double wavelength, CArray<double> beam,
     CArray<double> etaEdges, CArray<double> omeEdges, CArray<double> validEta,
-    CArray<double> validOme, double offset, CArray<double> maps, CArray<Index> rings,
+    CArray<double> validOme, double offset, StridedArray<double> maps, CArray<Index> rings,
     Index de, Index dome, double threshold, py::object statusObject, py::object binsObject) {
-  // Quaternion views stay in their original layout; convert one on the stack.
   bool quaternions = rmats.ndim() == 2;
   if (quaternions) checkShape(rmats, {4, -1});
   else { checkShape(rmats, {-1, 3, 3}); rmats = CArray<double>::ensure(rmats); }
@@ -1298,7 +1365,7 @@ static py::array_t<double> scoreOrientations(
     packed = status.ndim() == 1;
     if (packed) checkShape(status, {maps.shape(0)*((nome+7)/8)*((neta+7)/8)*16});
     else checkShape(status, {maps.shape(0), nome, neta});
-  }
+  } else maps = CArray<double>::ensure(maps);
   auto reciprocal = reciprocalVectors(hkls, bmat);
   std::vector<Index> opposites(nhkl, -1);
   for (Index h = 0; h < nhkl; ++h) for (Index j = 0; j < h; ++j)
@@ -1313,7 +1380,6 @@ static py::array_t<double> scoreOrientations(
   bool nominal = std::abs(beam.data()[0]/norm) <= 1e-14 &&
                  std::abs(beam.data()[1]/norm) <= 1e-14 && beam.data()[2] < 0 &&
                  std::abs(offset) < 100.;
-  // A bin wholly inside/outside the accepted ranges needs no range search.
   auto validity = [](const double *edges, Index count, const double *bounds, Index size) {
     std::vector<int> result(count, -1);
     for (Index i = 0; i < count; ++i) {
@@ -1375,9 +1441,8 @@ static py::array_t<double> scoreOrientations(
     int code = (uint8_t(lookup[16*tile+local/4]) >> (2*(local%4))) & 3;
     return (code >> 1)-int(!(code & 1));
   };
-  // |g_y| = |g| cos(theta) |sin(eta)|. Entirely invisible eta columns can
-  // reject reflections before solving omega, independently of spot intensity.
-  // Expand both angle and vector bounds to retain all boundary cases.
+  // |g_y| = |g| cos(theta) |sin(eta)|; prune by coverage, not intensity.
+  // Expand angular and vector bounds to retain boundary cases.
   std::vector<double> visibility(2*nhkl);
   if (lookup && !cells && nominal) {
     std::vector<double> limits(2*maps.shape(0));
@@ -1409,7 +1474,7 @@ static py::array_t<double> scoreOrientations(
   VectorScorer vectorScorer{etaEdges.data(), omeEdges.data(), validEta.data(), validOme.data(),
       etaValid.data(), omeValid.data(), reciprocal.data(), lengths.data(), visibility.data(),
       rings.data(), opposites.data(), mates.data(), lookup, neta, nome, nhkl, nvalidEta, nvalidOme,
-      etaScale, omeScale, offset, wavelength};
+      etaScale, omeScale, offset, wavelength, &geometry};
   Index vectorEnd = 0; unsigned vectorReady = 0;
 #endif
   for (Index q = 0; q < n; ++q) {

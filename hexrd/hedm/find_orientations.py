@@ -20,7 +20,6 @@ from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache, savez_compressed
 
 def _prefetch_heavy_imports(blob=False):
-    """Import peak-finding and clustering dependencies in a worker thread."""
     from scipy import ndimage  # noqa: F401
     from scipy.spatial.transform import Rotation  # noqa: F401
     if blob:
@@ -104,8 +103,6 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         def load_material():
             import numba
 
-            # Set the limit before structure factors run, but leave the JIT
-            # thread pool dormant when the numeric snapshot is already valid.
             numba.set_num_threads(max(1, min(
                 experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
             return experiment.get_active_material()
@@ -274,7 +271,6 @@ def build_eta_omega_maps(experiment: HedmExperiment,
 
 
 def _iter_panel_bins(experiment, active, two_theta_ranges, eta_edges):
-    """Keep only current/next panel geometry, overlapping IO with binning."""
     def load(series):
         return _cached_panel_bin_data(
             experiment, series.panel, two_theta_ranges, eta_edges)
@@ -628,6 +624,8 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     Raises:
         ValueError: If no seed-ring indices are configured.
     """
+    from tqdm import tqdm
+
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
     csym = rotations.quatProductMatrix(
@@ -661,7 +659,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
             centers.append((*prepared, tth, eta_c, ome_c))
     q_fibers = [
         _fiber(*center, chi, csym)
-        for center in centers
+        for center in tqdm(centers, desc='Generating fibers', unit='fiber', disable=None)
     ]
     return np.hstack(q_fibers) if q_fibers else np.empty((4, 0))
 
@@ -720,7 +718,6 @@ def _clean_map(m: np.ndarray) -> None:
 
 
 def _prepare_fiber(hkl, b_matrix, divisions):
-    """Reuse each seed ring's crystal axis and sampled rotations."""
     crystal = mutil.unitVector(np.dot(b_matrix, hkl.reshape(3, 1)))
     phi = np.arange(divisions) * (2*np.pi/float(divisions))
     quats = rotations.quatOfAngleAxis(phi, np.tile(crystal[:, 0], (divisions, 1)).T)
@@ -746,7 +743,7 @@ _hit_status_maps = native.orientationHitStatus
 
 
 def _pack_hit_status(status):
-    """Share two-bit cells in 8x8 tiles, keeping nearby reflections together."""
+    """Pack two-bit status codes into 8x8 tiles."""
     rings, rows, cols = status.shape
     padded = np.pad(status, ((0, 0), (0, -rows % 8), (0, -cols % 8)), constant_values=-1)
     tiles = padded.reshape(rings, (rows+7)//8, 8, (cols+7)//8, 8).transpose(0, 1, 3, 2, 4)
@@ -769,6 +766,8 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     Returns:
         Completeness score for each trial orientation.
     """
+    from tqdm import tqdm
+
     fo = experiment.find_orientations
     if q_fibers.shape[1] == 0:
         return np.empty(0)
@@ -815,7 +814,9 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     if bins is not None and hit_status is not None:
         return native._scoreOrientationBins(bins, hit_status)
 
-    ring_maps = np.ascontiguousarray(maps.ring_maps)
+    # Only the shape is needed when hit status is cached.
+    ring_maps = (np.ascontiguousarray(maps.ring_maps) if hit_status is None else
+                 np.broadcast_to(np.zeros(()), shape))
     cache_bins = (bins_key is not None and np.prod(shape) <= np.iinfo(np.int32).max and
                   n*len(symm_hkls)*8 <= 128*1024**2)
     window_area = (2 * dpix_eta + 1) * (2 * dpix_ome + 1)
@@ -828,28 +829,30 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     if bins is not None and hit_status is not None:
         return native._scoreOrientationBins(bins, hit_status)
     bins = np.empty((n, 2, len(symm_hkls)), dtype=np.int32) if cache_bins else None
-    # The native scorer predicts and counts one trial at a time with private
-    # bounded scratch, releasing the GIL for parallel chunks. No angle cube
-    # or Python-to-C call per quaternion, and no scoring JIT warmup.
     if hit_status is not None and hit_status.size >= 16*1024**2:
         hit_status = _pack_hit_status(hit_status)
-    bounds = np.linspace(0, n, workers + 1, dtype=int)
+    with tqdm(total=n, desc='Scoring orientations', unit='orientation', disable=None) as progress:
+        # Limit native batch size for live progress updates.
+        chunks = workers if progress.disable else max(workers, (n + 262143) // 262144)
+        bounds = np.linspace(0, n, chunks + 1, dtype=int)
 
-    def score_chunk(start, stop):
-        orientations = q_fibers[:, start:stop]
-        if orientations.dtype != np.float64:
-            orientations = rotations.rotMatOfQuat(orientations).reshape(-1, 3, 3)
-        return native.scoreOrientations(
-            orientations, symm_hkls, bmat, plane_data.wavelength, beam_vector,
-            maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ome_offset,
-            ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status,
-            bins[start:stop] if bins is not None else None)
+        def score_chunk(start, stop):
+            orientations = q_fibers[:, start:stop]
+            if orientations.dtype != np.float64:
+                orientations = rotations.rotMatOfQuat(orientations).reshape(-1, 3, 3)
+            result = native.scoreOrientations(
+                orientations, symm_hkls, bmat, plane_data.wavelength, beam_vector,
+                maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ome_offset,
+                ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status,
+                bins[start:stop] if bins is not None else None)
+            progress.update(stop - start)
+            return result
 
-    if workers == 1:
-        scores = score_chunk(0, n)
-    else:
-        with ThreadPoolExecutor(workers) as pool:
-            scores = np.concatenate(list(pool.map(score_chunk, bounds[:-1], bounds[1:])))
+        if chunks == 1:
+            scores = score_chunk(0, n)
+        else:
+            with ThreadPoolExecutor(workers) as pool:
+                scores = np.concatenate(list(pool.map(score_chunk, bounds[:-1], bounds[1:])))
     if bins is not None:
         save_array_cache(bins_file, bins_key, bins=bins)
     return scores
@@ -1182,8 +1185,7 @@ def _merge_duplicates(qbar, qsym, quat_distance, radius) -> np.ndarray:
     Returns:
         Grain orientations after symmetry-aware duplicate merging.
     """
-    # The usual few well-separated grains need no hierarchical clustering
-    # (or SciPy import). Keep the established ordering for actual merges.
+    # Preserve centroid order when no merge is needed.
     if qbar.shape[1] <= 32:
         cutoff = np.radians(radius)
         if all(quat_distance(qbar[:, i], qbar[:, j]) > cutoff

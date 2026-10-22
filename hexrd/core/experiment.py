@@ -236,12 +236,7 @@ class ImageSeries:
         return self._images
 
     def pixel_chunks(self, row_of_frame, max_pixels=8_000_000):
-        """Stream COO pixels into bounded chunks, without materializing CSR frames.
-
-        Decompress only a bounded batch at a time. Keeping the original
-        float64 weights also prevents overflow when duplicate uint16 pixels
-        contribute to the same map bin.
-        """
+        """Stream sparse pixels without materializing the image series."""
         def load_frame(i):
             data = self._arrs[f'{i}_data']
             row, col = self._arrs[f'{i}_row'], self._arrs[f'{i}_col']
@@ -249,7 +244,13 @@ class ImageSeries:
                     or np.any(col < 0) or np.any(col >= self._shape[1])):
                 raise ValueError('frame-cache pixel index is out of bounds')
             ids = row.astype(np.int64) * self._shape[1] + col
-            return ids, data.astype(self._dtype, copy=False)
+            data = data.astype(self._dtype, copy=False)
+            if np.any(np.diff(ids) <= 0):
+                # Coalesce before thresholding; promote integers to avoid overflow.
+                dtype = np.float64 if data.dtype.kind in 'iu' else data.dtype
+                frame = _frame_csr(data, row, col, self._shape, dtype).tocoo()
+                return frame.row.astype(np.int64)*self._shape[1]+frame.col, frame.data
+            return ids, data
 
         workers = max(1, min(self._max_workers, 8))
         if workers == 1:
