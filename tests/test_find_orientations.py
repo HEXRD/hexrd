@@ -18,7 +18,7 @@ from hexrd.core.material.material_data import PlaneData, load_plane_data_cached
 from hexrd.core.utils.npz import _NpzReader, _read_array
 from hexrd.hedm.experiment import HedmExperiment, SeedSearch
 from hexrd.hedm.find_orientations import (
-    _cached_panel_bin_data, _hit_status_maps, _load_or_generate_fibers,
+    _cached_panel_bin_data, _hit_status_maps, _load_or_generate_fibers, _pack_hit_status,
     find_orientations,
 )
 
@@ -31,6 +31,23 @@ def test_eta_grid_preserves_master_arithmetic(step):
     expected = PlanarDetector().make_powder_rings(
         [5.], delta_tth=0.25, delta_eta=step, full_output=True)[-1]
     np.testing.assert_array_equal(_eta_bin_edges(step), expected)
+
+
+@pytest.mark.parametrize('symmetry', ['Oh', 'd3d'])
+@pytest.mark.parametrize('divisions', [360, 1440])
+def test_prepared_fibers_match_discrete_fiber(symmetry, divisions):
+    from hexrd.core import rotations, matrixutil
+    from hexrd.core.transforms import xfcapi
+    from hexrd.hedm.find_orientations import _prepare_fiber, _fiber
+
+    operators = rotations.quatProductMatrix(rotations.quatOfLaueGroup(symmetry), 'right')
+    for angles in np.random.default_rng(0).uniform(-1., 1., size=(8, 3)):
+        sample = xfcapi.angles_to_gvec(np.atleast_2d(angles), chi=0.2).T
+        for hkl in (np.ones(3), sample.ravel(), -sample.ravel()):
+            expected = rotations.discreteFiber(hkl, sample, ndiv=divisions, csym=symmetry)[0]
+            prepared = _prepare_fiber(hkl, np.eye(3), divisions)
+            np.testing.assert_array_equal(_fiber(*prepared, *angles, 0.2, operators),
+                                          matrixutil.uniqueVectors(expected))
 
 
 @pytest.mark.skipif(
@@ -142,12 +159,13 @@ def test_lazy_kernels_preserve_dispatcher_features():
     assert _rotmatofquat.signatures
 
 
-def _reference_scores(angles, args):
+def _reference_scores(angles, args, return_bins=False):
     """Independent scalar oracle, using the established diffraction predictor."""
     scores = []
-    for solutions in angles:
+    bins = np.full(angles.shape[:3], -1, dtype=np.int32)
+    for iq, solutions in enumerate(angles):
         hits = []
-        for solution in solutions:
+        for branch, solution in enumerate(solutions):
             for h, (tth, eta, ome) in enumerate(solution):
                 if np.isnan(tth):
                     continue
@@ -160,12 +178,13 @@ def _reference_scores(angles, args):
                 e = np.searchsorted(args[5], eta, side='right') - 1
                 o = np.searchsorted(args[6], ome, side='right') - 1
                 if 0 <= e < args[10].shape[2] and 0 <= o < args[10].shape[1]:
+                    bins[iq, branch, h] = (args[11][h]*args[10].shape[1]+o)*args[10].shape[2]+e
                     hit = _reference_hit(e, o, args[12], args[13],
                                          args[10][args[11][h]], args[14])
                     if hit >= 0:
                         hits.append(hit)
         scores.append(sum(hits) / len(hits) if hits else 0.)
-    return np.asarray(scores)
+    return (np.asarray(scores), bins) if return_bins else np.asarray(scores)
 
 
 @pytest.mark.parametrize('dpix_eta,dpix_ome', [(0, 0), (0, 3), (2, 0), (1, 2), (40, 20)])
@@ -200,26 +219,145 @@ def _scoring_inputs(count, beam):
 
 
 @pytest.mark.parametrize('count', [0, 1, 97])
-@pytest.mark.parametrize('beam', [[0., 0, -1], [0.2, -0.1, -1.]])
-def test_native_scoring_matches_reference(count, beam):
+@pytest.mark.parametrize('beam', [[0., 0, -1], [-6e-17, -6e-17, -1.], [0.2, -0.1, -1.]])
+@pytest.mark.parametrize('grid', ['regular', 'paired_regular', 'shifted_regular', 'shifted_period', 'positive_maps', 'masked', 'nonuniform', 'on_edge', 'below_edge', 'above_edge'])
+@pytest.mark.parametrize('drift', [0., 1e-15, 1e-12])
+@pytest.mark.parametrize('wavelength', [0.15, 8.])
+@pytest.mark.parametrize('paired', [False, True])
+def test_native_scoring_matches_reference(count, beam, grid, drift, wavelength, paired):
     args = _scoring_inputs(count, beam)
+    if grid in ('paired_regular', 'shifted_regular', 'shifted_period', 'positive_maps'):
+        args[10] = args[10][:, :20].copy()
+        args[6] = np.linspace(-np.pi, np.pi, 21)
+        if grid.startswith('shifted'):
+            args[9] = 0.6
+        if grid == 'shifted_regular':
+            args[6] = np.linspace(args[9], args[9]+2*np.pi, 21)
+    if grid == 'positive_maps':
+        args[6] = np.linspace(0., 2*np.pi, 21)
+        args[8] = np.array([-np.pi, np.pi])
+    if grid == 'masked':
+        sine = np.abs(np.sin((args[5][:-1]+args[5][1:])/2))
+        args[10][:, :, (sine < 0.35) | (sine > 0.85)] = np.nan
+    if paired:
+        args[1] = np.vstack([args[1], -args[1]])
+        args[11] = np.tile(args[11], 2)
+    args[3] = wavelength
     rmats, hkls, bmat, wavelength, beam = args[:5]
+    rmats *= 1. + drift
     angles = np.empty((count, 2, len(hkls), 3))
     for i, rmat in enumerate(rmats):
         angles[i] = native.oscillAnglesOfHKLs(
             hkls, 0.0, rmat, bmat, wavelength,
             np.array([1., 1, 1, 0, 0, 0]), beam, np.array([1., 0, 0]))
-    expected = _reference_scores(angles, args)
+    if grid == 'nonuniform':
+        rng = np.random.default_rng(18)
+        for index in (5, 6):
+            args[index][1:-1] = np.sort(rng.uniform(-np.pi, np.pi, len(args[index])-2))
+    elif grid.endswith('edge') and count:
+        for index, coordinate in ((5, 1), (6, 2)):
+            values = (angles[0, :, :, coordinate].ravel() + np.pi) % (2*np.pi) - np.pi
+            values = values[np.isfinite(values)]
+            if grid != 'on_edge':
+                values = np.nextafter(values, -np.inf if grid == 'below_edge' else np.inf)
+            args[index][1:1+len(values)] = values
+            args[index].sort()
+    expected, expected_bins = _reference_scores(angles, args, return_bins=True)
     np.testing.assert_array_equal(native.scoreOrientations(*args), expected)
     status = _hit_status_maps(args[10], args[12], args[13], args[14])
     np.testing.assert_array_equal(native.scoreOrientations(*args, status), expected)
+    packed = _pack_hit_status(status)
+    np.testing.assert_array_equal(native.scoreOrientations(*args, packed), expected)
     bins = np.empty((count, 2, len(hkls)), dtype=np.int32)
     np.testing.assert_array_equal(native.scoreOrientations(*args, status, bins), expected)
+    np.testing.assert_array_equal(bins, expected_bins)
+    np.testing.assert_array_equal(native.scoreOrientations(*args, packed, bins), expected)
+    np.testing.assert_array_equal(bins, expected_bins)
     np.testing.assert_array_equal(native._scoreOrientationBins(bins, status), expected)
     args[14] = 0.9
     status = _hit_status_maps(args[10], args[12], args[13], args[14])
     np.testing.assert_array_equal(native._scoreOrientationBins(bins, status),
                                   _reference_scores(angles, args))
+
+
+@pytest.mark.parametrize('size', [1, 2, 3, 4, 7, 8, 17])
+@pytest.mark.parametrize('wavelength', [0.15, 8.])
+def test_vector_scoring_tails_and_duplicate_reflections(size, wavelength):
+    args = _scoring_inputs(31, [0., 0., -1.])
+    rng = np.random.default_rng(41)
+    hkls = rng.integers(-3, 4, size=(17, 3)).astype(float)
+    hkls[:4] = [[1, 0, 0], [-1, 0, 0], [1, 0, 0], [0, 0, 0]]
+    args[1] = hkls[:size]
+    args[11] = np.arange(size, dtype=np.intp) % 2
+    args[3] = wavelength
+    args[6] = np.linspace(0., 2*np.pi, 22)
+    angles = np.array([native.oscillAnglesOfHKLs(
+        args[1], 0., r, args[2], wavelength, np.array([1., 1, 1, 0, 0, 0]),
+        args[4], np.array([1., 0, 0])) for r in args[0]])
+    expected, expected_bins = _reference_scores(angles, args, return_bins=True)
+    status = _hit_status_maps(args[10], args[12], args[13], args[14])
+    for lookup in (status, _pack_hit_status(status)):
+        bins = np.empty_like(expected_bins)
+        np.testing.assert_array_equal(native.scoreOrientations(*args, lookup, bins), expected)
+        np.testing.assert_array_equal(bins, expected_bins)
+
+
+@pytest.mark.parametrize('count', [0, 1, 97])
+@pytest.mark.parametrize('layout', ['C', 'F', 'slice', 'reverse', 'reverse_components'])
+def test_scoring_quaternion_views_match_matrices(count, layout):
+    q = np.random.default_rng(52).normal(size=(count, 4)).T.copy()
+    q /= np.linalg.norm(q, axis=0)
+    if layout == 'F':
+        q = np.asfortranarray(q)
+    elif layout == 'slice':
+        storage = np.empty((8, 2*count))
+        storage[::2, ::2] = q
+        q = storage[::2, ::2]
+    elif layout == 'reverse':
+        q = q[:, ::-1]
+    elif layout == 'reverse_components':
+        q = q[::-1]
+    args = _scoring_inputs(count, [0., 0., -1.])
+    args[0] = native.quaternionRotations(np.ascontiguousarray(q.T))
+    status = _hit_status_maps(args[10], args[12], args[13], args[14])
+    expected_bins = np.empty((count, 2, len(args[1])), dtype=np.int32)
+    expected = native.scoreOrientations(*args, status, expected_bins)
+    args[0] = q
+    bins = np.empty_like(expected_bins)
+    for lookup in (status, _pack_hit_status(status)):
+        np.testing.assert_array_equal(native.scoreOrientations(*args, lookup), expected)
+        np.testing.assert_array_equal(native.scoreOrientations(*args, lookup, bins), expected)
+        np.testing.assert_array_equal(bins, expected_bins)
+
+
+@pytest.mark.parametrize('count', [0, 1, 3, 4, 5, 7, 8, 31, 1001])
+@pytest.mark.parametrize('positive_maps', [False, True])
+@pytest.mark.parametrize('paired', [False, True])
+def test_four_orientation_scoring_matches_matrix_path(count, positive_maps, paired):
+    args = _scoring_inputs(count, [0., 0., -1.])
+    q = np.random.default_rng(52).normal(size=(count, 4)).T.copy()
+    q /= np.linalg.norm(q, axis=0)
+    if count >= 4:
+        q[:, :2] = np.array([[1.], [0.], [0.], [0.]])
+    args[0] = native.quaternionRotations(np.ascontiguousarray(q.T))
+    if paired:
+        args[1] = np.vstack((args[1], -args[1]))
+        args[11] = np.tile(args[11], 2)
+    args[10] = np.random.default_rng(14).random((2, 8, 8))
+    args[10][:, ::3, ::2] = np.nan
+    args[12] = args[13] = 0
+    args[5] = np.linspace(-np.pi, np.pi, 9)
+    args[6] = np.linspace(0., 2*np.pi, 9) if positive_maps else args[5].copy()
+    args[7] = args[8] = np.array([-np.pi, np.pi])
+    status = _hit_status_maps(args[10], args[12], args[13], args[14])
+    expected = native.scoreOrientations(*args, status)
+    args[0] = q
+    np.testing.assert_array_equal(native.scoreOrientations(*args, _pack_hit_status(status)), expected)
+    q *= 1. + 1e-12
+    args[0] = native.quaternionRotations(np.ascontiguousarray(q.T))
+    expected = native.scoreOrientations(*args, status)
+    args[0] = q
+    np.testing.assert_array_equal(native.scoreOrientations(*args, _pack_hit_status(status)), expected)
 
 
 @pytest.mark.parametrize('index,value', [

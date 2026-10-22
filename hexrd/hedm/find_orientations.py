@@ -630,7 +630,8 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     """
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
-    csym = plane_data.laue_group
+    csym = rotations.quatProductMatrix(
+        rotations.quatOfLaueGroup(plane_data.laue_group), 'right')
     fiber_ndiv = fo.seed_search.fiber_ndiv
 
     seed_ids = fo.seed_search.hkl_seeds
@@ -648,15 +649,18 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
 
     centers = []
     for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
+        if not num_spots:
+            continue
+        prepared = _prepare_fiber(hkl, plane_data.B, fiber_ndiv)
         for ispot in range(num_spots):
             com = coms[ispot]
             if np.isnan(com[0]):
                 continue
             ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
             eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
-            centers.append((hkl, tth, eta_c, ome_c))
+            centers.append((*prepared, tth, eta_c, ome_c))
     q_fibers = [
-        _fiber(*center, chi, plane_data.B, fiber_ndiv, csym)
+        _fiber(*center, chi, csym)
         for center in centers
     ]
     return np.hstack(q_fibers) if q_fibers else np.empty((4, 0))
@@ -715,31 +719,38 @@ def _clean_map(m: np.ndarray) -> None:
     m -= med
 
 
-def _fiber(hkl, tth, eta_c, ome_c, chi, b_matrix, fiber_ndiv, csym):
-    """Generate the discrete orientation fiber for one diffraction spot.
+def _prepare_fiber(hkl, b_matrix, divisions):
+    """Reuse each seed ring's crystal axis and sampled rotations."""
+    crystal = mutil.unitVector(np.dot(b_matrix, hkl.reshape(3, 1)))
+    phi = np.arange(divisions) * (2*np.pi/float(divisions))
+    quats = rotations.quatOfAngleAxis(phi, np.tile(crystal[:, 0], (divisions, 1)).T)
+    return crystal, rotations.quatProductMatrix(quats, 'right')
 
-    Args:
-        hkl: Miller indices of the reflecting lattice plane.
-        tth: Spot two-theta angle in radians.
-        eta_c: Spot eta angle in radians.
-        ome_c: Spot omega angle in radians.
-        chi: Oscillation-stage chi angle in radians.
-        b_matrix: Reciprocal-lattice B matrix.
-        fiber_ndiv: Number of samples along the orientation fiber.
-        csym: Crystal symmetry identifier.
 
-    Returns:
-        Unique orientation quaternions in the fundamental region.
-    """
-    g_vec_s = xfcapi.angles_to_gvec(
-        np.atleast_2d([tth, eta_c, ome_c]), chi=chi).T
-    fiber = rotations.discreteFiber(
-        hkl.reshape(3, 1), g_vec_s, B=b_matrix, ndiv=fiber_ndiv,
-        invert=False, csym=csym)[0]
-    return mutil.uniqueVectors(fiber)
+def _fiber(crystal, fiber_rotations, tth, eta_c, ome_c, chi, csym):
+    """Build one fiber using discreteFiber's arithmetic and uniqueVectors' groups."""
+    sample = mutil.unitVector(xfcapi.angles_to_gvec(
+        np.atleast_2d([tth, eta_c, ome_c]), chi=chi).T)
+    axis = sample + crystal
+    norm = mutil.columnNorm(axis).squeeze()
+    axis = (axis / np.tile(norm, (3, 1)) if norm > const.sqrt_epsf
+            else mutil.nullSpace(crystal)[:, :1])
+    initial = np.vstack([np.zeros(1), axis])
+    fiber = np.dot(fiber_rotations, initial).transpose(2, 1, 0).squeeze()
+    reduced = native._reduceFiber(fiber, csym)
+    return (reduced if reduced is not None else mutil.uniqueVectors(
+        rotations.toFundamentalRegion(fiber, csym[:, :, 0].T)))
 
 
 _hit_status_maps = native.orientationHitStatus
+
+
+def _pack_hit_status(status):
+    """Share two-bit cells in 8x8 tiles, keeping nearby reflections together."""
+    rings, rows, cols = status.shape
+    padded = np.pad(status, ((0, 0), (0, -rows % 8), (0, -cols % 8)), constant_values=-1)
+    tiles = padded.reshape(rings, (rows+7)//8, 8, (cols+7)//8, 8).transpose(0, 1, 3, 2, 4)
+    return np.packbits(np.stack((tiles >= 0, tiles > 0), axis=-1), bitorder='little').view(np.int8)
 
 
 def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
@@ -820,12 +831,16 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     # The native scorer predicts and counts one trial at a time with private
     # bounded scratch, releasing the GIL for parallel chunks. No angle cube
     # or Python-to-C call per quaternion, and no scoring JIT warmup.
+    if hit_status is not None and hit_status.size >= 16*1024**2:
+        hit_status = _pack_hit_status(hit_status)
     bounds = np.linspace(0, n, workers + 1, dtype=int)
 
     def score_chunk(start, stop):
-        rmats = rotations.rotMatOfQuat(q_fibers[:, start:stop]).reshape(-1, 3, 3)
+        orientations = q_fibers[:, start:stop]
+        if orientations.dtype != np.float64:
+            orientations = rotations.rotMatOfQuat(orientations).reshape(-1, 3, 3)
         return native.scoreOrientations(
-            rmats, symm_hkls, bmat, plane_data.wavelength, beam_vector,
+            orientations, symm_hkls, bmat, plane_data.wavelength, beam_vector,
             maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ome_offset,
             ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status,
             bins[start:stop] if bins is not None else None)

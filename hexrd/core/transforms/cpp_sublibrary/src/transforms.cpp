@@ -12,6 +12,19 @@
 #include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <xsimd/xsimd.hpp>
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
+#include <numpy/arrayobject.h>
+
+#if defined(__GNUC__) || defined(__clang__)
+#define HEXRD_FORCEINLINE __attribute__((always_inline))
+#else
+#define HEXRD_FORCEINLINE
+#endif
+
+#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER) && (defined(__GNUC__) || defined(__clang__))
+#include <immintrin.h>
+#define HEXRD_AVX2 __attribute__((target("avx2")))
+#endif
 
 namespace py = pybind11;
 
@@ -402,6 +415,8 @@ using Index = py::ssize_t;
 constexpr double pi = 3.14159265358979323846;
 template <typename T>
 using CArray = py::array_t<T, py::array::c_style | py::array::forcecast | py::detail::npy_api::NPY_ARRAY_ALIGNED_>;
+template <typename T>
+using StridedArray = py::array_t<T, py::array::forcecast | py::detail::npy_api::NPY_ARRAY_ALIGNED_>;
 
 static void checkShape(const py::array &array, std::initializer_list<Index> dims) {
   if (array.ndim() != static_cast<Index>(dims.size()))
@@ -625,6 +640,87 @@ static py::array_t<double> projectGvecs(CArray<double> vectors, CArray<double> r
   return output;
 }
 
+// Reduce atan to a table anchor and a residual <= 1/512. The quadratic
+// residual's truncation error is below 2.5e-9 radians; bin boundaries still
+// use the original predictor, guarding both rounding and geometry reduction.
+static const std::array<std::array<double, 2>, 513> scoringAtans = [] {
+  std::array<std::array<double, 2>, 513> result;
+  for (Index i = 0; i < 513; ++i) {
+    double t = double(i)/512.;
+    result[i] = {std::atan(t), 1./(1.+t*t)};
+  }
+  return result;
+}();
+
+static double scoringAtan2(double y, double x) {
+  double ax = std::abs(x), ay = std::abs(y), maximum = std::max(ax, ay);
+  if (!(maximum > 0) || !std::isfinite(maximum)) return std::atan2(y, x);
+  double ratio = std::min(ax, ay)/maximum;
+  Index i = Index(ratio*512.);
+  double anchor = double(i)/512.;
+  double residual = ratio-anchor, derivative = scoringAtans[i][1];
+  double angle = scoringAtans[i][0]+residual*derivative*(1.-residual*anchor*derivative);
+  angle += double(ay > ax)*(pi/2.-2.*angle);
+  angle += double(x < 0)*(pi-2.*angle);
+  return std::copysign(angle, y);
+}
+
+#ifdef HEXRD_AVX2
+// This small AVX2 adapter is confined to target-attributed functions. The
+// extension's public functions retain their portable build flags and ABI.
+namespace scoring_simd {
+struct Batch {
+  __m256d value;
+  HEXRD_AVX2 Batch(double x) : value(_mm256_set1_pd(x)) {}
+  HEXRD_AVX2 Batch(__m256d x) : value(x) {}
+  HEXRD_AVX2 static Batch load_unaligned(const double *p) { return _mm256_loadu_pd(p); }
+  HEXRD_AVX2 void store_unaligned(double *p) const { _mm256_storeu_pd(p, value); }
+  friend HEXRD_AVX2 Batch operator+(Batch a, Batch b) { return _mm256_add_pd(a.value, b.value); }
+  friend HEXRD_AVX2 Batch operator-(Batch a, Batch b) { return _mm256_sub_pd(a.value, b.value); }
+  friend HEXRD_AVX2 Batch operator*(Batch a, Batch b) { return _mm256_mul_pd(a.value, b.value); }
+  friend HEXRD_AVX2 Batch operator~(Batch a) { return _mm256_xor_pd(a.value, _mm256_castsi256_pd(_mm256_set1_epi64x(-1))); }
+  friend HEXRD_AVX2 Batch operator/(Batch a, Batch b) { return _mm256_div_pd(a.value, b.value); }
+  friend HEXRD_AVX2 Batch operator-(Batch a) { return _mm256_xor_pd(a.value, _mm256_set1_pd(-0.)); }
+  friend HEXRD_AVX2 Batch operator&(Batch a, Batch b) { return _mm256_and_pd(a.value, b.value); }
+  friend HEXRD_AVX2 Batch operator|(Batch a, Batch b) { return _mm256_or_pd(a.value, b.value); }
+  friend HEXRD_AVX2 Batch operator>(Batch a, Batch b) { return _mm256_cmp_pd(a.value, b.value, _CMP_GT_OQ); }
+  friend HEXRD_AVX2 Batch operator<(Batch a, Batch b) { return _mm256_cmp_pd(a.value, b.value, _CMP_LT_OQ); }
+  friend HEXRD_AVX2 Batch operator<=(Batch a, Batch b) { return _mm256_cmp_pd(a.value, b.value, _CMP_LE_OQ); }
+};
+HEXRD_AVX2 static Batch abs(Batch a) { return _mm256_andnot_pd(_mm256_set1_pd(-0.), a.value); }
+HEXRD_AVX2 static Batch sqrt(Batch a) { return _mm256_sqrt_pd(a.value); }
+HEXRD_AVX2 static Batch floor(Batch a) { return _mm256_floor_pd(a.value); }
+HEXRD_AVX2 static Batch min(Batch a, Batch b) { return _mm256_min_pd(a.value, b.value); }
+HEXRD_AVX2 static Batch isfinite(Batch a) { return abs(a) <= Batch(std::numeric_limits<double>::max()); }
+HEXRD_AVX2 static Batch select(Batch mask, Batch yes, Batch no) { return _mm256_blendv_pd(no.value, yes.value, mask.value); }
+HEXRD_AVX2 static Batch max(Batch a, Batch b) { return _mm256_max_pd(a.value, b.value); }
+HEXRD_AVX2 static bool any(Batch a) { return _mm256_movemask_pd(a.value) != 0; }
+HEXRD_AVX2 static __m128i mask128(Batch a) {
+  auto lo = _mm256_castpd256_pd128(a.value), hi = _mm256_extractf128_pd(a.value, 1);
+  return _mm_castps_si128(_mm_shuffle_ps(_mm_castpd_ps(lo), _mm_castpd_ps(hi), _MM_SHUFFLE(2, 0, 2, 0)));
+}
+HEXRD_AVX2 static Batch copysign(Batch a, Batch b) {
+  auto sign = _mm256_set1_pd(-0.);
+  return _mm256_or_pd(_mm256_andnot_pd(sign, a.value), _mm256_and_pd(sign, b.value));
+}
+HEXRD_AVX2 static Batch atan2(Batch y, Batch x) {
+  auto ax = abs(x), ay = abs(y), ratio = min(ax, ay)/max(ax, ay);
+  auto i = _mm256_cvttpd_epi32((ratio*Batch(512.)).value);
+  auto anchor = Batch(_mm256_cvtepi32_pd(i))*Batch(1./512.);
+  auto indices = _mm_slli_epi32(i, 1);
+  auto table = reinterpret_cast<const double *>(scoringAtans.data());
+  Batch value(_mm256_i32gather_pd(table, indices, 8));
+  Batch derivative(_mm256_i32gather_pd(table+1, indices, 8));
+  auto residual = ratio-anchor;
+  auto angle = value+residual*derivative*(Batch(1.)-residual*anchor*derivative);
+  angle = select(ay > ax, Batch(pi/2.)-angle, angle);
+  angle = select(x < Batch(0.), Batch(pi)-angle, angle);
+  return copysign(angle, y);
+}
+}
+using ScoringBatch = scoring_simd::Batch;
+#endif
+
 struct OscillationGeometry {
   double beam[3], cchi, schi, wavelength;
   std::array<double, 9> frame = {};
@@ -643,15 +739,52 @@ struct OscillationGeometry {
   }
 
   void predict(Index n, const double *reciprocal, const double *rmat,
-               double *out0, double *out1) const {
+               double *out0, double *out1, const double *lengths = nullptr,
+               const Index *opposites = nullptr, const double *visibility = nullptr) const {
     const double cchi = this->cchi, schi = this->schi, wavelength = this->wavelength;
     const auto frame = this->frame;
     const std::array<double, 3> beam = {this->beam[0], this->beam[1], this->beam[2]};
     std::array<double, 6> stretch;
     std::copy(vinv, vinv+6, stretch.begin());
     for (Index i = 0; i < n; ++i) {
+      if (visibility) {
+        double y = std::abs(rmat[3]*reciprocal[3*i]+rmat[4]*reciprocal[3*i+1]+
+                            rmat[5]*reciprocal[3*i+2]);
+        if (y < visibility[2*i] || y > visibility[2*i+1]) {
+          std::fill(out0+3*i, out0+3*i+3, NAN);
+          std::fill(out1+3*i, out1+3*i+3, NAN);
+          continue;
+        }
+      }
+      if (lengths && opposites && opposites[i] >= 0 && out0[3*opposites[i]] == -INFINITY) {
+        // Opposite HKLs reflect eta and shift omega by pi in the reduced geometry.
+        for (auto out : {out0, out1}) {
+          out[3*i] = -INFINITY;
+          out[3*i+1] = -out[3*opposites[i]+1];
+          out[3*i+2] = out[3*opposites[i]+2]+pi;
+        }
+        continue;
+      }
       double gc[3], gs[3], tmp[3];
       matvec3(rmat, reciprocal+3*i, gs);
+      // Scoring's unstrained, nominal-beam case has a direct Bragg solution.
+      // Boundary cases are recomputed with the original predictor below.
+      if (lengths && lengths[i] > eps) {
+        double x = gs[0], y = gs[1], z = gs[2], squared = lengths[i]*lengths[i];
+        double st = 0.5*wavelength*squared, root2 = x*x+z*z-st*st;
+        if (root2 > 1e-8*squared && std::abs(0.5*wavelength*lengths[i]) <= 1.) {
+          double root = std::sqrt(root2), eta = scoringAtan2(y, root);
+          double ome0 = scoringAtan2(-st*x+root*z, root*x+st*z);
+          double ome1 = scoringAtan2(-st*x-root*z, -root*x+st*z);
+          if (std::isfinite(eta) && std::isfinite(ome0) && std::isfinite(ome1)) {
+            out0[3*i] = out1[3*i] = -INFINITY; // Mark reduced, rather than scalar, predictions.
+            out0[3*i+1] = eta;
+            out1[3*i+1] = std::copysign(pi, y)-eta;
+            out0[3*i+2] = ome0; out1[3*i+2] = ome1;
+            continue;
+          }
+        }
+      }
       tmp[0] = stretch[0]*gs[0] + (stretch[5]*gs[1] + stretch[4]*gs[2])/std::sqrt(2.);
       tmp[1] = stretch[1]*gs[1] + (stretch[5]*gs[0] + stretch[3]*gs[2])/std::sqrt(2.);
       tmp[2] = stretch[2]*gs[2] + (stretch[4]*gs[0] + stretch[3]*gs[1])/std::sqrt(2.);
@@ -706,19 +839,103 @@ static py::tuple oscillAnglesOfHKLs(CArray<double> hkls, double chi,
   return py::make_tuple(out0, out1);
 }
 
+// Keep symmetry selection, normalization and duplicate grouping in one native
+// call. NumPy's dot kernel preserves the active BLAS implementation's rounding.
+static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> symmetry) {
+  checkShape(fiber, {4, -1}); checkShape(symmetry, {-1, 4, 4});
+  Index n = fiber.shape(1), count = symmetry.shape(0);
+  Index stride = symmetry.strides(2)/Index(sizeof(double));
+  if (!count) throw py::value_error("fiber symmetry cannot be empty");
+  auto array = reinterpret_cast<PyArrayObject *>(fiber.ptr());
+#if NPY_ABI_VERSION >= 0x02000000
+  auto dot = PyDataType_GetArrFuncs(PyArray_DESCR(array))->dotfunc;
+#else
+  auto dot = PyArray_DESCR(array)->f->dotfunc;
+#endif
+  std::vector<double> reduced(4*n);
+  std::vector<std::array<Index, 4>> groups(n);
+  std::vector<Index> order(n), unique;
+  bool ambiguous = false;
+  {
+    py::gil_scoped_release release;
+    for (Index q = 0; q < n; ++q) {
+      double v[4], best = -1., second = -1.; Index selected = 0;
+      for (int r = 0; r < 4; ++r) v[r] = *fiber.data(r, q);
+      for (Index s = 0; s < count; ++s) {
+        const double *m = symmetry.data(s, 0, 0);
+        double scalar = std::abs(m[0]*v[0]+m[stride]*v[1]+m[2*stride]*v[2]+m[3*stride]*v[3]);
+        if (scalar > best) { second = best; best = scalar; selected = s; }
+        else second = std::max(second, scalar);
+      }
+      auto evaluate = [&](Index s, double *value) {
+        for (int r = 0; r < 4; ++r)
+          dot(const_cast<double *>(symmetry.data(s, r, 0)), symmetry.strides(2),
+              v, sizeof(double), value+r, 4, array);
+        double norm = std::sqrt(((value[0]*value[0]+value[1]*value[1])+value[2]*value[2])+value[3]*value[3]);
+        if (!(norm > 10.*eps) || !std::isfinite(norm)) { ambiguous = true; return; }
+        bool negative = value[0] < 0;
+        for (int r = 0; r < 4; ++r) {
+          value[r] /= norm;
+          if (negative) value[r] = -value[r];
+        }
+      };
+      double value[4];
+      if (best-second <= 1e-12) {
+        // Resolve near ties using every normalized candidate, in reference order.
+        best = -1.;
+        for (Index s = 0; s < count; ++s) {
+          double candidate[4]; evaluate(s, candidate);
+          if (candidate[0] > best) {
+            best = candidate[0]; std::copy(candidate, candidate+4, value);
+          }
+        }
+      } else evaluate(selected, value);
+      if (ambiguous) break;
+      for (int r = 0; r < 4; ++r) reduced[r*n+q] = value[r];
+    }
+    if (!ambiguous) {
+      for (Index q = 0; q < n; ++q) order[q] = q;
+      for (int r = 0; r < 4; ++r) {
+        std::sort(order.begin(), order.end(), [&](Index a, Index b) {
+          return reduced[r*n+a] < reduced[r*n+b];
+        });
+        Index label = 0;
+        for (Index j = 0; j < n; ++j) {
+          if (!j || reduced[r*n+order[j]]-reduced[r*n+order[j-1]] > 1e-12) ++label;
+          groups[order[j]][r] = label;
+        }
+      }
+      std::sort(order.begin(), order.end(), [&](Index a, Index b) {
+        for (int r = 3; r >= 0; --r)
+          if (groups[a][r] != groups[b][r]) return groups[a][r] < groups[b][r];
+        return a < b;
+      });
+      for (Index q : order)
+        if (unique.empty() || groups[q] != groups[unique.back()]) unique.push_back(q);
+    }
+  }
+  if (ambiguous) return py::none(); // Non-finite/degenerate inputs use Python's reference.
+  py::array_t<double> output({Index(4), Index(unique.size())});
+  for (int r = 0; r < 4; ++r) for (Index j = 0; j < Index(unique.size()); ++j)
+    output.mutable_data()[r*unique.size()+j] = reduced[r*n+unique[j]];
+  return std::move(output);
+}
+
+static void quaternionRotation(double a, double b, double c, double d, double *r) {
+  r[0] = a*a + b*b - c*c - d*d;
+  r[1] = 2*b*c - 2*a*d; r[2] = 2*a*c + 2*b*d;
+  r[3] = 2*a*d + 2*b*c; r[4] = a*a - b*b + c*c - d*d;
+  r[5] = 2*c*d - 2*a*b; r[6] = 2*b*d - 2*a*c;
+  r[7] = 2*a*b + 2*c*d; r[8] = a*a - b*b - c*c + d*d;
+}
+
 static py::array_t<double> quaternionRotations(CArray<double> quats) {
   checkShape(quats, {-1, 4});
   py::array_t<double> output({quats.shape(0), Index(3), Index(3)});
   const double *q = quats.data(); double *r = output.mutable_data();
   py::gil_scoped_release release;
-  for (Index i = 0; i < quats.shape(0); ++i, q += 4, r += 9) {
-    double a = q[0], b = q[1], c = q[2], d = q[3];
-    r[0] = a*a + b*b - c*c - d*d;
-    r[1] = 2*b*c - 2*a*d; r[2] = 2*a*c + 2*b*d;
-    r[3] = 2*a*d + 2*b*c; r[4] = a*a - b*b + c*c - d*d;
-    r[5] = 2*c*d - 2*a*b; r[6] = 2*b*d - 2*a*c;
-    r[7] = 2*a*b + 2*c*d; r[8] = a*a - b*b - c*c + d*d;
-  }
+  for (Index i = 0; i < quats.shape(0); ++i, q += 4, r += 9)
+    quaternionRotation(q[0], q[1], q[2], q[3], r);
   return output;
 }
 
@@ -871,7 +1088,11 @@ static Index rangeIndex(double value, const double *bounds, Index count) {
 }
 
 static double orientationMod(double value, double offset) {
-  double result = std::fmod(value-offset, 2.*pi);
+  double result = value-offset;
+  if (result >= 0 && result < 2.*pi) return result+offset;
+  if (result >= -2.*pi && result < 0) return result+2.*pi+offset;
+  if (result >= 2.*pi && result < 4.*pi) return result-2.*pi+offset;
+  result = std::fmod(result, 2.*pi);
   return result < 0 ? result+2.*pi+offset : result+offset;
 }
 
@@ -897,18 +1118,170 @@ static py::array_t<double> scoreOrientationBins(
   return scores;
 }
 
-static py::array_t<double> scoreOrientations(CArray<double> rmats, CArray<double> hkls,
+static Index orientationBin(double value, const double *edges, Index count, double scale) {
+  if (!(value >= edges[0] && value < edges[count])) return -1;
+  double estimate = (value-edges[0])*scale;
+  Index guess = estimate >= 0 && estimate < count ? Index(estimate) : 0;
+  return value >= edges[guess] && value < edges[guess+1] ? guess :
+         rangeIndex(value, edges, count+1)-1;
+}
+
+static bool nearBinEdge(double value, const double *edges, Index count, Index bin) {
+  if (bin < 0 || bin >= count) bin = value < edges[0] ? 0 : count-1;
+  return std::abs(value-edges[bin]) <= 1e-7 || std::abs(value-edges[bin+1]) <= 1e-7;
+}
+
+#ifdef HEXRD_AVX2
+// Lanes share an HKL and ring. Publish only complete, safely classified batches;
+// bin boundaries and unusual geometry retain the original scalar calculation.
+struct VectorScorer {
+  const double *etaEdges, *omeEdges, *validEta, *validOme;
+  const int *etaValid, *omeValid;
+  const double *reciprocal, *lengths, *visibility;
+  const Index *rings, *opposites, *mates;
+  const int8_t *lookup;
+  Index neta, nome, nhkl, nvalidEta, nvalidOme;
+  double etaScale, omeScale, offset, wavelength;
+
+  HEXRD_AVX2 unsigned score(const double *q, Index stride, Index step, double *output) const {
+    using B = ScoringBatch;
+    using namespace scoring_simd;
+    auto load = [&](const double *p) HEXRD_AVX2 HEXRD_FORCEINLINE {
+      return step == 1 ? B::load_unaligned(p) :
+          B(_mm256_i64gather_pd(p, _mm256_set_epi64x(3*step, 2*step, step, 0), 8));
+    };
+    B a = load(q), b = load(q+stride), c = load(q+2*stride), d = load(q+3*stride);
+    B r[9] = {a*a+b*b-c*c-d*d, B(2.)*b*c-B(2.)*a*d, B(2.)*a*c+B(2.)*b*d,
+              B(2.)*a*d+B(2.)*b*c, a*a-b*b+c*c-d*d, B(2.)*c*d-B(2.)*a*b,
+              B(2.)*b*d-B(2.)*a*c, B(2.)*a*b+B(2.)*c*d, a*a-b*b-c*c+d*d};
+    B active = B(0.) <= B(1.);
+    for (int i = 0; i < 3; ++i) for (int j = 0; j <= i; ++j) {
+      B dot(0.);
+      for (int k = 0; k < 3; ++k) dot = dot+r[3*k+i]*r[3*k+j];
+      active = active & (abs(dot-B(i == j ? 1. : 0.)) <= B(1e-14));
+    }
+    __m128i hits = _mm_setzero_si128(), total = _mm_setzero_si128();
+    auto bin = [&](B eta, B omega, B present, Index h) HEXRD_AVX2 HEXRD_FORCEINLINE {
+      auto wrap = [](B angle, double origin) HEXRD_AVX2 HEXRD_FORCEINLINE {
+        auto x = angle-B(origin);
+        x = select(x < B(0.), x+B(2.*pi), x);
+        x = select(B(2.*pi) <= x, x-B(2.*pi), x);
+        return x+B(origin);
+      };
+      present = present & active;
+      if (!any(present)) return;
+      auto e = wrap(eta, -pi), o = wrap(omega, offset);
+      auto normalized = (B(-pi) <= e) & (e < B(pi)) & (B(offset) <= o) & (o < B(offset+2.*pi));
+      active = active & ~(present & ~normalized);
+      present = present & active;
+      auto es = (e-B(etaEdges[0]))*B(etaScale), os = (o-B(omeEdges[0]))*B(omeScale);
+      auto ed = es-floor(es), od = os-floor(os);
+      auto inside = present & (es > B(0.)) & (es < B(double(neta))) &
+                    (os > B(0.)) & (os < B(double(nome))) &
+                    (min(ed, B(1.)-ed) > B(2e-7*etaScale)) &
+                    (min(od, B(1.)-od) > B(2e-7*omeScale));
+      auto outside = present & ((e < B(etaEdges[0]-2e-7)) | (e > B(etaEdges[neta]+2e-7)) |
+                                 (o < B(omeEdges[0]-2e-7)) | (o > B(omeEdges[nome]+2e-7)));
+      active = active & ~(present & ~(inside | outside));
+      inside = inside & active;
+      if (!any(inside)) return;
+      auto ei = _mm256_cvttpd_epi32(select(inside, es, B(0.)).value);
+      auto oi = _mm256_cvttpd_epi32(select(inside, os, B(0.)).value);
+      auto ve = _mm_i32gather_epi32(etaValid, ei, 4), vo = _mm_i32gather_epi32(omeValid, oi, 4);
+      auto zero = _mm_setzero_si128(), mask = mask128(inside);
+      auto accepted = _mm_and_si128(mask, _mm_and_si128(_mm_cmpgt_epi32(ve, zero), _mm_cmpgt_epi32(vo, zero)));
+      auto unknown = _mm_and_si128(mask, _mm_or_si128(_mm_cmpgt_epi32(zero, ve), _mm_cmpgt_epi32(zero, vo)));
+      unsigned exceptional = _mm_movemask_ps(_mm_castsi128_ps(unknown));
+      if (exceptional) {
+        double ev[4], ov[4]; int32_t accept[4];
+        e.store_unaligned(ev); o.store_unaligned(ov);
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(accept), accepted);
+        for (int j = 0; j < 4; ++j) if (exceptional & (1u << j)) {
+          Index ie = rangeIndex(ev[j], validEta, nvalidEta), io = rangeIndex(ov[j], validOme, nvalidOme);
+          if (nearBinEdge(ev[j], validEta, nvalidEta-1, ie-1) ||
+              nearBinEdge(ov[j], validOme, nvalidOme-1, io-1)) {
+            active = active & Batch(_mm256_castsi256_pd(_mm256_set_epi64x(
+                j == 3 ? 0 : -1, j == 2 ? 0 : -1, j == 1 ? 0 : -1, j == 0 ? 0 : -1)));
+            accept[j] = 0;
+          } else accept[j] = (ie&1) && (io&1) ? -1 : 0;
+        }
+        accepted = _mm_loadu_si128(reinterpret_cast<const __m128i *>(accept));
+      }
+      auto set = [](Index x) HEXRD_AVX2 { return _mm_set1_epi32(int32_t(x)); };
+      auto row = _mm_add_epi32(_mm_srli_epi32(oi, 3), set(rings[h]*((nome+7)/8)));
+      auto tile = _mm_add_epi32(_mm_mullo_epi32(row, set((neta+7)/8)), _mm_srli_epi32(ei, 3));
+      auto word = _mm_add_epi32(_mm_slli_epi32(tile, 2), _mm_srli_epi32(_mm_and_si128(oi, set(7)), 1));
+      auto shift = _mm_add_epi32(_mm_slli_epi32(_mm_and_si128(oi, set(1)), 4),
+                                 _mm_slli_epi32(_mm_and_si128(ei, set(7)), 1));
+      auto bits = _mm_mask_i32gather_epi32(zero, reinterpret_cast<const int *>(lookup), word, accepted, 4);
+      auto codes = _mm_and_si128(_mm_srlv_epi32(bits, shift), set(3));
+      total = _mm_sub_epi32(total, _mm_cmpgt_epi32(codes, zero));
+      hits = _mm_sub_epi32(hits, _mm_cmpeq_epi32(codes, set(3)));
+    };
+    for (Index h = 0; h < nhkl; ++h) {
+      if (!any(active)) break;
+      if (opposites[h] >= 0) continue;
+      B gx(reciprocal[3*h]), gy(reciprocal[3*h+1]), gz(reciprocal[3*h+2]);
+      auto x = r[0]*gx+r[1]*gy+r[2]*gz, y = r[3]*gx+r[4]*gy+r[5]*gz;
+      auto z = r[6]*gx+r[7]*gy+r[8]*gz;
+      auto present = active & (B(visibility[2*h]) <= abs(y)) & (abs(y) <= B(visibility[2*h+1]));
+      if (!any(present)) continue;
+      double squared = lengths[h]*lengths[h], st = 0.5*wavelength*squared;
+      auto root2 = x*x+z*z-B(st*st);
+      active = active & ~(present & (~isfinite(root2) | (abs(root2) <= B(1e-8*squared))));
+      present = present & active & (root2 > B(1e-8*squared));
+      if (!any(present)) continue;
+      x = select(present, x, B(1.)); y = select(present, y, B(0.)); z = select(present, z, B(0.));
+      auto sine = select(present, B(st), B(0.));
+      auto root = sqrt(select(present, root2, B(1.)));
+      auto p = -sine*x+root*z, u = root*x+sine*z;
+      auto v = -sine*x-root*z, w = -root*x+sine*z;
+      auto finite = isfinite(p) & isfinite(u) & isfinite(v) & isfinite(w);
+      if (any(present & ~finite)) {
+        active = active & ~(present & ~finite); present = present & active;
+        p = select(present, p, B(0.)); u = select(present, u, B(1.));
+        v = select(present, v, B(0.)); w = select(present, w, B(1.));
+      }
+      auto eta0 = atan2(y, root), eta1 = copysign(B(pi), y)-eta0;
+      auto omega0 = atan2(p, u), omega1 = atan2(v, w);
+      bin(eta0, omega0, present, h); bin(eta1, omega1, present, h);
+      if (mates[h] >= 0) {
+        bin(-eta0, omega0+B(pi), present, mates[h]);
+        bin(-eta1, omega1+B(pi), present, mates[h]);
+      }
+    }
+    int32_t hv[4], tv[4];
+    _mm_storeu_si128(reinterpret_cast<__m128i *>(hv), hits);
+    _mm_storeu_si128(reinterpret_cast<__m128i *>(tv), total);
+    unsigned ready = _mm256_movemask_pd(active.value);
+    for (int j = 0; j < 4; ++j) if (ready & (1u << j))
+      output[j] = tv[j] ? double(hv[j])/tv[j] : 0.;
+    return ready;
+  }
+};
+#endif
+
+static py::array_t<double> scoreOrientations(
+    StridedArray<double> rmats,
+    CArray<double> hkls,
     CArray<double> bmat, double wavelength, CArray<double> beam,
     CArray<double> etaEdges, CArray<double> omeEdges, CArray<double> validEta,
     CArray<double> validOme, double offset, CArray<double> maps, CArray<Index> rings,
     Index de, Index dome, double threshold, py::object statusObject, py::object binsObject) {
-  checkShape(rmats, {-1, 3, 3}); checkShape(beam, {3});
-  checkShape(hkls, {-1, 3});
+  // Quaternion views stay in their original layout; convert one on the stack.
+  bool quaternions = rmats.ndim() == 2;
+  if (quaternions) checkShape(rmats, {4, -1});
+  else { checkShape(rmats, {-1, 3, 3}); rmats = CArray<double>::ensure(rmats); }
+  checkShape(beam, {3}); checkShape(hkls, {-1, 3});
   checkShape(maps, {-1, -1, -1}); checkShape(rings, {hkls.shape(0)});
-  Index n = rmats.shape(0), nhkl = hkls.shape(0), nome = maps.shape(1), neta = maps.shape(2);
+  Index n = rmats.shape(quaternions ? 1 : 0), nhkl = hkls.shape(0);
+  Index nome = maps.shape(1), neta = maps.shape(2);
+  Index componentStride = rmats.strides(0)/Index(sizeof(double)), trialStride = rmats.strides(1)/Index(sizeof(double));
   checkShape(etaEdges, {neta+1}); checkShape(omeEdges, {nome+1});
   checkShape(validEta, {-1}); checkShape(validOme, {-1});
   Index nvalidEta = validEta.size(), nvalidOme = validOme.size();
+  double etaScale = neta/(etaEdges.data()[neta]-etaEdges.data()[0]);
+  double omeScale = nome/(omeEdges.data()[nome]-omeEdges.data()[0]);
   double norm = std::sqrt(beam.data()[0]*beam.data()[0] + beam.data()[1]*beam.data()[1] +
                           beam.data()[2]*beam.data()[2]);
   if (de < 0 || dome < 0 || nome < 1 || neta < 1 || nvalidEta < 2 ||
@@ -918,12 +1291,68 @@ static py::array_t<double> scoreOrientations(CArray<double> rmats, CArray<double
   for (Index i = 0; i < rings.size(); ++i) if (rings.data()[i] < 0 || rings.data()[i] >= maps.shape(0))
     throw py::value_error("reflection ring index is out of bounds");
   CArray<int8_t> status;
+  bool packed = false;
   if (!statusObject.is_none()) {
     status = CArray<int8_t>::ensure(statusObject);
     if (!status) throw py::value_error("invalid hit status map");
-    checkShape(status, {maps.shape(0), nome, neta});
+    packed = status.ndim() == 1;
+    if (packed) checkShape(status, {maps.shape(0)*((nome+7)/8)*((neta+7)/8)*16});
+    else checkShape(status, {maps.shape(0), nome, neta});
   }
   auto reciprocal = reciprocalVectors(hkls, bmat);
+  std::vector<Index> opposites(nhkl, -1);
+  for (Index h = 0; h < nhkl; ++h) for (Index j = 0; j < h; ++j)
+    if (reciprocal[3*h] == -reciprocal[3*j] && reciprocal[3*h+1] == -reciprocal[3*j+1] &&
+        reciprocal[3*h+2] == -reciprocal[3*j+2]) { opposites[h] = j; break; }
+  std::vector<double> lengths(nhkl);
+  for (Index h = 0; h < nhkl; ++h) {
+    double squared = 0;
+    for (int j = 0; j < 3; ++j) squared += reciprocal[3*h+j]*reciprocal[3*h+j];
+    lengths[h] = std::sqrt(squared);
+  }
+  bool nominal = std::abs(beam.data()[0]/norm) <= 1e-14 &&
+                 std::abs(beam.data()[1]/norm) <= 1e-14 && beam.data()[2] < 0 &&
+                 std::abs(offset) < 100.;
+  // A bin wholly inside/outside the accepted ranges needs no range search.
+  auto validity = [](const double *edges, Index count, const double *bounds, Index size) {
+    std::vector<int> result(count, -1);
+    for (Index i = 0; i < count; ++i) {
+      Index lo = std::upper_bound(bounds, bounds+size, edges[i]-1e-7)-bounds;
+      Index hi = std::upper_bound(bounds, bounds+size, edges[i+1]+1e-7)-bounds;
+      if (lo == hi) result[i] = lo%2;
+    }
+    return result;
+  };
+  auto etaValid = validity(etaEdges.data(), neta, validEta.data(), nvalidEta);
+  auto omeValid = validity(omeEdges.data(), nome, validOme.data(), nvalidOme);
+  bool pairedBins = nome%2 == 0 && std::abs(omeEdges.data()[0]-offset) < 1e-12 &&
+      std::abs(etaEdges.data()[0]+pi) < 1e-12 &&
+      std::abs(etaEdges.data()[neta]-pi) < 1e-12;
+  for (Index i = 0; i <= neta && pairedBins; ++i)
+    pairedBins &= std::abs(etaEdges.data()[i]-(-pi+2.*pi*i/neta)) < 1e-12;
+  for (Index i = 0; i <= nome && pairedBins; ++i)
+    pairedBins &= std::abs(omeEdges.data()[i]-(omeEdges.data()[0]+2.*pi*i/nome)) < 1e-12;
+#ifdef HEXRD_AVX2
+  bool vectorScores = nominal && quaternions && packed && binsObject.is_none() &&
+      __builtin_cpu_supports("avx2") && status.size()/4 <= INT32_MAX && nhkl < INT32_MAX/2 &&
+      neta < INT32_MAX && nome < INT32_MAX && etaScale > 0 && omeScale > 0 &&
+      etaScale < 1e6 && omeScale < 1e6;
+  std::vector<Index> mates(nhkl, -1);
+  for (Index h = 0; h < nhkl && vectorScores; ++h) {
+    double st = 0.5*wavelength*lengths[h];
+    vectorScores &= lengths[h] > eps && std::isfinite(lengths[h]*lengths[h]) && 1.-st*st > 1e-8;
+    Index parent = opposites[h];
+    if (parent >= 0) {
+      vectorScores &= opposites[parent] < 0 && mates[parent] < 0 && rings.data()[h] == rings.data()[parent];
+      mates[parent] = h;
+    }
+  }
+  for (Index i = 0; i <= neta && vectorScores; ++i)
+    vectorScores &= std::abs(etaEdges.data()[i]-(etaEdges.data()[0]+i/etaScale)) < 1e-12;
+  for (Index i = 0; i <= nome && vectorScores; ++i)
+    vectorScores &= std::abs(omeEdges.data()[i]-(omeEdges.data()[0]+i/omeScale)) < 1e-12;
+#endif
+  std::vector<Index> reflectionBins(4*nhkl, -1);
   std::vector<double> angles(std::max(Index(1), 6*nhkl));
   py::array_t<double> scores(n); double *output = scores.mutable_data();
   const double vinv[6] = {1, 1, 1, 0, 0, 0}, eta[3] = {1, 0, 0};
@@ -939,21 +1368,129 @@ static py::array_t<double> scoreOrientations(CArray<double> rmats, CArray<double
     std::fill(cells, cells+bins.size(), -1);
   }
   py::gil_scoped_release release;
+  auto statusAt = [&](Index ring, Index o, Index e) {
+    if (!packed) return int(lookup[(ring*nome+o)*neta+e]);
+    Index tile = (ring*((nome+7)/8)+o/8)*((neta+7)/8)+e/8;
+    Index local = (o%8)*8+e%8;
+    int code = (uint8_t(lookup[16*tile+local/4]) >> (2*(local%4))) & 3;
+    return (code >> 1)-int(!(code & 1));
+  };
+  // |g_y| = |g| cos(theta) |sin(eta)|. Entirely invisible eta columns can
+  // reject reflections before solving omega, independently of spot intensity.
+  // Expand both angle and vector bounds to retain all boundary cases.
+  std::vector<double> visibility(2*nhkl);
+  if (lookup && !cells && nominal) {
+    std::vector<double> limits(2*maps.shape(0));
+    for (Index ring = 0; ring < maps.shape(0); ++ring) {
+      double lower = 1., upper = 0.;
+      for (Index e = 0; e < neta; ++e) {
+        if (etaValid[e] == 0) continue;
+        bool visible = false;
+        for (Index o = 0; o < nome && !visible; ++o)
+          visible = omeValid[o] != 0 && statusAt(ring, o, e) >= 0;
+        if (!visible) continue;
+        double lo = etaEdges.data()[e]-1e-7, hi = etaEdges.data()[e+1]+1e-7;
+        lower = std::min(lower, std::min(std::abs(std::sin(lo)), std::abs(std::sin(hi))));
+        upper = std::max(upper, std::max(std::abs(std::sin(lo)), std::abs(std::sin(hi))));
+        if (std::ceil(lo/pi) <= std::floor(hi/pi)) lower = 0.;
+        if (std::ceil((lo-pi/2.)/pi) <= std::floor((hi-pi/2.)/pi)) upper = 1.;
+      }
+      limits[2*ring] = lower; limits[2*ring+1] = upper;
+    }
+    for (Index h = 0; h < nhkl; ++h) {
+      double st = 0.5*wavelength*lengths[h];
+      double transverse = lengths[h] > eps && 1.-st*st > 1e-8 ?
+          lengths[h]*std::sqrt(1.-st*st) : NAN;
+      visibility[2*h] = limits[2*rings.data()[h]]*transverse-1e-7*lengths[h];
+      visibility[2*h+1] = limits[2*rings.data()[h]+1]*transverse+1e-7*lengths[h];
+    }
+  }
+#ifdef HEXRD_AVX2
+  VectorScorer vectorScorer{etaEdges.data(), omeEdges.data(), validEta.data(), validOme.data(),
+      etaValid.data(), omeValid.data(), reciprocal.data(), lengths.data(), visibility.data(),
+      rings.data(), opposites.data(), mates.data(), lookup, neta, nome, nhkl, nvalidEta, nvalidOme,
+      etaScale, omeScale, offset, wavelength};
+  Index vectorEnd = 0; unsigned vectorReady = 0;
+#endif
   for (Index q = 0; q < n; ++q) {
-    geometry.predict(nhkl, reciprocal.data(), rmats.data()+9*q, angles.data(), angles.data()+3*nhkl);
+#ifdef HEXRD_AVX2
+    if (vectorScores) {
+      if (q >= vectorEnd && q+4 <= n) {
+        vectorReady = vectorScorer.score(rmats.data()+q*trialStride, componentStride, trialStride, output+q);
+        vectorEnd = q+4;
+        if (vectorReady == 15) { q += 3; continue; }
+      }
+      if (q < vectorEnd) {
+        bool ready = vectorReady & 1; vectorReady >>= 1;
+        if (ready) continue;
+      }
+    }
+#endif
+    double rotation[9];
+    const double *rmat = rotation;
+    if (quaternions) {
+      const double *v = rmats.data()+q*trialStride;
+      quaternionRotation(v[0], v[componentStride], v[2*componentStride], v[3*componentStride], rotation);
+    } else rmat = rmats.data()+9*q;
+    bool fast = nominal;
+    for (int i = 0; i < 3 && fast; ++i) for (int j = 0; j <= i; ++j) {
+      double dot = 0;
+      for (int k = 0; k < 3; ++k) dot += rmat[3*k+i]*rmat[3*k+j];
+      fast &= std::abs(dot-(i == j ? 1. : 0.)) <= 1e-14;
+    }
+    geometry.predict(nhkl, reciprocal.data(), rmat, angles.data(), angles.data()+3*nhkl,
+                     fast ? lengths.data() : nullptr, opposites.data(),
+                     fast && lookup && !cells ? visibility.data() : nullptr);
     Index hits = 0, total = 0;
+    std::fill(reflectionBins.begin(), reflectionBins.end(), -1);
     for (Index solution = 0; solution < 2; ++solution) for (Index h = 0; h < nhkl; ++h) {
       const double *a = angles.data()+3*(solution*nhkl+h);
       if (std::isnan(a[0])) continue;
-      double e = orientationMod(a[1], -pi), o = orientationMod(a[2], offset);
-      if (!(rangeIndex(e, validEta.data(), nvalidEta)&1) ||
-          !(rangeIndex(o, validOme.data(), nvalidOme)&1)) continue;
-      Index ei = rangeIndex(e, etaEdges.data(), neta+1)-1;
-      Index oi = rangeIndex(o, omeEdges.data(), nome+1)-1;
+      Index ei = -1, oi = -1, parent = opposites[h];
+      if (fast && pairedBins && parent >= 0 && a[0] == -INFINITY) {
+        const Index *previous = reflectionBins.data()+2*(solution*nhkl+parent);
+        if (previous[0] >= 0) {
+          ei = neta-1-previous[0];
+          oi = previous[1] < nome/2 ? previous[1]+nome/2 : previous[1]-nome/2;
+          if (etaValid[ei] < 0 || omeValid[oi] < 0) ei = -1;
+        }
+      }
+      Index ve, vo;
+      if (ei >= 0) { ve = etaValid[ei]; vo = omeValid[oi]; }
+      else {
+        double e = orientationMod(a[1], -pi), o = orientationMod(a[2], offset);
+        ei = orientationBin(e, etaEdges.data(), neta, etaScale);
+        oi = orientationBin(o, omeEdges.data(), nome, omeScale);
+        ve = ei >= 0 ? etaValid[ei] : -1;
+        vo = oi >= 0 ? omeValid[oi] : -1;
+        bool boundary = fast && (nearBinEdge(e, etaEdges.data(), neta, ei) ||
+            nearBinEdge(o, omeEdges.data(), nome, oi) ||
+            (ve < 0 && nearBinEdge(e, validEta.data(), nvalidEta-1,
+                                  rangeIndex(e, validEta.data(), nvalidEta)-1)) ||
+            (vo < 0 && nearBinEdge(o, validOme.data(), nvalidOme-1,
+                                  rangeIndex(o, validOme.data(), nvalidOme)-1)));
+        if (boundary) {
+          double exact[6];
+          geometry.predict(1, reciprocal.data()+3*h, rmat, exact, exact+3);
+          a = exact+3*solution;
+          if (std::isnan(a[0])) continue;
+          e = orientationMod(a[1], -pi); o = orientationMod(a[2], offset);
+          ei = orientationBin(e, etaEdges.data(), neta, etaScale);
+          oi = orientationBin(o, omeEdges.data(), nome, omeScale);
+          ve = rangeIndex(e, validEta.data(), nvalidEta);
+          vo = rangeIndex(o, validOme.data(), nvalidOme);
+        } else if (pairedBins && a[0] == -INFINITY && ei >= 0 && oi >= 0) {
+          reflectionBins[2*(solution*nhkl+h)] = ei;
+          reflectionBins[2*(solution*nhkl+h)+1] = oi;
+        }
+        if (ve < 0) ve = rangeIndex(e, validEta.data(), nvalidEta);
+        if (vo < 0) vo = rangeIndex(o, validOme.data(), nvalidOme);
+      }
+      if (!(ve&1) || !(vo&1)) continue;
       if (ei < 0 || oi < 0 || ei >= neta || oi >= nome) continue;
       Index cell = (rings.data()[h]*nome+oi)*neta+ei;
       if (cells) cells[(2*q+solution)*nhkl+h] = int32_t(cell);
-      int hit = lookup ? lookup[cell] : 0;
+      int hit = lookup ? statusAt(rings.data()[h], oi, ei) : 0;
       if (!lookup) {
         Index ostop = dome < nome-1-oi ? oi+dome+1 : nome;
         Index estop = de < neta-1-ei ? ei+de+1 : neta;
@@ -989,6 +1526,8 @@ static double quatDistance(CArray<double> q1, CArray<double> q2, CArray<double> 
 }
 
 PYBIND11_MODULE(transforms, m) {
+  if (_import_array() < 0) throw py::error_already_set();
+  m.def("_reduceFiber", &reduceFiber);
   m.doc() = "HEXRD transforms plugin";
   m.def("oscillAnglesOfHKLs", &oscillAnglesOfHKLs);
   m.def("projectGvecs", &projectGvecs<true>, py::arg("vectors"), py::arg("rmat_d"),
