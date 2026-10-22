@@ -613,6 +613,8 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
                                 maps: EtaOmegaMaps) -> np.ndarray:
     """Generate trial orientations from peaks in the seed-ring maps.
 
+    Use the configured worker count while preserving seed and peak order.
+
     Args:
         experiment: Experiment geometry and seed-search parameters.
         plane_data: Crystallographic data for the material being analyzed.
@@ -657,10 +659,18 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
             ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
             eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
             centers.append((*prepared, tth, eta_c, ome_c))
-    q_fibers = [
-        _fiber(*center, chi, csym)
-        for center in tqdm(centers, desc='Generating fibers', unit='fiber', disable=None)
-    ]
+    workers = max(1, min(experiment.max_workers, len(centers)))
+    with tqdm(total=len(centers), desc='Generating fibers', unit='fiber', disable=None) as progress:
+        def generate(center):
+            result = _fiber(*center, chi, csym)
+            progress.update(1)
+            return result
+
+        if workers == 1:
+            q_fibers = list(map(generate, centers))
+        else:
+            with ThreadPoolExecutor(workers) as pool:
+                q_fibers = list(pool.map(generate, centers))
     return np.hstack(q_fibers) if q_fibers else np.empty((4, 0))
 
 
