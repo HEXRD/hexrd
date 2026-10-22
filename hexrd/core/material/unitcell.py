@@ -70,7 +70,7 @@ _IPF_ROT_Z30 = np.array(
 )
 
 
-def _ipf_frame(sub, sup, lattice_type):
+def _ipf_frame(sub: np.ndarray, sup: np.ndarray, lattice_type: str) -> np.ndarray:
     """
     return the first candidate rotation Q with Q g Q^T in the supergroup for
     every g in sub, i.e. the rotation into the setting the supergroup's

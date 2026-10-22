@@ -652,7 +652,7 @@ class sector:
                 green regions
         '''
 
-        def wrap(x):
+        def wrap(x: np.ndarray) -> np.ndarray:
             return np.mod(x + np.pi, 2.0 * np.pi) - np.pi
 
         k = 4.0 / 7.0
@@ -706,10 +706,10 @@ class sector:
             table = self._hue_table = (r, cum)
         r, cum = table
 
-        def dv(x, h=1e-5):  # derivative of the hue speed
+        def dv(x: np.ndarray, h: float = 1e-5) -> np.ndarray:  # hue speed derivative
             return (self.hue_speed(x + h) - self.hue_speed(x - h)) / (2.0 * h)
 
-        def trapezoid_n(b):  # 1000-point trapezoid from 0 to b
+        def trapezoid_n(b: np.ndarray) -> np.ndarray:  # 1000-point trapezoid, 0 to b
             step = b / (n - 1)
             return np.interp(b, r, cum) + step**2 / 12.0 * (
                 dv(b) - dv(np.zeros_like(b))
