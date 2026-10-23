@@ -28,6 +28,7 @@ install_reqs = [
     'scikit-image',
     'scikit-learn',
     'scipy',
+    'textual>=1.0',
     'tqdm',
     'xxhash',
 ]

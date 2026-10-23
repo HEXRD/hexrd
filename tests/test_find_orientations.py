@@ -726,7 +726,7 @@ def test_numeric_header_fast_path_rejects_malformed_shapes():
 
 
 @pytest.mark.parametrize('workers', [1, 2])
-def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, workers):
+def test_dashboard_progress_preserves_scores(tmp_path, monkeypatch, workers):
     import hexrd.hedm.find_orientations as fo
     from hexrd.hedm._progress import Dashboard, stage
 
@@ -753,7 +753,7 @@ def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, work
     terminal = Terminal()
     monkeypatch.setattr(sys, 'stderr', terminal)
     experiment.analysis_dir = str(tmp_path / 'terminal')
-    dashboard = Dashboard(terminal)
+    dashboard = Dashboard()
     dashboard.start()
     try:
         with stage('Scoring'):
@@ -762,33 +762,66 @@ def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, work
         dashboard.close()
     np.testing.assert_array_equal(actual, expected)
     assert dashboard.stages['Scoring'].count == quats.shape[1]
-    assert 'Scoring' in terminal.getvalue()
-    assert '100%' in terminal.getvalue()
-    assert terminal.getvalue().endswith('\x1b[?25h')
+    assert dashboard.stages['Scoring'].status == 'done'
+    assert terminal.getvalue() == ''
 
 
-def test_dashboard_failure_restores_terminal_and_progress(monkeypatch):
+def test_dashboard_navigation_and_cancellation(monkeypatch):
+    import asyncio
     import logging
+    import threading
+    from textual.widgets import DataTable, RichLog, Static
+    from hexrd.hedm._dashboard import OrientationDashboard
     from hexrd.hedm._progress import Dashboard, progress_bar, quiet_progress, stage
 
     terminal = io.StringIO()
-    dashboard = Dashboard(terminal)
-    dashboard.start()
-    try:
-        with pytest.raises(KeyboardInterrupt), stage('Material'):
-            dashboard.handle(logging.makeLogRecord({'msg': 'Warning:\nmaterial failed'}))
-            raise KeyboardInterrupt
-    finally:
-        dashboard.close()
-    assert dashboard.stages['Material'].status == 'failed'
-    assert 'Warning: material failed' in terminal.getvalue()
-    assert terminal.getvalue().endswith('\x1b[?25h')
-    saved = terminal.getvalue()
+    dashboard = Dashboard()
+    release = threading.Event()
+
+    def workflow():
+        dashboard.start()
+        try:
+            with stage('Scoring'), progress_bar(total=10, unit='orientations') as bar:
+                dashboard.handle(logging.makeLogRecord({'msg': 'Scoring orientations'}))
+                bar.update(3)
+                release.wait(10)
+                bar.update(7)
+        finally:
+            dashboard.close()
+
+    app = OrientationDashboard(dashboard, workflow, 'test.yml')
+
+    async def interact():
+        try:
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                assert 'Scoring' in str(app.query_one('#stage-name', Static).render())
+                assert app.query_one(RichLog).lines
+                await pilot.press('l')
+                assert not app.query_one(RichLog).display
+                app.query_one(DataTable).focus()
+                app.query_one(DataTable).move_cursor(row=0)
+                await pilot.press('enter')
+                assert app.selected == 'Configuration'
+                await pilot.press('f')
+                assert app.selected is None
+                await pilot.resize_terminal(80, 24)
+                assert app.screen.has_class('compact')
+                await pilot.press('q')
+                assert dashboard.cancelled.is_set()
+                release.set()
+                await pilot.pause()
+        finally:
+            release.set()
+
+    asyncio.run(interact())
+    assert isinstance(app.failure, KeyboardInterrupt)
+    assert dashboard.stages['Scoring'].status == 'failed'
     monkeypatch.setattr(sys, 'stderr', terminal)
     with quiet_progress(True), progress_bar(total=1, desc='quiet', unit='item') as bar:
         bar.update(1)
         assert bar.disable
-    assert terminal.getvalue() == saved
+    assert terminal.getvalue() == ''
     with progress_bar(total=1, disable=True) as bar:
         assert bar is not dashboard
 

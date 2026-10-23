@@ -65,6 +65,21 @@ def configure_parser(sub_parsers):
 
 
 def execute(args, parser):
+    if not args.quiet and sys.stdin.isatty() and Dashboard.supported(sys.stderr):
+        from hexrd.hedm._dashboard import OrientationDashboard
+
+        dashboard = Dashboard()
+        app = OrientationDashboard(dashboard, lambda: _execute(args, parser, dashboard), args.yml)
+        app.run()
+        if dashboard.message:
+            print(dashboard.message, file=sys.stderr)
+        if app.failure is not None:
+            raise app.failure
+        return
+    return _execute(args, parser)
+
+
+def _execute(args, parser, dashboard=None):
     log_level = logging.ERROR if args.quiet else (
         logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
     )
@@ -72,8 +87,7 @@ def execute(args, parser):
     previous_level, previous_propagate = logger.level, logger.propagate
     logger.setLevel(log_level)
     logger.propagate = False  # avoid double-printing via the root logger
-    ch = (Dashboard(sys.stderr) if not args.quiet and Dashboard.supported(sys.stderr)
-          else logging.StreamHandler())
+    ch = dashboard or logging.StreamHandler()
     ch.setLevel(logging.CRITICAL if args.quiet else log_level)
     ch.setFormatter(
         logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
