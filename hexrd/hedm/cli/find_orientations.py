@@ -10,6 +10,7 @@ import numpy as np
 
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.find_orientations import find_orientations, write_results
+from hexrd.hedm._progress import Dashboard, quiet_progress, stage
 
 descr = 'Process rotation image series to find grain orientations'
 example = """
@@ -19,7 +20,11 @@ examples:
 
 
 def configure_parser(sub_parsers):
-    p = sub_parsers.add_parser('find-orientations', description=descr, help=descr)
+    p = sub_parsers.add_parser(
+        'find-orientations', description=descr, help=descr,
+        epilog='Interactive terminals show a live stage dashboard; redirected '
+               'output uses plain logs.',
+    )
     p.add_argument('yml', type=str, help='YAML configuration file')
     p.add_argument(
         '-q', '--quiet',
@@ -67,7 +72,8 @@ def execute(args, parser):
     previous_level, previous_propagate = logger.level, logger.propagate
     logger.setLevel(log_level)
     logger.propagate = False  # avoid double-printing via the root logger
-    ch = logging.StreamHandler()
+    ch = (Dashboard(sys.stderr) if not args.quiet and Dashboard.supported(sys.stderr)
+          else logging.StreamHandler())
     ch.setLevel(logging.CRITICAL if args.quiet else log_level)
     ch.setFormatter(
         logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
@@ -75,45 +81,48 @@ def execute(args, parser):
     logger.addHandler(ch)
     fh = None
     try:
+        if isinstance(ch, Dashboard):
+            ch.start()
         logger.info('=== begin find-orientations ===')
 
-        experiment = HedmExperiment(
-            args.yml,
-            study=getattr(args, 'study', None),
-            working_dir=os.getcwd(),
-            new_file_placement=False,
-        )
-        if experiment.active_material.dmin is None:
-            experiment.active_material.dmin = 0.5
-        hkls = getattr(args, 'hkls', None)
-        if isinstance(hkls, str):
-            hkls = [int(i) for i in hkls.split(',') if i]
-        if hkls:
-            fo = experiment.find_orientations
-            experiment.find_orientations = replace(
-                fo,
-                orientation_maps=replace(
-                    fo.orientation_maps, active_hkls=np.asarray(hkls, dtype=int)
-                ),
+        with stage('Configuration'):
+            experiment = HedmExperiment(
+                args.yml,
+                study=getattr(args, 'study', None),
+                working_dir=os.getcwd(),
+                new_file_placement=False,
             )
+            if experiment.active_material.dmin is None:
+                experiment.active_material.dmin = 0.5
+            hkls = getattr(args, 'hkls', None)
+            if isinstance(hkls, str):
+                hkls = [int(i) for i in hkls.split(',') if i]
+            if hkls:
+                fo = experiment.find_orientations
+                experiment.find_orientations = replace(
+                    fo,
+                    orientation_maps=replace(
+                        fo.orientation_maps, active_hkls=np.asarray(hkls, dtype=int)
+                    ),
+                )
 
-        accepted = experiment.accepted_orientations_file
-        if os.path.exists(accepted) and not (args.force or args.clean):
-            logger.error(
-                '%s already exists. Change yml file or specify "force" or "clean"',
-                accepted,
+            accepted = experiment.accepted_orientations_file
+            if os.path.exists(accepted) and not (args.force or args.clean):
+                logger.error(
+                    '%s already exists. Change yml file or specify "force" or "clean"',
+                    accepted,
+                )
+                sys.exit()
+
+            os.makedirs(experiment.analysis_dir, exist_ok=True)
+            logfile = experiment.find_orientations_logfile
+            fh = logging.FileHandler(logfile, mode='w')
+            fh.setLevel(log_level)
+            fh.setFormatter(
+                logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
             )
-            sys.exit()
-
-        os.makedirs(experiment.analysis_dir, exist_ok=True)
-        logfile = experiment.find_orientations_logfile
-        fh = logging.FileHandler(logfile, mode='w')
-        fh.setLevel(log_level)
-        fh.setFormatter(
-            logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
-        )
-        logger.info('logging to %s', logfile)
-        logger.addHandler(fh)
+            logger.info('logging to %s', logfile)
+            logger.addHandler(fh)
 
         if getattr(args, 'profile', False):
             import cProfile
@@ -121,10 +130,12 @@ def execute(args, parser):
             import pstats
 
         with (
-            cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()
-        ) as profile:
+            quiet_progress(args.quiet),
+            (cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()) as profile,
+        ):
             results = find_orientations(experiment, clean=args.clean)
-            output_dir = write_results(results, experiment)
+            with stage('Write results'):
+                output_dir = write_results(results, experiment)
         if profile is not None:
             summary = io.StringIO()
             pstats.Stats(profile, stream=summary).sort_stats('cumulative').print_stats(50)

@@ -728,6 +728,7 @@ def test_numeric_header_fast_path_rejects_malformed_shapes():
 @pytest.mark.parametrize('workers', [1, 2])
 def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, workers):
     import hexrd.hedm.find_orientations as fo
+    from hexrd.hedm._progress import Dashboard, stage
 
     class Terminal(io.StringIO):
         def isatty(self):
@@ -752,10 +753,44 @@ def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, work
     terminal = Terminal()
     monkeypatch.setattr(sys, 'stderr', terminal)
     experiment.analysis_dir = str(tmp_path / 'terminal')
-    actual = fo.score_orientations(experiment, plane, maps, quats)
+    dashboard = Dashboard(terminal)
+    dashboard.start()
+    try:
+        with stage('Scoring'):
+            actual = fo.score_orientations(experiment, plane, maps, quats)
+    finally:
+        dashboard.close()
     np.testing.assert_array_equal(actual, expected)
-    assert 'Scoring orientations' in terminal.getvalue()
+    assert dashboard.stages['Scoring'].count == quats.shape[1]
+    assert 'Scoring' in terminal.getvalue()
     assert '100%' in terminal.getvalue()
+    assert terminal.getvalue().endswith('\x1b[?25h')
+
+
+def test_dashboard_failure_restores_terminal_and_progress(monkeypatch):
+    import logging
+    from hexrd.hedm._progress import Dashboard, progress_bar, quiet_progress, stage
+
+    terminal = io.StringIO()
+    dashboard = Dashboard(terminal)
+    dashboard.start()
+    try:
+        with pytest.raises(KeyboardInterrupt), stage('Material'):
+            dashboard.handle(logging.makeLogRecord({'msg': 'Warning:\nmaterial failed'}))
+            raise KeyboardInterrupt
+    finally:
+        dashboard.close()
+    assert dashboard.stages['Material'].status == 'failed'
+    assert 'Warning: material failed' in terminal.getvalue()
+    assert terminal.getvalue().endswith('\x1b[?25h')
+    saved = terminal.getvalue()
+    monkeypatch.setattr(sys, 'stderr', terminal)
+    with quiet_progress(True), progress_bar(total=1, desc='quiet', unit='item') as bar:
+        bar.update(1)
+        assert bar.disable
+    assert terminal.getvalue() == saved
+    with progress_bar(total=1, disable=True) as bar:
+        assert bar is not dashboard
 
 
 def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeypatch):
