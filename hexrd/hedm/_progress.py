@@ -10,6 +10,7 @@ import threading
 from time import monotonic
 
 
+logger = logging.getLogger('hexrd.hedm.find_orientations')
 _dashboard = ContextVar('find_orientations_dashboard', default=None)
 STAGES = ('Configuration', 'Material', 'Eta/omega maps', 'Fibers',
           'Sampling', 'Scoring', 'Clustering', 'Write results')
@@ -29,26 +30,32 @@ class _Stage:
 @contextmanager
 def stage(name):
     dashboard = _dashboard.get()
-    if not dashboard:
-        yield
-        return
-    dashboard.check_cancelled()
-    item = dashboard.stages[name]
-    with dashboard.lock:
-        dashboard.active = item
-        item.status, item.started = 'running', monotonic()
+    started = monotonic()
+    logger.info('%s started', name)
+    item = None
+    if dashboard:
+        dashboard.check_cancelled()
+        with dashboard.lock:
+            item = dashboard.active = dashboard.stages[name]
+            item.status, item.started = 'running', started
     try:
         yield
-        dashboard.check_cancelled()
-    except BaseException:
-        with dashboard.lock:
-            item.status = 'failed'
+        if dashboard:
+            dashboard.check_cancelled()
+    except BaseException as exc:
+        logger.error('%s failed: %s', name, str(exc) or type(exc).__name__)
+        if item:
+            with dashboard.lock:
+                item.status = 'failed'
         raise
+    else:
+        logger.info('%s complete (%.2fs)', name, monotonic() - started)
     finally:
-        with dashboard.lock:
-            item.elapsed = monotonic() - item.started
-            if item.status == 'running':
-                item.status = 'done'
+        if item:
+            with dashboard.lock:
+                item.elapsed = monotonic() - started
+                if item.status == 'running':
+                    item.status = 'done'
 
 
 @contextmanager
@@ -75,6 +82,32 @@ def activity(message):
             dashboard.active.detail = message
 
 
+def report_hkls(role, hkls):
+    hkls = tuple(map(tuple, hkls))
+    text = ', '.join('[' + ' '.join(map(str, hkl)) + ']' for hkl in hkls)
+    logger.info('%s HKLs: %s', role, text or 'none', extra={'reflection': True})
+    dashboard = _dashboard.get()
+    if dashboard:
+        with dashboard.lock:
+            dashboard.hkls[role] = hkls
+
+
+def report_peaks(hkl, count):
+    logger.info('Seed HKL %s: %d peaks', hkl, count, extra={'reflection': True})
+    dashboard = _dashboard.get()
+    if dashboard:
+        with dashboard.lock:
+            dashboard.peaks[tuple(hkl)] = count
+
+
+def diagnostic(name, value):
+    logger.info('%s: %s', name, value)
+    dashboard = _dashboard.get()
+    if dashboard:
+        with dashboard.lock:
+            dashboard.diagnostics[name] = str(value)
+
+
 @contextmanager
 def quiet_progress(quiet):
     token = _dashboard.set(False if quiet else _dashboard.get())
@@ -98,6 +131,9 @@ class Dashboard(logging.Handler):
         self.stages = {name: _Stage() for name in STAGES}
         self.active = None
         self.message = ''
+        self.diagnostics = {}
+        self.hkls = {}
+        self.peaks = {}
         self.events = deque(maxlen=500)
         self.started = monotonic()
         self.cancelled = threading.Event()
@@ -112,6 +148,8 @@ class Dashboard(logging.Handler):
             raise KeyboardInterrupt
 
     def emit(self, record):
+        if getattr(record, 'reflection', False):
+            return
         with self.lock:
             self.events.append(self.format(record))
             message = ' '.join(record.getMessage().split())

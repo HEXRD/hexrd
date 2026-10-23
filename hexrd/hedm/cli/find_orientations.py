@@ -26,6 +26,8 @@ def configure_parser(sub_parsers):
                'output uses plain logs.',
     )
     p.add_argument('yml', type=str, help='YAML configuration file')
+    p.add_argument('--no-tui', action='store_true',
+                   help='use plain logs and exit on completion (for batch runs)')
     p.add_argument(
         '-q', '--quiet',
         action='store_true',
@@ -65,7 +67,8 @@ def configure_parser(sub_parsers):
 
 
 def execute(args, parser):
-    if not args.quiet and sys.stdin.isatty() and Dashboard.supported(sys.stderr):
+    if (not args.quiet and not getattr(args, 'no_tui', False)
+            and sys.stdin.isatty() and Dashboard.supported(sys.stderr)):
         from hexrd.hedm._dashboard import OrientationDashboard
 
         dashboard = Dashboard()
@@ -144,7 +147,7 @@ def _execute(args, parser, dashboard=None):
             import pstats
 
         with (
-            quiet_progress(args.quiet),
+            quiet_progress(args.quiet or getattr(args, 'no_tui', False)),
             (cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()) as profile,
         ):
             results = find_orientations(experiment, clean=args.clean)

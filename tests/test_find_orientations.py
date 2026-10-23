@@ -87,6 +87,7 @@ def test_native_fiber_reduction_tails_and_views(n):
 )
 def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
     import hexrd.hedm.find_orientations as fo
+    from hexrd.hedm._progress import Dashboard
 
     score = fo.score_orientations
     scored = []
@@ -120,7 +121,18 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
 
             monkeypatch.setattr(experiment, 'get_active_material', check_workers)
             numba.set_num_threads(min(2, numba.config.NUMBA_NUM_THREADS))
-            result = find_orientations(experiment, clean=clean)
+            dashboard = Dashboard()
+            dashboard.start()
+            try:
+                result = find_orientations(experiment, clean=clean)
+            finally:
+                dashboard.close()
+            assert dashboard.hkls['Seed'] == ((0, 1, 2), (1, 0, 4), (1, 1, 0))
+            assert (1, 1, 6) in dashboard.hkls['Map']
+            assert set(dashboard.peaks) == (set(dashboard.hkls['Seed']) if clean else set())
+            assert dashboard.diagnostics['Best trial'] == '100.0%'
+            assert dashboard.diagnostics['Candidates'] == '129/13,680 (score > 85.0%)'
+            assert dashboard.diagnostics['Grains'] == '1'
             np.testing.assert_array_equal(result.completeness, expected_scores)
             np.testing.assert_allclose(result.grain_orientations, expected_qbar,
                                        rtol=0, atol=1e-12)
@@ -770,7 +782,7 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
     import asyncio
     import logging
     import threading
-    from textual.widgets import DataTable, RichLog, Static
+    from textual.widgets import Button, DataTable, RichLog, Static
     from hexrd.hedm._dashboard import OrientationDashboard
     from hexrd.hedm._progress import Dashboard, progress_bar, quiet_progress, stage
 
@@ -797,10 +809,15 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.pause()
                 assert 'Scoring' in str(app.query_one('#stage-name', Static).render())
                 assert app.query_one(RichLog).lines
+                await pilot.click('#pause_log')
+                assert not app.query_one(RichLog).auto_scroll
+                await pilot.pause(0.25)
+                await pilot.click('#pause_log')
+                assert app.query_one(RichLog).auto_scroll
                 await pilot.press('l')
                 assert not app.query_one(RichLog).display
-                app.query_one(DataTable).focus()
-                app.query_one(DataTable).move_cursor(row=0)
+                app.query_one('#stages', DataTable).focus()
+                app.query_one('#stages', DataTable).move_cursor(row=0)
                 await pilot.press('enter')
                 assert app.selected == 'Configuration'
                 await pilot.press('f')
@@ -810,7 +827,11 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.press('q')
                 assert dashboard.cancelled.is_set()
                 release.set()
-                await pilot.pause()
+                await pilot.pause(0.2)
+                assert app.is_running
+                assert app.sub_title == 'CANCELLED'
+                assert str(app.query_one('#cancel', Button).label) == 'Close'
+                await pilot.click('#cancel')
         finally:
             release.set()
 
@@ -824,6 +845,71 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
     assert terminal.getvalue() == ''
     with progress_bar(total=1, disable=True) as bar:
         assert bar is not dashboard
+
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_dashboard_retains_completion_and_failure(fails):
+    import asyncio
+    from textual.widgets import Button, DataTable, RichLog, Static
+    from hexrd.hedm._dashboard import OrientationDashboard
+    from hexrd.hedm._progress import Dashboard, diagnostic, report_hkls, report_peaks, stage
+
+    dashboard = Dashboard()
+
+    def workflow():
+        dashboard.start()
+        try:
+            with stage('Material'):
+                report_hkls('Map', [[-1, 2, 3], [4, 0, 1]])
+                report_hkls('Seed', [[-1, 2, 3]])
+                report_peaks([-1, 2, 3], 0)
+                if fails:
+                    raise ValueError('Invalid material')
+                diagnostic('Candidates', '2/3 (score > 50.0%)')
+                diagnostic('Best trial', '100.0%')
+                diagnostic('Grains', '1')
+                dashboard.message = 'Found 3 grains'
+        finally:
+            dashboard.close()
+
+    app = OrientationDashboard(dashboard, workflow, 'test.yml')
+
+    async def interact():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            assert app.is_running and app.finished.is_set()
+            assert app.sub_title == ('FAILED' if fails else 'COMPLETE')
+            status = str(app.query_one('#status', Static).render())
+            assert ('ValueError: Invalid material' if fails else 'Found 3 grains') in status
+            elapsed = str(app.query_one('#elapsed', Static).render())
+            await pilot.pause(0.2)
+            app.refresh_progress()
+            assert str(app.query_one('#elapsed', Static).render()) == elapsed
+            assert str(app.query_one('#cancel', Button).label) == 'Close'
+            if fails:
+                log = ''.join(line.text for line in app.query_one(RichLog).lines)
+                assert 'ValueError' in log and 'Invalid material' in log
+            else:
+                assert 'Candidates: 2/3 (score > 50.0%)' in str(app.query_one('#detail', Static).render())
+                assert '100.0%' in str(app.query_one('#throughput', Static).render())
+            app.query_one('#stages', DataTable).focus()
+            app.query_one('#stages', DataTable).move_cursor(row=1)
+            await pilot.press('enter')
+            reflections = app.query_one('#reflections', DataTable)
+            assert reflections.get_row('-1 2 3') == ['-1', '2', '3', '✓', '0']
+            assert reflections.get_row('4 0 1') == ['4', '0', '1', '—', '—']
+            assert reflections.row_count == 2
+            assert 'HKLs:' not in str(app.query_one('#detail', Static).render())
+            log = ''.join(line.text for line in app.query_one(RichLog).lines)
+            assert 'Map HKLs:' not in log
+            app.refresh_reflections(dashboard.hkls, {(-1, 2, 3): 12000})
+            assert reflections.get_row('-1 2 3')[-1] == '12,000'
+            assert reflections.row_count == 2
+            await pilot.click('#reflections')
+            assert app.selected == 'Material'
+            await pilot.press('q')
+    asyncio.run(interact())
+    assert isinstance(app.failure, ValueError) if fails else app.failure is None
 
 
 def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeypatch):
