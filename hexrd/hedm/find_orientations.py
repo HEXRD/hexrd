@@ -17,7 +17,7 @@ from hexrd.hedm.experiment import (
 from hexrd.core.extensions import transforms_c_api, transforms as native
 from hexrd.core.material.material_data import Material, PlaneData, load_plane_data_cached
 from hexrd.core.transforms import xfcapi
-from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache, savez_compressed
+from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
 
 def _prefetch_heavy_imports(blob=False):
     from scipy import ndimage  # noqa: F401
@@ -50,6 +50,15 @@ class _LazyEtaOmegaMaps(EtaOmegaMaps):
     @ring_maps.setter
     def ring_maps(self, value):
         self._ring_maps = value
+
+
+def _cache_dir(experiment):
+    """Keep derived caches outside the legacy analysis output tree."""
+    from appdirs import user_cache_dir
+
+    root = user_cache_dir('hexrd')
+    key = fingerprint(dict(analysis_dir=os.path.abspath(experiment.analysis_dir)))
+    return os.path.join(root, 'find-orientations', key)
 
 
 def _map_key(maps):
@@ -92,7 +101,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         scores.
     """
     grid_file = experiment.quaternion_grid_file
-    fiber_cache = os.path.join(experiment.analysis_dir, '.hexrd', 'fibers.npz')
+    fiber_cache = os.path.join(_cache_dir(experiment), 'fibers.npz')
     if grid_file is None and not os.path.exists(fiber_cache):
         blob = experiment.find_orientations.seed_search.method is not SeedSearchMethod.LABEL
         threading.Thread(target=_prefetch_heavy_imports, args=(blob,), daemon=True).start()
@@ -109,7 +118,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
 
         plane_data = load_plane_data_cached(
             experiment._materials_file,
-            os.path.join(experiment.analysis_dir, '.hexrd', 'plane-data.npz'),
+            os.path.join(_cache_dir(experiment), 'plane-data.npz'),
             dict(material=asdict(experiment.active_material),
                  beam_energy=experiment.beam.energy),
             load_material)
@@ -154,11 +163,11 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
     """
     om = experiment.find_orientations.orientation_maps
     path = experiment.eta_ome_maps_file
-    source_cache = os.path.join(experiment.analysis_dir, '.hexrd', 'map-source.npz')
+    source_cache = os.path.join(_cache_dir(experiment), 'map-source.npz')
     if clean or not os.path.exists(path):
         maps = build_eta_omega_maps(experiment, plane_data)
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
-        _save_eta_omega_maps(maps, path)
+        _save_eta_omega_maps(maps, path, plane_data, np.radians(om.eta_step))
         save_array_cache(source_cache, fingerprint({}, files=(path,)), content_key=_map_key(maps))
         if clean:
             return maps
@@ -190,13 +199,12 @@ def _resolve_active_rings(active_hkls: Optional[np.ndarray],
         return np.arange(len(plane_data.unexcluded_hkls))
 
     if active_hkls.ndim == 1:              # master hkl IDs
-        bad = [i for i in active_hkls.tolist()
-               if i < 0 or i >= len(plane_data.hkls) or plane_data.exclusions[i]]
+        ring_of_hkl = {h: i for i, h in enumerate(plane_data.master_hkl_ids)}
+        bad = [i for i in active_hkls.tolist() if i not in ring_of_hkl]
         if bad:
             raise ValueError(
                 f'active hkl IDs {bad} are not non-excluded hkls of the material')
-        ring_of_hkl = np.cumsum(~plane_data.exclusions) - 1
-        rings = ring_of_hkl[active_hkls]
+        rings = np.array([ring_of_hkl[h] for h in active_hkls], dtype=int)
     else:
         ring_of_vec = {tuple(h): i
                        for i, h in enumerate(plane_data.unexcluded_hkls.tolist())}
@@ -236,7 +244,7 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     eta_edges = _eta_bin_edges(fo.orientation_maps.eta_step)
     n_eta = len(eta_edges) - 1
     row_of_frame, omegas, omega_edges, period = _omega_grid(
-        experiment.image_series_list[0].omega)
+        experiment.image_series_list[0])
     ring_maps = np.full((len(two_theta_ranges), len(omegas), n_eta), np.nan)
 
     active = [ims for ims in experiment.image_series_list
@@ -319,68 +327,46 @@ _csr_pixel_ids = native._csrPixelIds
 _bin_pixels = native._binPixels
 
 
-def _omega_grid(omega: np.ndarray):
-    """Construct map rows and the omega axis for a rotation scan.
+def _omega_grid(image_series):
+    """Use the legacy wedge handling and arithmetic to preserve map-axis bytes."""
+    from hexrd.core.imageseries.omega import OmegaImageSeries
 
-    A contiguous scan gets one row per frame with the scan's own frame
-    boundaries as bin edges. A multi-wedge scan with gaps gets
-    a uniform grid over the whole range: frames land on their grid row and
-    the gap rows stay all-NaN, which excludes them from scoring the same
-    way off-detector bins are excluded.
-
-    Args:
-        omega: Frame omega spans in radians with shape ``(n_frames, 2)``.
-
-    Returns:
-        A tuple containing each frame's map row, omega-bin centers, omega-bin
-        edges, and the full omega period.
-
-    Raises:
-        ValueError: If multi-wedge frames have unequal widths or do not align
-            with the frame-width grid.
-    """
-    period = omega[0, 0] + np.r_[0.0, 2 * np.pi]
-    span = period[1] - period[0]
-
-    if np.allclose(omega[1:, 0], omega[:-1, 1]):     # contiguous scan
-        omegas = np.mod(np.average(omega, axis=1) - period[0], span) + period[0]
-        edges = np.mod(
-            np.r_[omega[:, 0], omega[-1, 1]] - period[0], span) + period[0]
-        # an exact full-circle scan wraps the final edge back onto the period
-        # start; keep the edges monotonic for the scorer's binary search
-        if edges[-1] <= edges[-2]:
-            edges[-1] += span
-        return np.arange(len(omega)), omegas, edges, period
-
-    widths = omega[:, 1] - omega[:, 0]
-    delta = float(widths[0])
-    if not np.allclose(widths, delta):
-        raise ValueError('a multi-wedge scan must use one omega step size')
-    lo = period[0]
-    rows_exact = (np.mod(omega[:, 0] - lo, span) + lo - lo) / delta
-    rows = np.rint(rows_exact).astype(int)
-    if not np.allclose(rows_exact, rows, atol=1e-3):
-        raise ValueError('omega wedges must align to the frame-width grid')
-    n_rows = rows[-1] + 1
-    edges = lo + delta * np.arange(n_rows + 1)
-    omegas = lo + delta * (np.arange(n_rows) + 0.5)
+    series = OmegaImageSeries(image_series)
+    omega_degrees = series.omega
+    period_degrees = omega_degrees[0, 0] + np.r_[0.0, 360.0]
+    rows = np.arange(len(series))
+    if series.nwedges > 1:
+        wedges = series.omegawedges.wedges
+        widths = [(w['ostop']-w['ostart'])/w['nsteps'] for w in wedges]
+        if mutil.uniqueVectors(np.atleast_2d(widths), tol=1e-6).size != 1:
+            raise ValueError('a multi-wedge scan must use one omega step size')
+        lo = wedges[0]['ostart']
+        hi = float(rotations.mapAngle(wedges[-1]['ostop'], period_degrees, units='degrees'))
+        edges_degrees = np.linspace(lo, hi, int((hi-lo)/widths[0])+1)
+        omega_degrees = np.column_stack((edges_degrees[:-1], edges_degrees[1:]))
+        rows = np.flatnonzero([series.omega_to_frame(o)[0] != -1
+                               for o in np.average(omega_degrees, axis=1)])
+    period = np.radians(period_degrees)
+    omegas = rotations.mapAngle(np.radians(np.average(omega_degrees, axis=1)), period)
+    edges = rotations.mapAngle(np.radians(np.r_[omega_degrees[:, 0], omega_degrees[-1, 1]]), period)
+    if abs(edges[0]-edges[-1]) <= const.sqrt_epsf:
+        edges[-1] = edges[-2] + np.radians(omega_degrees[0, 1]-omega_degrees[0, 0])
     return rows, omegas, edges, period
 
 
-def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str) -> None:
-    """Save eta-omega maps and their metadata to a compressed NPZ file.
+def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str,
+                         plane_data: PlaneData, eta_step: float) -> None:
+    """Write the legacy eta-omega NPZ schema, including crystallographic metadata."""
+    from hexrd.core.valunits import valWUnit
 
-    Args:
-        maps: Maps and metadata to save.
-        path: Destination NPZ path.
-    """
-    savez_compressed(
-        path,
-        ring_maps=maps.ring_maps,
-        eta_edges=maps.eta_edges, omega_edges=maps.omega_edges,
-        omegas=maps.omegas, omega_period=maps.omega_period,
-        two_theta_ranges=maps.two_theta_ranges, ring_ids=maps.ring_ids,
-        eta_step=maps.eta_step)
+    args = np.array([list(plane_data.lattice_parameters), plane_data.laue_group,
+                     valWUnit('wavelength', 'length', plane_data.wavelength, 'angstrom'),
+                     float(plane_data.strain_magnitude)], dtype=object)
+    np.savez_compressed(
+        path, dataStore=maps.ring_maps, etas=maps.eta_edges[:-1] + 0.5 * eta_step,
+        etaEdges=maps.eta_edges, iHKLList=plane_data.master_hkl_ids[maps.ring_ids],
+        omegas=maps.omegas, omeEdges=maps.omega_edges, planeData_args=args,
+        planeData_hkls=plane_data.hkls.T, planeData_excl=plane_data.exclusions)
 
 
 def _load_eta_omega_maps(path: str, plane_data: PlaneData,
@@ -410,8 +396,9 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
             eta_edges, omega_edges = d['etaEdges'], d['omeEdges']
             omegas = d['omegas']
             # the archive's iHKLList holds master hkl IDs; convert to ring indices
-            ring_of_hkl = np.cumsum(~plane_data.exclusions) - 1
-            ring_ids = ring_of_hkl[np.asarray(d['iHKLList'])]
+            ring_of_hkl = {h: i for i, h in enumerate(plane_data.master_hkl_ids)}
+            ring_ids = np.array([ring_of_hkl.get(h, len(plane_data.unexcluded_hkls))
+                                 for h in d['iHKLList']], dtype=int)
             half = np.radians(two_theta_width) / 2
             tths = plane_data.two_thetas[~plane_data.exclusions][ring_ids]
             two_theta_ranges = np.column_stack([tths - half, tths + half])
@@ -570,7 +557,7 @@ def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
                       arrays=(experiment.beam.vector, two_theta_ranges, eta_edges),
                       files=sources, packages=('numpy',))
     name = hashlib.sha256(panel.encode()).hexdigest()[:16]
-    path = Path(experiment.analysis_dir) / '.hexrd' / f'panel-{name}.npz'
+    path = Path(_cache_dir(experiment)) / f'panel-{name}.npz'
     saved = load_array_cache(path, key)
     if saved is not None and {'eta_bin', 'ring_masks', 'coverage'} <= saved.keys():
         return saved['eta_bin'], saved['ring_masks'], saved['coverage']
@@ -671,7 +658,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
         else:
             with ThreadPoolExecutor(workers) as pool:
                 q_fibers = list(pool.map(generate, centers))
-    return np.hstack(q_fibers) if q_fibers else np.empty((4, 0))
+    return np.asfortranarray(np.hstack(q_fibers)) if q_fibers else np.empty((4, 0))
 
 
 def _find_peaks(ring_map: np.ndarray, seed_search) -> tuple[int, np.ndarray]:
@@ -804,7 +791,7 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     n = q_fibers.shape[1]
     workers = max(1, min(experiment.max_workers, max(1, n // 2048)))
     shape = (len(maps.ring_ids), len(maps.omega_edges)-1, len(maps.eta_edges)-1)
-    cache_dir = os.path.join(experiment.analysis_dir, '.hexrd')
+    cache_dir = _cache_dir(experiment)
     sources = (__file__, native.__file__, rotations.__file__, const.__file__)
     bins_key = fingerprint(dict(wavelength=plane_data.wavelength, offset=ome_offset, shape=shape),
         files=sources, packages=('numpy',), arrays=(q_fibers, symm_hkls, bmat, beam_vector,
@@ -925,7 +912,7 @@ def _cached_min_samples(experiment, plane_data, maps):
                 maps.ring_ids, fo.seed_search.hkl_seeds, fo.eta.range, *plane_data.symm_hkls),
         files=(__file__, native.__file__, rotations.__file__, xfcapi.__file__, const.__file__),
         packages=('numpy',))
-    path = os.path.join(experiment.analysis_dir, '.hexrd', 'min-samples.npz')
+    path = os.path.join(_cache_dir(experiment), 'min-samples.npz')
     cached = load_array_cache(path, key)
     if cached is not None and 'value' in cached and cached['value'].shape == ():
         return int(cached['value'])
@@ -1229,7 +1216,7 @@ def write_results(results: FindOrientationsResult,
     os.makedirs(analysis_dir, exist_ok=True)
     np.savetxt(experiment.accepted_orientations_file,
                qbar.T, fmt='%.18e', delimiter='\t')
-    np.savez(
+    np.savez_compressed(
         experiment.scored_orientations_file,
         test_quaternions=results.test_orientations, score=results.completeness)
     _write_grains_out(os.path.join(analysis_dir, 'grains.out'), qbar)
@@ -1264,10 +1251,8 @@ def _write_grains_out(path: str, qbar: np.ndarray) -> None:
     with open(path, 'w') as fid:
         fid.write(header + '\n')
         for gid, q in enumerate(qbar.T):
-            phi = 2.0 * np.arccos(np.clip(q[0], -1.0, 1.0))
-            v = q[1:]
-            nrm = np.linalg.norm(v)
-            n = v / nrm if nrm > 0 else np.zeros(3)
+            phi = 2 * np.arccos(q[0])
+            n = xfcapi.unit_vector(q[1:])
             grain_params = np.hstack(
                 [phi * n, np.zeros(3), np.array([1., 1., 1., 0., 0., 0.])])
             res = [int(gid), 1.0, 0.0] + grain_params.tolist() + [0.0] * 6

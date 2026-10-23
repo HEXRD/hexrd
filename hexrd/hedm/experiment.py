@@ -253,7 +253,7 @@ class HedmExperiment(Experiment):
     """An :class:`Experiment` plus the HEDM find-orientations parameters."""
 
     def __init__(self, filename: str, study: int | None = None, *,
-                 working_dir: str | None = None, new_file_placement: bool = True):
+                 working_dir: str | None = None, new_file_placement: bool = False):
         self._default_working_dir = working_dir
         self._default_file_placement = new_file_placement
         super().__init__(filename, study)

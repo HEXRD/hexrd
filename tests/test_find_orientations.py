@@ -2,6 +2,7 @@
 from dataclasses import replace
 import io
 import os
+from pathlib import Path
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -19,10 +20,16 @@ from hexrd.core.utils.npz import _NpzReader, _read_array
 from hexrd.hedm.experiment import HedmExperiment, SeedSearch
 from hexrd.hedm.find_orientations import (
     _cached_panel_bin_data, _hit_status_maps, _load_or_generate_fibers, _pack_hit_status,
+    _resolve_active_rings,
     find_orientations,
 )
 
 LAUE_GROUPS = ('Ci', 'C2h', 'D2h', 'C4h', 'D4h', 'C3i', 'D3d', 'C6h', 'D6h', 'Th', 'Oh')
+
+
+@pytest.fixture(autouse=True)
+def isolate_workflow_cache(tmp_path, monkeypatch):
+    monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'cache'))
 
 
 @pytest.mark.parametrize('step', [0.1, 0.25, 1.0])
@@ -101,6 +108,7 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
     expected_scores = np.load(reference / 'ruby_completeness.npy')
     expected_qbar = np.load(reference / 'ruby_qbar.npy')
     previous_threads = numba.get_num_threads()
+    saved_outputs = None
     try:
         for clean in (True, False):
             experiment = HedmExperiment(str(filename), working_dir=str(include))
@@ -116,8 +124,24 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
             np.testing.assert_array_equal(result.completeness, expected_scores)
             np.testing.assert_allclose(result.grain_orientations, expected_qbar,
                                        rtol=0, atol=1e-12)
+            fo.write_results(result, experiment)
+            directory = Path(experiment.analysis_dir)
+            assert {p.name for p in directory.iterdir()} == {
+                Path(experiment.eta_ome_maps_file).name,
+                Path(experiment.scored_orientations_file).name,
+                Path(experiment.accepted_orientations_file).name, 'grains.out'}
+            assert result.test_orientations.flags.f_contiguous
+            with zipfile.ZipFile(experiment.scored_orientations_file) as archive:
+                assert all(i.compress_type == zipfile.ZIP_DEFLATED for i in archive.infolist())
+            with zipfile.ZipFile(experiment.eta_ome_maps_file) as archive:
+                assert archive.namelist() == [name + '.npy' for name in (
+                    'dataStore', 'etas', 'etaEdges', 'iHKLList', 'omegas', 'omeEdges',
+                    'planeData_args', 'planeData_hkls', 'planeData_excl')]
+            outputs = {p.name: p.read_bytes() for p in directory.iterdir()}
             if not clean:
+                assert outputs == saved_outputs
                 assert experiment.image_series_list[0]._images is None
+            saved_outputs = outputs
     finally:
         numba.set_num_threads(previous_threads)
     assert len(scored) == 2
@@ -464,7 +488,9 @@ def test_material_cache_invalidates_inputs_and_recovers(tmp_path, symm_hkls):
     cache = tmp_path / 'cache' / 'planes.npz'
     pd = PlaneData(np.array([[1, 0, 0]]), np.array([False]),
                    np.array([[1, 0, 0]]), np.array([0.1]), symm_hkls,
-                   'Oh', np.array([[1.], [0], [0], [0]]), np.eye(3), 0.15)
+                   'Oh', np.array([[1.], [0], [0], [0]]), np.eye(3), 0.15,
+                   master_hkl_ids=np.array([7]), lattice_parameters=np.array([1.]),
+                   strain_magnitude=0.01)
     calls = []
 
     def load():
@@ -475,8 +501,10 @@ def test_material_cache_invalidates_inputs_and_recovers(tmp_path, symm_hkls):
     assert load_plane_data_cached(definitions, cache, settings, load) is pd
     restored = load_plane_data_cached(definitions, cache, settings, load)
     assert len(calls) == 1
-    for name in ('hkls', 'exclusions', 'unexcluded_hkls', 'two_thetas', 'q_sym', 'B'):
+    for name in ('hkls', 'exclusions', 'unexcluded_hkls', 'two_thetas', 'q_sym', 'B', 'master_hkl_ids', 'lattice_parameters'):
         np.testing.assert_array_equal(getattr(restored, name), getattr(pd, name))
+    assert restored.strain_magnitude == pd.strain_magnitude
+    np.testing.assert_array_equal(_resolve_active_rings(np.array([7]), restored), [0])
     for actual, expected in zip(restored.symm_hkls, pd.symm_hkls, strict=True):
         np.testing.assert_array_equal(actual, expected)
     definitions.write_bytes(b'other material contents')
@@ -760,9 +788,9 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
         elif change == 'geometry':
             plane.B[0, 0] *= 1.02
         elif change == 'damaged':
-            (tmp_path/'.hexrd/reflection-bins.npz').write_bytes(b'broken cache')
+            (Path(fo._cache_dir(experiment))/'reflection-bins.npz').write_bytes(b'broken cache')
         elif change == 'lazy':
-            (tmp_path/'.hexrd/reflection-bins.npz').unlink()
+            (Path(fo._cache_dir(experiment))/'reflection-bins.npz').unlink()
             lazy = object.__new__(fo._LazyEtaOmegaMaps)
             lazy.__dict__.update(vars(maps))
             lazy._content_key = fo._map_key(maps)

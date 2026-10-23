@@ -520,7 +520,7 @@ def test_shared_image_series_requires_explicit_roi(synthetic_config, panel):
 def test_eta_ome_maps_file_paths(synthetic_config, tmp_path):
     exp = HedmExperiment(str(synthetic_config))
     assert exp.eta_ome_maps_file == os.path.join(
-        exp.analysis_dir, 'eta-ome-maps-ruby.npz')
+        str(tmp_path), f'{exp.analysis_name}_ruby_eta-ome_maps.npz')
 
     exp.config['find_orientations']['orientation_maps']['file'] = 'my_maps.npz'
     relative = HedmExperiment.__new__(HedmExperiment)
@@ -618,13 +618,16 @@ def test_experiment_preserves_saved_material_selection(
 
     # Recover automatically from maps built while saved exclusions were ignored.
     from hexrd.hedm.find_orientations import (
-        EtaOmegaMaps, _save_eta_omega_maps, load_or_build_eta_omega_maps,
+        EtaOmegaMaps, load_or_build_eta_omega_maps,
     )
     os.makedirs(experiment.analysis_dir, exist_ok=True)
     edges = np.array([-np.pi, np.pi])
     stale = EtaOmegaMaps(np.zeros((1, 1, 1)), edges, edges, np.array([0.]),
                          edges, np.array([[0., 1.]]),
                          np.array([len(actual.unexcluded_hkls)]), 2*np.pi)
-    _save_eta_omega_maps(stale, experiment.eta_ome_maps_file)
+    np.savez(experiment.eta_ome_maps_file, ring_maps=stale.ring_maps,
+             eta_edges=edges, omega_edges=edges, omegas=stale.omegas,
+             omega_period=edges, two_theta_ranges=stale.two_theta_ranges,
+             ring_ids=stale.ring_ids, eta_step=stale.eta_step)
     maps = load_or_build_eta_omega_maps(experiment, actual)
     np.testing.assert_array_equal(maps.ring_ids, np.arange(len(actual.unexcluded_hkls)))

@@ -1,7 +1,7 @@
 """Material bridge exposing crystallographic arrays to workflows."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +41,7 @@ def load_plane_data_cached(definitions, cache_file, settings, load_material):
                 data['symm_hkls'], np.cumsum(sizes)[:-1], axis=1) if sizes.size else []
             data['laue_group'] = str(data['laue_group'])
             data['wavelength'] = float(data['wavelength'])
+            data['strain_magnitude'] = float(data['strain_magnitude'])
             return PlaneData(**data)
         except (KeyError, ValueError, TypeError):
             pass
@@ -70,6 +71,8 @@ class PlaneData:
     q_sym           : (4, q) quaternion symmetry group of the lattice
     B               : (3, 3) reciprocal-lattice B matrix
     wavelength      : beam wavelength, angstrom
+    master_hkl_ids  : legacy identifiers of the unexcluded reflections
+    lattice_parameters, strain_magnitude : legacy metadata for eta-omega exports
     """
 
     hkls: np.ndarray
@@ -81,6 +84,13 @@ class PlaneData:
     q_sym: np.ndarray
     B: np.ndarray
     wavelength: float
+    master_hkl_ids: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=int))
+    lattice_parameters: np.ndarray = field(default_factory=lambda: np.empty(0))
+    strain_magnitude: float = 0.0
+
+    def __post_init__(self):
+        if not self.master_hkl_ids.size:
+            object.__setattr__(self, 'master_hkl_ids', np.flatnonzero(~self.exclusions))
 
 
 class Material:
@@ -131,6 +141,9 @@ class Material:
             q_sym=np.ascontiguousarray(pd.q_sym),
             B=np.asarray(pd.latVecOps['B']),
             wavelength=float(pd.wavelength),
+            master_hkl_ids=np.asarray(pd.getHKLID(pd.hkls, master=True), dtype=int),
+            lattice_parameters=np.asarray(pd.getParams()[0]),
+            strain_magnitude=pd.getParams()[3],
         )
 
 

@@ -272,7 +272,7 @@ class ImageSeries:
 
     @property
     def metadata(self):
-        return {'omega': np.degrees(self.omega)}
+        return {'omega': self._arrs['omega']}
 
 
 class RoiImageSeries:
@@ -311,7 +311,7 @@ class RoiImageSeries:
 
     @property
     def metadata(self):
-        return {'omega': np.degrees(self.omega)}
+        return self._parent.metadata
 
 
 def _merge_config(base: dict, overlay: dict) -> dict:
