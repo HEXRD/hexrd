@@ -533,7 +533,10 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
     actual = fo.build_eta_omega_maps(experiment, plane)
     assert actual.ring_maps.tobytes() == expected.ring_maps.tobytes()
     assert np.nanmax(actual.ring_maps) == 1e16
-    assert threads == {threading.get_ident()} if repeated_rows else len(threads) == 2
+    if repeated_rows:
+        assert threads == {threading.get_ident()}
+    else:
+        assert len(threads) == 2
 
 
 @pytest.mark.parametrize('style', ['hdf5', 'fch5'])
