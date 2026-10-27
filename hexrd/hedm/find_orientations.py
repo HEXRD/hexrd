@@ -2,7 +2,10 @@
 import os
 import logging
 import threading
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
+from contextvars import copy_context
 from dataclasses import dataclass
 from typing import Optional
 
@@ -335,10 +338,15 @@ def build_eta_omega_maps(experiment: HedmExperiment,
             if not blocks:
                 progress.update(len(ims))
                 continue
-            chunk_size = 262144 if not progress.disable else 8_000_000
+            workers = max(1, min(experiment.max_workers, len(rows)))
+            if len(np.unique(rows)) != len(rows):
+                workers = 1
+            chunk_size = 1 if workers > 1 else (262144 if not progress.disable else 8_000_000)
             chunks = (ims.pixel_chunks(rows, max_pixels=chunk_size) if hasattr(ims, 'pixel_chunks')
                       else _pixel_chunks(ims.images, rows, max_pixels=chunk_size))
-            for ids, vals, offsets, chunk_rows in chunks:
+
+            def bin_chunk(chunk):
+                ids, vals, offsets, chunk_rows = chunk
                 for start in range(0, len(ids), 262144):
                     stop = start + 262144
                     block_offsets = np.clip(offsets - start, 0, min(stop, len(ids)) - start)
@@ -346,8 +354,26 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                         check_cancelled()
                         _bin_pixels(block_offsets, ids[start:stop], vals[start:stop], chunk_rows,
                                     ring_mask, eta_bin, threshold, ring_maps[first:first + 63])
-                processed += len(chunk_rows)
                 progress.update(len(chunk_rows))
+
+            # Exclusive omega rows preserve addition order without per-worker maps.
+            with (ThreadPoolExecutor(workers) if workers > 1 else nullcontext()) as pool:
+                pending, queued_pixels = deque(), 0
+                for chunk in chunks:
+                    check_cancelled()
+                    if pool is None:
+                        bin_chunk(chunk)
+                    else:
+                        while pending and (len(pending) >= workers or
+                                           queued_pixels + len(chunk[0]) > 64 * 1024**2):
+                            future, pixels = pending.popleft()
+                            future.result()
+                            queued_pixels -= pixels
+                        pending.append((pool.submit(copy_context().run, bin_chunk, chunk), len(chunk[0])))
+                        queued_pixels += len(chunk[0])
+                    processed += len(chunk[3])
+                for future, _ in pending:
+                    future.result()
 
             progress.update(len(ims) - processed)
 

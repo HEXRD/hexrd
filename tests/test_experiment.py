@@ -463,12 +463,14 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.find_orientations.clustering.radius == 1.0
 
 
-def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch):
+@pytest.mark.parametrize('workers', [1, 2])
+def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch, workers):
     from types import SimpleNamespace
     from hexrd.hedm import find_orientations as fo
     from hexrd.hedm._progress import Dashboard, stage
 
     experiment = HedmExperiment(str(synthetic_config))
+    experiment.max_workers = workers
     series, = experiment.image_series_list
     n = 262145
     chunk = (np.zeros(n, dtype=np.int64), np.ones(n), np.array([0, n, n, n]), np.arange(3))
@@ -496,6 +498,42 @@ def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch
         dashboard.close()
     assert calls == [262144]
     assert dashboard.stages['Eta/omega maps'].status == 'failed'
+
+
+@pytest.mark.parametrize('repeated_rows', [False, True])
+def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repeated_rows):
+    import threading
+    from types import SimpleNamespace
+    from hexrd.hedm import find_orientations as fo
+
+    frames = np.zeros((3, 4, 6))
+    frames[:, 1, 2] = [1e16, 1., 1.]
+    _write_frame_cache(synthetic_config.parent / 'p0_cache.npz', frames,
+                       [[0., 120.], [120., 240.], [240., 360.]])
+    experiment = HedmExperiment(str(synthetic_config))
+    plane = SimpleNamespace(unexcluded_hkls=np.tile([1, 1, 1], (65, 1)),
+                            two_thetas=np.full(65, 0.002), exclusions=np.zeros(65, bool))
+    if repeated_rows:
+        omega_grid = fo._omega_grid
+        monkeypatch.setattr(fo, '_omega_grid', lambda series:
+                            (np.zeros(3, dtype=int), *omega_grid(series)[1:]))
+    expected = fo.build_eta_omega_maps(experiment, plane)
+    threads, local, barrier = set(), threading.local(), threading.Barrier(2)
+    bin_pixels = fo._bin_pixels
+
+    def bin_concurrently(*args):
+        threads.add(threading.get_ident())
+        if not repeated_rows and not getattr(local, 'started', False):
+            local.started = True
+            barrier.wait(timeout=5)
+        return bin_pixels(*args)
+
+    monkeypatch.setattr(fo, '_bin_pixels', bin_concurrently)
+    experiment.max_workers = 2
+    actual = fo.build_eta_omega_maps(experiment, plane)
+    assert actual.ring_maps.tobytes() == expected.ring_maps.tobytes()
+    assert np.nanmax(actual.ring_maps) == 1e16
+    assert threads == {threading.get_ident()} if repeated_rows else len(threads) == 2
 
 
 @pytest.mark.parametrize('style', ['hdf5', 'fch5'])
