@@ -463,6 +463,41 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.find_orientations.clustering.radius == 1.0
 
 
+def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch):
+    from types import SimpleNamespace
+    from hexrd.hedm import find_orientations as fo
+    from hexrd.hedm._progress import Dashboard, stage
+
+    experiment = HedmExperiment(str(synthetic_config))
+    series, = experiment.image_series_list
+    n = 262145
+    chunk = (np.zeros(n, dtype=np.int64), np.ones(n), np.array([0, n, n, n]), np.arange(3))
+    monkeypatch.setattr(series, 'pixel_chunks', lambda *args, **kwargs: iter([chunk]))
+    monkeypatch.setattr(fo, '_iter_panel_bins', lambda *args: iter([
+        (series, (np.zeros(24, dtype=np.int32), np.ones((1, 24), dtype=np.int64),
+                  np.ones((1, 72), dtype=bool)))]))
+    plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 1, 1]]),
+                            two_thetas=np.array([0.01]), exclusions=np.array([False]))
+    dashboard = Dashboard()
+    calls = []
+    bin_pixels = fo._bin_pixels
+
+    def cancel_after_first_block(*args):
+        calls.append(len(args[1]))
+        bin_pixels(*args)
+        dashboard.cancelled.set()
+
+    monkeypatch.setattr(fo, '_bin_pixels', cancel_after_first_block)
+    dashboard.start()
+    try:
+        with pytest.raises(KeyboardInterrupt), stage('Eta/omega maps'):
+            fo.build_eta_omega_maps(experiment, plane)
+    finally:
+        dashboard.close()
+    assert calls == [262144]
+    assert dashboard.stages['Eta/omega maps'].status == 'failed'
+
+
 @pytest.mark.parametrize('style', ['hdf5', 'fch5'])
 def test_registered_image_series_and_metadata_panel(synthetic_config, style, monkeypatch):
     with open(synthetic_config) as stream:

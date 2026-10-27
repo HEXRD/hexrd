@@ -55,6 +55,36 @@ def test_grid_sampler_preserves_legacy_order():
         _sample_slab(32, n, half / n, 0., half, -n, n + 1))
 
 
+def test_cancelled_map_write_preserves_existing_archive(tmp_path, monkeypatch):
+    from hexrd.hedm import find_orientations as fo
+    from hexrd.hedm._progress import Dashboard
+
+    path = tmp_path / 'maps.npz'
+    path.write_bytes(b'existing archive')
+    plane = SimpleNamespace(lattice_parameters=[3., 3., 3., 90., 90., 90.],
+                            laue_group='Oh', wavelength=0.1, strain_magnitude=0.,
+                            master_hkl_ids=np.array([0]), hkls=np.array([[1, 1, 1]]),
+                            exclusions=np.array([False]))
+    maps = SimpleNamespace(ring_maps=np.ones((1, 1, 1)), eta_edges=np.array([0., 1.]),
+                           ring_ids=np.array([0]), omegas=np.array([0.]), omega_edges=np.array([0., 1.]))
+    dashboard = Dashboard()
+
+    def cancel_during_write(stream, **arrays):
+        stream.write(b'partial archive')
+        dashboard.cancelled.set()
+        stream.write(b'must not be written')
+
+    monkeypatch.setattr(fo.np, 'savez_compressed', cancel_during_write)
+    dashboard.start()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            fo._save_eta_omega_maps(maps, str(path), plane, 1.)
+    finally:
+        dashboard.close()
+    assert path.read_bytes() == b'existing archive'
+    assert list(tmp_path.iterdir()) == [path]
+
+
 @pytest.fixture(autouse=True)
 def isolate_workflow_cache(tmp_path, monkeypatch):
     monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'cache'))
@@ -244,6 +274,13 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
             assert dashboard.diagnostics['Best trial'] == '100.0%'
             assert dashboard.diagnostics['Candidates'] == '129/13,680 (score > 85.0%)'
             assert dashboard.diagnostics['Grains'] == '1'
+            map_stage = dashboard.stages['Eta/omega maps']
+            assert map_stage.status == 'done'
+            if clean:
+                assert map_stage.count == map_stage.total == sum(
+                    len(series) for series in experiment.image_series_list
+                    if series.panel in experiment.detectors)
+                assert map_stage.unit == 'frames'
             np.testing.assert_array_equal(result.completeness, expected_scores)
             np.testing.assert_allclose(result.grain_orientations, expected_qbar,
                                        rtol=0, atol=1e-12)

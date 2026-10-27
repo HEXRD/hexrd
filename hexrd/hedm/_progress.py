@@ -75,9 +75,16 @@ def progress_bar(**kwargs):
         yield dashboard
 
 
+def check_cancelled():
+    dashboard = _dashboard.get()
+    if dashboard:
+        dashboard.check_cancelled()
+
+
 def activity(message):
     dashboard = _dashboard.get()
     if dashboard:
+        dashboard.check_cancelled()
         with dashboard.lock:
             dashboard.active.detail = message
 

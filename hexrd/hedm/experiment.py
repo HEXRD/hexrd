@@ -32,6 +32,7 @@ class _AdapterImageSeries(ImageSeries):
         from scipy.sparse import csr_array
         from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
         from hexrd.hedm.find_orientations import _pixel_chunks
+        from hexrd.hedm._progress import check_cancelled
 
         def frames():
             adapter = self._series._adapter
@@ -40,12 +41,14 @@ class _AdapterImageSeries(ImageSeries):
                 with adapter._fch5_group_cm() as group:
                     frame_ids = group['frame_ids'][()]
                     for start, stop in frame_ids.reshape(-1, 2):
+                        check_cancelled()
                         indices = group['indices'][int(start):int(stop)]
                         data = group['data'][int(start):int(stop), 0]
                         yield csr_array((data, (indices[:, 0], indices[:, 1])),
                                         shape=tuple(adapter.shape), dtype=adapter.dtype)
             else:
                 for i in range(len(self)):
+                    check_cancelled()
                     yield csr_array(self._series[i])
 
         yield from _pixel_chunks(frames(), row_of_frame, max_pixels)

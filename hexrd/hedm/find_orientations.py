@@ -20,7 +20,7 @@ from hexrd.core.material.material_data import Material, PlaneData, load_plane_da
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
 from hexrd.hedm._progress import (
-    activity, diagnostic, progress_bar, report_hkls, report_peaks, stage,
+    activity, check_cancelled, diagnostic, progress_bar, report_hkls, report_peaks, stage,
 )
 
 logger = logging.getLogger(__name__)
@@ -221,6 +221,7 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
         activity('Building from detector frames')
         maps = build_eta_omega_maps(experiment, plane_data)
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
+        activity('Saving eta/omega maps')
         _save_eta_omega_maps(maps, path, plane_data, np.radians(om.eta_step))
         save_array_cache(source_cache, fingerprint({}, files=(path,)), content_key=_map_key(maps))
         if clean:
@@ -303,34 +304,52 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     n_eta = len(eta_edges) - 1
     row_of_frame, omegas, omega_edges, period = _omega_grid(
         experiment.image_series_list[0])
-    ring_maps = np.full((len(two_theta_ranges), len(omegas), n_eta), np.nan)
+    ring_maps = np.empty((len(two_theta_ranges), len(omegas), n_eta))
+    for ring in ring_maps:
+        for start in range(0, len(omegas), 256):
+            check_cancelled()
+            ring[start:start + 256].fill(np.nan)
 
     active = [ims for ims in experiment.image_series_list
               if ims.panel in experiment.detectors]
 
-    for ims, (eta_bin, ring_masks, coverage) in _iter_panel_bins(
-            experiment, active, two_theta_ranges, eta_edges):
-        # Preserve NaN gaps; covered bins sum intensities across panels.
-        rows = row_of_frame[:len(ims)]
-        for ring, bins in enumerate(coverage):
-            bins = np.flatnonzero(bins)
-            for start in range(0, len(rows), 256):
-                covered = np.ix_(rows[start:start + 256], bins)
-                ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered], copy=False)
+    with progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
+                      unit='frames', disable=None) as progress:
+        for ims, (eta_bin, ring_masks, coverage) in _iter_panel_bins(
+                experiment, active, two_theta_ranges, eta_edges):
+            activity(f'Binning frames from {ims.panel}')
+            processed = 0
+            # Preserve NaN gaps; covered bins sum intensities across panels.
+            rows = row_of_frame[:len(ims)]
+            for ring, bins in enumerate(coverage):
+                bins = np.flatnonzero(bins)
+                for start in range(0, len(rows), 256):
+                    check_cancelled()
+                    covered = np.ix_(rows[start:start + 256], bins)
+                    ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered], copy=False)
 
-        # Pack each frame chunk once, even for materials with over 63 rings.
-        threshold = float(fo.orientation_maps.threshold)
-        blocks = [(63 * block, mask) for block, mask in enumerate(ring_masks)
-                  if np.any(coverage[63 * block:63 * (block + 1)])]
-        if not blocks:
-            continue
-        chunks = (ims.pixel_chunks(rows) if hasattr(ims, 'pixel_chunks')
-                  else _pixel_chunks(ims.images, rows))
-        for ids, vals, offsets, chunk_rows in chunks:
-            for first, ring_mask in blocks:
-                _bin_pixels(offsets, ids, vals, chunk_rows, ring_mask,
-                            eta_bin, threshold,
-                            ring_maps[first:first + 63])
+            # Pack each frame chunk once, even for materials with over 63 rings.
+            threshold = float(fo.orientation_maps.threshold)
+            blocks = [(63 * block, mask) for block, mask in enumerate(ring_masks)
+                      if np.any(coverage[63 * block:63 * (block + 1)])]
+            if not blocks:
+                progress.update(len(ims))
+                continue
+            chunk_size = 262144 if not progress.disable else 8_000_000
+            chunks = (ims.pixel_chunks(rows, max_pixels=chunk_size) if hasattr(ims, 'pixel_chunks')
+                      else _pixel_chunks(ims.images, rows, max_pixels=chunk_size))
+            for ids, vals, offsets, chunk_rows in chunks:
+                for start in range(0, len(ids), 262144):
+                    stop = start + 262144
+                    block_offsets = np.clip(offsets - start, 0, min(stop, len(ids)) - start)
+                    for first, ring_mask in blocks:
+                        check_cancelled()
+                        _bin_pixels(block_offsets, ids[start:stop], vals[start:stop], chunk_rows,
+                                    ring_mask, eta_bin, threshold, ring_maps[first:first + 63])
+                processed += len(chunk_rows)
+                progress.update(len(chunk_rows))
+
+            progress.update(len(ims) - processed)
 
     eta_centers = eta_edges[:2] + 0.5 * eta_step
     eta_step = float(eta_centers[1] - eta_centers[0])
@@ -417,16 +436,28 @@ def _omega_grid(image_series):
 def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str,
                          plane_data: PlaneData, eta_step: float) -> None:
     """Write the legacy eta-omega NPZ schema, including crystallographic metadata."""
+    import io
+    import tempfile
     from hexrd.core.valunits import valWUnit
+
+    class Writer(io.BufferedWriter):
+        def write(self, data):
+            check_cancelled()
+            return super().write(data)
 
     args = np.array([list(plane_data.lattice_parameters), plane_data.laue_group,
                      valWUnit('wavelength', 'length', plane_data.wavelength, 'angstrom'),
                      float(plane_data.strain_magnitude)], dtype=object)
-    np.savez_compressed(
-        path, dataStore=maps.ring_maps, etas=maps.eta_edges[:-1] + 0.5 * eta_step,
-        etaEdges=maps.eta_edges, iHKLList=plane_data.master_hkl_ids[maps.ring_ids],
-        omegas=maps.omegas, omeEdges=maps.omega_edges, planeData_args=args,
-        planeData_hkls=plane_data.hkls.T, planeData_excl=plane_data.exclusions)
+    with tempfile.TemporaryDirectory(dir=os.path.dirname(path) or '.') as directory:
+        temporary = os.path.join(directory, 'maps.npz')
+        with Writer(io.FileIO(temporary, 'w')) as stream:
+            np.savez_compressed(
+                stream, dataStore=maps.ring_maps, etas=maps.eta_edges[:-1] + 0.5 * eta_step,
+                etaEdges=maps.eta_edges, iHKLList=plane_data.master_hkl_ids[maps.ring_ids],
+                omegas=maps.omegas, omeEdges=maps.omega_edges, planeData_args=args,
+                planeData_hkls=plane_data.hkls.T, planeData_excl=plane_data.exclusions)
+        check_cancelled()
+        os.replace(temporary, path)
 
 
 def _load_eta_omega_maps(path: str, plane_data: PlaneData,
