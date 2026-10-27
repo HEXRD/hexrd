@@ -5,12 +5,29 @@ import multiprocessing as mp
 import threading
 from time import monotonic
 
+import psutil
 from rich.text import Text
 from rich.traceback import Traceback
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Footer, Header, Label, ProgressBar, RichLog, Static
+
+
+def _memory_usage():
+    """Resident bytes for HEXRD and its children, apportioning shared pages when supported."""
+    process = psutil.Process()
+    used = 0
+    for worker in [process, *process.children(recursive=True)]:
+        try:
+            try:
+                memory = worker.memory_full_info()
+            except psutil.AccessDenied:
+                memory = worker.memory_info()
+            used += getattr(memory, 'pss', memory.rss)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+    return used, psutil.virtual_memory().total
 
 
 class OrientationDashboard(App):
@@ -45,6 +62,9 @@ class OrientationDashboard(App):
     ProgressBar Bar { width: 1fr; }
     ProgressBar Bar > .bar--bar { color: #24425a; }
     ProgressBar Bar > .bar--complete { color: #6de0d2; }
+    #memory { height: 1; margin: 0 2; }
+    #memory-label { width: auto; padding-right: 2; color: #91a5be; }
+    #memory-bar { width: 1fr; }
     #data { height: 1fr; min-height: 5; margin: 0 1; }
     #reflections { width: 2fr; border: round #24425a; padding: 0 1; }
     #events { width: 3fr; height: 1fr; border: round #24425a; }
@@ -89,6 +109,9 @@ class OrientationDashboard(App):
                 yield Static('', id='detail', markup=False)
                 yield Static('', id='counts', markup=False)
                 yield ProgressBar(id='progress', show_eta=True)
+        with Horizontal(id='memory'):
+            yield Static('HEXRD RAM', id='memory-label', markup=False)
+            yield ProgressBar(id='memory-bar', total=100, show_eta=False)
         with Horizontal(id='data'):
             yield DataTable(id='reflections', cursor_type='none')
             yield RichLog(id='events', max_lines=500, wrap=True, min_width=1)
@@ -120,7 +143,18 @@ class OrientationDashboard(App):
         for name in self.dashboard.stages:
             table.add_row(name, 'Waiting', '—', key=name)
         self.timer = self.set_interval(0.1, self.refresh_progress)
+        self.query_one('#memory').tooltip = (
+            'Resident RAM used by HEXRD and its child processes / total system RAM. '
+            'Shared pages are apportioned where supported; otherwise RSS is summed.')
+        self.refresh_memory()
+        self.set_interval(2, self.refresh_memory)
         self.run_worker(self.run_workflow, thread=True, exit_on_error=False)
+
+    def refresh_memory(self):
+        used, total = _memory_usage()
+        self.query_one('#memory-label', Static).update(
+            f'HEXRD RAM  {used / 1024**3:.2f} / {total / 1024**3:.1f} GiB')
+        self.query_one('#memory-bar', ProgressBar).update(total=total, progress=used)
 
     def run_workflow(self):
         try:
@@ -174,7 +208,7 @@ class OrientationDashboard(App):
         counts.display = not summary
         counts.update(
             f'{item.count:,} / {item.total:,} {item.unit}' if item.total else '—')
-        bar = self.query_one(ProgressBar)
+        bar = self.query_one('#progress', ProgressBar)
         bar.display = not summary and not (
             self.finished.is_set() and not item.total and item.status != 'done')
         bar.update(

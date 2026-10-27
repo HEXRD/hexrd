@@ -2,8 +2,25 @@
 
 import subprocess
 import sys
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
+
+
+def test_memory_usage_counts_only_hexrd_process_tree(monkeypatch):
+    from hexrd.hedm import _dashboard as ui
+
+    process, child, exited = Mock(), Mock(), Mock()
+    process.children.return_value = [child, exited]
+    process.memory_full_info.return_value = SimpleNamespace(pss=100, rss=200)
+    child.memory_full_info.side_effect = ui.psutil.AccessDenied()
+    child.memory_info.return_value = SimpleNamespace(rss=50)
+    exited.memory_full_info.side_effect = ui.psutil.NoSuchProcess(123)
+    monkeypatch.setattr(ui.psutil, 'Process', lambda: process)
+    monkeypatch.setattr(ui.psutil, 'virtual_memory', lambda: SimpleNamespace(total=1000))
+    assert ui._memory_usage() == (150, 1000)
+    process.children.assert_called_once_with(recursive=True)
 
 
 @pytest.mark.parametrize('start_method', ['default', 'spawn'])

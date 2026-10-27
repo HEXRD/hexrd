@@ -866,11 +866,13 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
     import asyncio
     import logging
     import threading
-    from textual.widgets import Button, DataTable, RichLog, Static
+    from textual.widgets import Button, DataTable, ProgressBar, RichLog, Static
+    from hexrd.hedm import _dashboard as ui
     from hexrd.hedm._dashboard import OrientationDashboard
     from hexrd.hedm._progress import Dashboard, progress_bar, quiet_progress, stage
 
     terminal = io.StringIO()
+    monkeypatch.setattr(ui, '_memory_usage', lambda: (2 * 1024**3, 16 * 1024**3))
     dashboard = Dashboard()
     release = threading.Event()
 
@@ -891,6 +893,9 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
         try:
             async with app.run_test(size=(100, 30)) as pilot:
                 await pilot.pause()
+                memory = app.query_one('#memory-bar', ProgressBar)
+                assert memory.progress / memory.total == 0.125
+                assert '2.00 / 16.0 GiB' in str(app.query_one('#memory-label', Static).render())
                 assert 'Scoring' in str(app.query_one('#stage-name', Static).render())
                 assert app.query_one(RichLog).lines
                 await pilot.click('#pause_log')
