@@ -463,7 +463,8 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.find_orientations.clustering.radius == 1.0
 
 
-def test_registered_image_series_and_metadata_panel(synthetic_config):
+@pytest.mark.parametrize('style', ['hdf5', 'fch5'])
+def test_registered_image_series_and_metadata_panel(synthetic_config, style):
     with open(synthetic_config) as stream:
         config = next(yaml.safe_load_all(stream))
     frames = np.zeros((3, 4, 6), dtype=np.uint16)
@@ -479,6 +480,16 @@ def test_registered_image_series_and_metadata_panel(synthetic_config):
         'format': 'hdf5',
         'data': [{'file': 'images.h5', 'args': {'path': 'entry'}}],
     }
+    if style == 'fch5':
+        from hexrd.core import imageseries
+
+        source = imageseries.open(str(filename), 'hdf5', path='entry')
+        cache = synthetic_config.parent / 'images.fch5'
+        imageseries.write(source, str(cache), 'frame-cache', style='fch5', threshold=0)
+        config['image_series'] = {
+            'format': 'frame-cache',
+            'data': [{'file': cache.name, 'args': {'style': 'fch5'}}],
+        }
     with open(synthetic_config, 'w') as stream:
         yaml.safe_dump(config, stream)
     experiment = HedmExperiment(str(synthetic_config))
@@ -486,6 +497,14 @@ def test_registered_image_series_and_metadata_panel(synthetic_config):
     assert series.panel == 'p0'
     assert len(series) == 3
     assert np.array_equal(series.omega, np.radians(omega))
+    chunks = list(series.pixel_chunks(np.arange(3), max_pixels=2))
+    assert series._images is None
+    assert len(chunks) == 2
+    for ids, values, offsets, rows in chunks:
+        np.testing.assert_array_equal(ids, np.full(len(rows), 8))
+        np.testing.assert_array_equal(values, np.full(len(rows), 40_000.))
+        np.testing.assert_array_equal(offsets, np.arange(len(rows) + 1))
+    np.testing.assert_array_equal(np.concatenate([chunk[3] for chunk in chunks]), np.arange(3))
     assert np.array_equal(series[0].toarray(), frames[0])
     assert series[0, 1:2, 2:3].item() == 40_000
 

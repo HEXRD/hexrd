@@ -28,6 +28,13 @@ class _AdapterImageSeries(ImageSeries):
         self._images = None
         self._lock = threading.Lock()
 
+    def pixel_chunks(self, row_of_frame, max_pixels=8_000_000):
+        from scipy.sparse import csr_array
+        from hexrd.hedm.find_orientations import _pixel_chunks
+
+        frames = (csr_array(self._series[i]) for i in range(len(self)))
+        yield from _pixel_chunks(frames, row_of_frame, max_pixels)
+
     @property
     def images(self):
         with self._lock:
