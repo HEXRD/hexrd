@@ -42,6 +42,7 @@ def load_plane_data_cached(definitions, cache_file, settings, load_material):
             data['laue_group'] = str(data['laue_group'])
             data['wavelength'] = float(data['wavelength'])
             data['strain_magnitude'] = float(data['strain_magnitude'])
+            data['point_group_number'] = int(data['point_group_number'])
             return PlaneData(**data)
         except (KeyError, ValueError, TypeError):
             pass
@@ -73,6 +74,7 @@ class PlaneData:
     wavelength      : beam wavelength, angstrom
     master_hkl_ids  : legacy identifiers of the unexcluded reflections
     lattice_parameters, strain_magnitude : legacy metadata for eta-omega exports
+    point_group_number : crystallographic point group (1-32); 0 if unspecified
     """
 
     hkls: np.ndarray
@@ -87,6 +89,7 @@ class PlaneData:
     master_hkl_ids: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=int))
     lattice_parameters: np.ndarray = field(default_factory=lambda: np.empty(0))
     strain_magnitude: float = 0.0
+    point_group_number: int = 0
 
     def __post_init__(self):
         if not self.master_hkl_ids.size:
@@ -144,6 +147,7 @@ class Material:
             master_hkl_ids=np.asarray(pd.getHKLID(pd.hkls, master=True), dtype=int),
             lattice_parameters=np.asarray(pd.getParams()[0]),
             strain_magnitude=pd.getParams()[3],
+            point_group_number=self._material.pgnum,
         )
 
 

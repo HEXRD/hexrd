@@ -32,6 +32,79 @@ def isolate_workflow_cache(tmp_path, monkeypatch):
     monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'cache'))
 
 
+def test_direct_grid_matches_fundamental_zone_sampler():
+    from hexrd.hedm.experiment import DirectSearch
+    from hexrd.hedm.find_orientations import generate_orientation_grid
+    from hexrd.hedm.sampleOrientations import sampleRFZ
+
+    previous_threads = numba.get_num_threads()
+    try:
+        for group in (1, 20, 32):
+            experiment = SimpleNamespace(max_workers=1, find_orientations=SimpleNamespace(
+                direct_search=DirectSearch(30.0)))
+            plane = SimpleNamespace(point_group_number=group)
+            actual = generate_orientation_grid(experiment, plane)
+            expected = sampleRFZ(group, average_angular_spacing=30.0).orientations.T
+            np.testing.assert_array_equal(actual, expected)
+            np.testing.assert_allclose(np.linalg.norm(actual, axis=0), 1., atol=1e-14)
+            assert actual.shape[0] == 4 and actual.flags.f_contiguous
+            assert numba.get_num_threads() == 1
+        experiment.find_orientations.direct_search = DirectSearch(30.0, 20)
+        np.testing.assert_array_equal(
+            generate_orientation_grid(experiment, plane),
+            sampleRFZ(20, average_angular_spacing=30.0).orientations.T)
+    finally:
+        numba.set_num_threads(previous_threads)
+
+
+@pytest.mark.skipif('HEXRD_EXAMPLE_REPO_PATH' not in os.environ,
+                    reason='requires the NIST ruby example data')
+def test_direct_search_matches_saved_grid(example_repo_path, tmp_path, monkeypatch, caplog):
+    import hexrd.hedm.find_orientations as fo
+
+    def no_seeds(*args, **kwargs):
+        pytest.fail('direct search must not generate fibers or estimate seed neighborhoods')
+
+    monkeypatch.setattr(fo, '_load_or_generate_fibers', no_seeds)
+    monkeypatch.setattr(fo, '_cached_min_samples', no_seeds)
+    include = example_repo_path / 'NIST_ruby/single_GE/include'
+    config = next(yaml.safe_load_all((include / 'cstudy.yml').read_text()))
+    config['analysis_name'] = str(tmp_path / 'results')
+    config['multiprocessing'] = 1
+    config['find_orientations'].pop('seed_search')
+    config['find_orientations']['direct_search'] = {'average_angular_spacing': 10.0}
+    filename = tmp_path / 'config.yml'
+    filename.write_text(yaml.safe_dump(config))
+    previous_threads = numba.get_num_threads()
+    try:
+        experiment = HedmExperiment(str(filename), working_dir=str(include))
+        direct = fo.find_orientations(experiment, clean=True)
+        assert 'coarser than the eta/omega tolerances' in caplog.text
+        assert direct.test_orientations.shape[1] > 0
+        assert np.any(direct.completeness > 0)
+        fo.write_results(direct, experiment)
+        outputs = {p.name: p.read_bytes() for p in Path(experiment.analysis_dir).iterdir()}
+        monkeypatch.setattr(experiment, 'get_active_material', no_seeds)
+        cached = fo.find_orientations(experiment)
+        np.testing.assert_array_equal(cached.test_orientations, direct.test_orientations)
+        np.testing.assert_array_equal(cached.completeness, direct.completeness)
+        grid = tmp_path / 'grid.npy'
+        np.save(grid, direct.test_orientations)
+        config['find_orientations'].pop('direct_search')
+        config['find_orientations']['use_quaternion_grid'] = str(grid)
+        config['find_orientations']['seed_search'] = {'hkl_seeds': [999]}
+        filename.write_text(yaml.safe_dump(config))
+        experiment = HedmExperiment(str(filename), working_dir=str(include))
+        saved = fo.find_orientations(experiment)
+        np.testing.assert_array_equal(saved.test_orientations, direct.test_orientations)
+        np.testing.assert_array_equal(saved.completeness, direct.completeness)
+        np.testing.assert_array_equal(saved.grain_orientations, direct.grain_orientations)
+        fo.write_results(saved, experiment)
+        assert {p.name: p.read_bytes() for p in Path(experiment.analysis_dir).iterdir()} == outputs
+    finally:
+        numba.set_num_threads(previous_threads)
+
+
 @pytest.mark.parametrize('step', [0.1, 0.25, 1.0])
 def test_eta_grid_preserves_master_arithmetic(step):
     from hexrd.core.instrument import PlanarDetector
@@ -490,7 +563,7 @@ def test_material_cache_invalidates_inputs_and_recovers(tmp_path, symm_hkls):
                    np.array([[1, 0, 0]]), np.array([0.1]), symm_hkls,
                    'Oh', np.array([[1.], [0], [0], [0]]), np.eye(3), 0.15,
                    master_hkl_ids=np.array([7]), lattice_parameters=np.array([1.]),
-                   strain_magnitude=0.01)
+                   strain_magnitude=0.01, point_group_number=32)
     calls = []
 
     def load():
@@ -504,6 +577,7 @@ def test_material_cache_invalidates_inputs_and_recovers(tmp_path, symm_hkls):
     for name in ('hkls', 'exclusions', 'unexcluded_hkls', 'two_thetas', 'q_sym', 'B', 'master_hkl_ids', 'lattice_parameters'):
         np.testing.assert_array_equal(getattr(restored, name), getattr(pd, name))
     assert restored.strain_magnitude == pd.strain_magnitude
+    assert restored.point_group_number == 32 and isinstance(restored.point_group_number, int)
     np.testing.assert_array_equal(_resolve_active_rings(np.array([7]), restored), [0])
     for actual, expected in zip(restored.symm_hkls, pd.symm_hkls, strict=True):
         np.testing.assert_array_equal(actual, expected)

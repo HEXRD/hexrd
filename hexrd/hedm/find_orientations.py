@@ -1,5 +1,6 @@
 """Find grain orientations from detector images using independently callable stages."""
 import os
+import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -18,6 +19,8 @@ from hexrd.core.extensions import transforms_c_api, transforms as native
 from hexrd.core.material.material_data import Material, PlaneData, load_plane_data_cached
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
+
+logger = logging.getLogger(__name__)
 
 def _prefetch_heavy_imports(blob=False):
     from scipy import ndimage  # noqa: F401
@@ -100,9 +103,10 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         The accepted grain orientations, trial orientations, and completeness
         scores.
     """
+    fo = experiment.find_orientations
     grid_file = experiment.quaternion_grid_file
     fiber_cache = os.path.join(_cache_dir(experiment), 'fibers.npz')
-    if grid_file is None and not os.path.exists(fiber_cache):
+    if grid_file is None and fo.direct_search is None and not os.path.exists(fiber_cache):
         blob = experiment.find_orientations.seed_search.method is not SeedSearchMethod.LABEL
         threading.Thread(target=_prefetch_heavy_imports, args=(blob,), daemon=True).start()
 
@@ -130,6 +134,16 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
     if grid_file is not None:
         fibers = np.load(grid_file)
         min_samples = 1
+    elif fo.direct_search is not None:
+        spacing = fo.direct_search.average_angular_spacing
+        eta_tol, ome_tol = np.degrees([fo.eta.tolerance, fo.omega.tolerance])
+        if spacing > max(eta_tol, ome_tol):
+            logger.warning(
+                'Direct-search grid spacing %g deg is coarser than the eta/omega '
+                'tolerances (%g/%g deg). Grains can be missed before clustering; '
+                'validate grid resolution or use seed_search.', spacing, eta_tol, ome_tol)
+        fibers = generate_orientation_grid(experiment, plane_data)
+        min_samples = 1
     else:
         fibers = _load_or_generate_fibers(experiment, plane_data, maps, fiber_cache)
         min_samples = (_cached_min_samples(experiment, plane_data, maps)
@@ -144,6 +158,31 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         test_orientations=fibers,
         completeness=completeness,
     )
+
+
+def generate_orientation_grid(experiment: HedmExperiment,
+                              plane_data: PlaneData) -> np.ndarray:
+    """Return uniform scalar-first trial quaternions with shape ``(4, n)``.
+
+    Configure ``find_orientations.direct_search.average_angular_spacing``
+    in degrees. ``point_group_number`` optionally overrides the material.
+    Generated trials use the same scoring, clustering, and output stages as
+    seed-search trials; regular grids use a clustering minimum of one.
+    """
+    import numba
+    from hexrd.hedm.sampleOrientations import sampleRFZ
+
+    search = experiment.find_orientations.direct_search
+    if search is None:
+        raise ValueError('direct_search must be configured to generate an orientation grid')
+    group = search.point_group_number or plane_data.point_group_number
+    if not 1 <= group <= 32:
+        raise ValueError('direct_search requires a material or explicit point_group_number (1-32)')
+    numba.set_num_threads(max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
+    grid = sampleRFZ(group, average_angular_spacing=search.average_angular_spacing).orientations.T
+    logger.info('Generated %d trial orientations for point group %d at %g deg spacing',
+                grid.shape[1], group, search.average_angular_spacing)
+    return grid
 
 
 def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneData,
@@ -1107,6 +1146,8 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
 
     keep = q_fibers[:, np.asarray(completeness) > fo.clustering.completeness]
     n = keep.shape[1]
+    logger.info('%d/%d trials exceed %.1f%% completeness',
+                n, q_fibers.shape[1], 100 * fo.clustering.completeness)
     if n == 0:
         return np.zeros((4, 0))
     if n == 1:

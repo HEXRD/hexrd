@@ -131,6 +131,44 @@ class SeedSearch:
 
 
 @dataclass(frozen=True)
+class DirectSearch:
+    """Uniform fundamental-zone sampling; angular spacing is in degrees.
+
+    The point group defaults to the selected material's crystallographic
+    point group (1-32), rather than its Laue group.
+
+    Spacing must be explicit and chosen for the scoring tolerances. Master
+    accepted externally sampled grids through ``use_quaternion_grid``;
+    this section is a convenience for generating those trials in-process.
+
+    Historical YAML, still supported::
+
+        use_quaternion_grid: orientations.npy
+    """
+
+    average_angular_spacing: float
+    point_group_number: int | None = None
+
+    def __post_init__(self):
+        spacing = self.average_angular_spacing
+        if not np.isfinite(spacing) or spacing <= 0:
+            raise ValueError('average_angular_spacing must be positive and finite')
+        group = self.point_group_number
+        if group is not None and (isinstance(group, (bool, np.bool_))
+                or not isinstance(group, (int, np.integer)) or not 1 <= group <= 32):
+            raise ValueError('point_group_number must be an integer from 1 to 32')
+
+    @classmethod
+    def from_dict(cls, d: dict) -> 'DirectSearch':
+        if not isinstance(d, dict):
+            raise ValueError('direct_search must be a mapping of sampling parameters')
+        if 'average_angular_spacing' not in d:
+            raise ValueError('direct_search requires average_angular_spacing in degrees')
+        return cls(float(d['average_angular_spacing']),
+                   d.get('point_group_number'))
+
+
+@dataclass(frozen=True)
 class Omega:
     tolerance: float           # radians
     period: np.ndarray         # radians
@@ -190,11 +228,15 @@ class FindOrientations:
     eta: Eta
     clustering: Clustering
     threshold: float
-    use_quaternion_grid: Optional[str]  # .npy of trial quats; replaces seed search
+    use_quaternion_grid: Optional[str]  # .npy of trial quats; bypasses generation
+    direct_search: DirectSearch | None = None
 
     @classmethod
     def from_dict(cls, d: dict) -> 'FindOrientations':
         omega = Omega.from_dict(d.get('omega', {}))
+        direct = d.get('direct_search')
+        if direct is not None and (d.get('seed_search') or d.get('use_quaternion_grid')):
+            raise ValueError('choose direct_search, seed_search, or use_quaternion_grid')
         return cls(OrientationMaps.from_dict(d.get('orientation_maps', {})),
                    SeedSearch.from_dict(d.get('seed_search', {}),
                                         np.degrees(omega.tolerance)),
@@ -202,7 +244,8 @@ class FindOrientations:
                    Eta.from_dict(d.get('eta', {})),
                    Clustering.from_dict(d.get('clustering', {})),
                    float(d.get('threshold', 1)),
-                   d.get('use_quaternion_grid'))
+                   d.get('use_quaternion_grid'),
+                   None if direct is None else DirectSearch.from_dict(direct))
 
 
 def _pair(value):

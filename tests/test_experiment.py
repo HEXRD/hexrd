@@ -29,6 +29,7 @@ from hexrd.core.experiment import (
 from hexrd.hedm.experiment import (
     Clustering,
     ClusteringAlgorithm,
+    DirectSearch,
     Eta,
     FindOrientations,
     HedmExperiment,
@@ -353,7 +354,31 @@ def test_find_orientations_from_dict():
     assert np.isclose(fo.seed_search.fiber_step, np.radians(1.0))
     assert fo.threshold == 1.0
     assert fo.use_quaternion_grid is None
+    assert fo.direct_search is None
     assert isinstance(fo.eta, Eta) and isinstance(fo.omega, Omega)
+
+
+def test_direct_search_from_dict():
+    config = {'direct_search': {'average_angular_spacing': 5.0},
+              'clustering': {'radius': 1.0, 'completeness': 0.85}}
+    direct = FindOrientations.from_dict(config).direct_search
+    assert direct == DirectSearch(5.0)
+    with pytest.raises(ValueError, match='requires average_angular_spacing'):
+        DirectSearch.from_dict({})
+    assert DirectSearch.from_dict(
+        {'average_angular_spacing': 3.0, 'point_group_number': 32}).point_group_number == 32
+    with pytest.raises(ValueError, match='mapping'):
+        DirectSearch.from_dict(True)
+    for spacing in (0, -1, np.nan, np.inf):
+        with pytest.raises(ValueError, match='average_angular_spacing'):
+            DirectSearch(spacing)
+    for group in (0, 33, 1.5, True):
+        with pytest.raises(ValueError, match='point_group_number'):
+            DirectSearch(3.0, point_group_number=group)
+    for extra in ({'seed_search': {'hkl_seeds': [0]}},
+                  {'use_quaternion_grid': 'grid.npy'}):
+        with pytest.raises(ValueError, match='choose'):
+            FindOrientations.from_dict(config | extra)
 
 
 # ---------------------------------------------------------------------------
@@ -566,6 +591,7 @@ def test_load_materials(ruby_materials_file):
     ruby = materials['ruby']
     assert isinstance(ruby, Material)
     assert ruby.plane_data.laue_group == 'd3d'
+    assert ruby.plane_data.point_group_number == 20
 
     # an open h5py group works the same as a path
     with h5py.File(ruby_materials_file, 'r') as f:
