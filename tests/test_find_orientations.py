@@ -61,6 +61,7 @@ def test_direct_grid_matches_fundamental_zone_sampler():
                     reason='requires the NIST ruby example data')
 def test_direct_search_matches_saved_grid(example_repo_path, tmp_path, monkeypatch, caplog):
     import hexrd.hedm.find_orientations as fo
+    from hexrd.hedm._progress import Dashboard
 
     def no_seeds(*args, **kwargs):
         pytest.fail('direct search must not generate fibers or estimate seed neighborhoods')
@@ -78,7 +79,16 @@ def test_direct_search_matches_saved_grid(example_repo_path, tmp_path, monkeypat
     previous_threads = numba.get_num_threads()
     try:
         experiment = HedmExperiment(str(filename), working_dir=str(include))
-        direct = fo.find_orientations(experiment, clean=True)
+        dashboard = Dashboard()
+        dashboard.start()
+        try:
+            direct = fo.find_orientations(experiment, clean=True)
+        finally:
+            dashboard.close()
+        assert 'Seed' not in dashboard.hkls
+        assert dashboard.stages['Fibers'].status == 'done'
+        assert dashboard.stages['Sampling'].status == 'done'
+        assert dashboard.diagnostics['Grains'] == str(direct.num_grains)
         assert 'coarser than the eta/omega tolerances' in caplog.text
         assert direct.test_orientations.shape[1] > 0
         assert np.any(direct.completeness > 0)
@@ -160,6 +170,7 @@ def test_native_fiber_reduction_tails_and_views(n):
 )
 def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
     import hexrd.hedm.find_orientations as fo
+    from hexrd.hedm._progress import Dashboard
 
     score = fo.score_orientations
     scored = []
@@ -193,7 +204,18 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
 
             monkeypatch.setattr(experiment, 'get_active_material', check_workers)
             numba.set_num_threads(min(2, numba.config.NUMBA_NUM_THREADS))
-            result = find_orientations(experiment, clean=clean)
+            dashboard = Dashboard()
+            dashboard.start()
+            try:
+                result = find_orientations(experiment, clean=clean)
+            finally:
+                dashboard.close()
+            assert dashboard.hkls['Seed'] == ((0, 1, 2), (1, 0, 4), (1, 1, 0))
+            assert (1, 1, 6) in dashboard.hkls['Map']
+            assert set(dashboard.peaks) == (set(dashboard.hkls['Seed']) if clean else set())
+            assert dashboard.diagnostics['Best trial'] == '100.0%'
+            assert dashboard.diagnostics['Candidates'] == '129/13,680 (score > 85.0%)'
+            assert dashboard.diagnostics['Grains'] == '1'
             np.testing.assert_array_equal(result.completeness, expected_scores)
             np.testing.assert_allclose(result.grain_orientations, expected_qbar,
                                        rtol=0, atol=1e-12)
@@ -800,8 +822,9 @@ def test_numeric_header_fast_path_rejects_malformed_shapes():
 
 
 @pytest.mark.parametrize('workers', [1, 2])
-def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, workers):
+def test_dashboard_progress_preserves_scores(tmp_path, monkeypatch, workers):
     import hexrd.hedm.find_orientations as fo
+    from hexrd.hedm._progress import Dashboard, stage
 
     class Terminal(io.StringIO):
         def isatty(self):
@@ -826,10 +849,151 @@ def test_terminal_scoring_progress_preserves_results(tmp_path, monkeypatch, work
     terminal = Terminal()
     monkeypatch.setattr(sys, 'stderr', terminal)
     experiment.analysis_dir = str(tmp_path / 'terminal')
-    actual = fo.score_orientations(experiment, plane, maps, quats)
+    dashboard = Dashboard()
+    dashboard.start()
+    try:
+        with stage('Scoring'):
+            actual = fo.score_orientations(experiment, plane, maps, quats)
+    finally:
+        dashboard.close()
     np.testing.assert_array_equal(actual, expected)
-    assert 'Scoring orientations' in terminal.getvalue()
-    assert '100%' in terminal.getvalue()
+    assert dashboard.stages['Scoring'].count == quats.shape[1]
+    assert dashboard.stages['Scoring'].status == 'done'
+    assert terminal.getvalue() == ''
+
+
+def test_dashboard_navigation_and_cancellation(monkeypatch):
+    import asyncio
+    import logging
+    import threading
+    from textual.widgets import Button, DataTable, RichLog, Static
+    from hexrd.hedm._dashboard import OrientationDashboard
+    from hexrd.hedm._progress import Dashboard, progress_bar, quiet_progress, stage
+
+    terminal = io.StringIO()
+    dashboard = Dashboard()
+    release = threading.Event()
+
+    def workflow():
+        dashboard.start()
+        try:
+            with stage('Scoring'), progress_bar(total=10, unit='orientations') as bar:
+                dashboard.handle(logging.makeLogRecord({'msg': 'Scoring orientations'}))
+                bar.update(3)
+                release.wait(10)
+                bar.update(7)
+        finally:
+            dashboard.close()
+
+    app = OrientationDashboard(dashboard, workflow, 'test.yml')
+
+    async def interact():
+        try:
+            async with app.run_test(size=(100, 30)) as pilot:
+                await pilot.pause()
+                assert 'Scoring' in str(app.query_one('#stage-name', Static).render())
+                assert app.query_one(RichLog).lines
+                await pilot.click('#pause_log')
+                assert not app.query_one(RichLog).auto_scroll
+                await pilot.pause(0.25)
+                await pilot.click('#pause_log')
+                assert app.query_one(RichLog).auto_scroll
+                await pilot.press('l')
+                assert not app.query_one(RichLog).display
+                app.query_one('#stages', DataTable).focus()
+                app.query_one('#stages', DataTable).move_cursor(row=0)
+                await pilot.press('enter')
+                assert app.selected == 'Configuration'
+                await pilot.press('f')
+                assert app.selected is None
+                await pilot.resize_terminal(80, 24)
+                assert app.screen.has_class('compact')
+                await pilot.press('q')
+                assert dashboard.cancelled.is_set()
+                release.set()
+                await pilot.pause(0.2)
+                assert app.is_running
+                assert app.sub_title == 'CANCELLED'
+                assert str(app.query_one('#cancel', Button).label) == 'Close'
+                await pilot.click('#cancel')
+        finally:
+            release.set()
+
+    asyncio.run(interact())
+    assert isinstance(app.failure, KeyboardInterrupt)
+    assert dashboard.stages['Scoring'].status == 'failed'
+    monkeypatch.setattr(sys, 'stderr', terminal)
+    with quiet_progress(True), progress_bar(total=1, desc='quiet', unit='item') as bar:
+        bar.update(1)
+        assert bar.disable
+    assert terminal.getvalue() == ''
+    with progress_bar(total=1, disable=True) as bar:
+        assert bar is not dashboard
+
+
+@pytest.mark.parametrize('fails', [False, True])
+def test_dashboard_retains_completion_and_failure(fails):
+    import asyncio
+    from textual.widgets import Button, DataTable, RichLog, Static
+    from hexrd.hedm._dashboard import OrientationDashboard
+    from hexrd.hedm._progress import Dashboard, diagnostic, report_hkls, report_peaks, stage
+
+    dashboard = Dashboard()
+
+    def workflow():
+        dashboard.start()
+        try:
+            with stage('Material'):
+                report_hkls('Map', [[-1, 2, 3], [4, 0, 1]])
+                report_hkls('Seed', [[-1, 2, 3]])
+                report_peaks([-1, 2, 3], 0)
+                if fails:
+                    raise ValueError('Invalid material')
+                diagnostic('Candidates', '2/3 (score > 50.0%)')
+                diagnostic('Best trial', '100.0%')
+                diagnostic('Grains', '1')
+                dashboard.message = 'Found 3 grains'
+        finally:
+            dashboard.close()
+
+    app = OrientationDashboard(dashboard, workflow, 'test.yml')
+
+    async def interact():
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            assert app.is_running and app.finished.is_set()
+            assert app.sub_title == ('FAILED' if fails else 'COMPLETE')
+            status = str(app.query_one('#status', Static).render())
+            assert ('ValueError: Invalid material' if fails else 'Found 3 grains') in status
+            elapsed = str(app.query_one('#elapsed', Static).render())
+            await pilot.pause(0.2)
+            app.refresh_progress()
+            assert str(app.query_one('#elapsed', Static).render()) == elapsed
+            assert str(app.query_one('#cancel', Button).label) == 'Close'
+            if fails:
+                log = ''.join(line.text for line in app.query_one(RichLog).lines)
+                assert 'ValueError' in log and 'Invalid material' in log
+            else:
+                assert 'Candidates: 2/3 (score > 50.0%)' in str(app.query_one('#detail', Static).render())
+                assert '100.0%' in str(app.query_one('#throughput', Static).render())
+            app.query_one('#stages', DataTable).focus()
+            app.query_one('#stages', DataTable).move_cursor(row=1)
+            await pilot.press('enter')
+            reflections = app.query_one('#reflections', DataTable)
+            assert reflections.get_row('-1 2 3') == ['-1', '2', '3', '✓', '0']
+            assert reflections.get_row('4 0 1') == ['4', '0', '1', '—', '—']
+            assert reflections.row_count == 2
+            assert 'HKLs:' not in str(app.query_one('#detail', Static).render())
+            log = ''.join(line.text for line in app.query_one(RichLog).lines)
+            assert 'Map HKLs:' not in log
+            app.refresh_reflections(dashboard.hkls, {(-1, 2, 3): 12000})
+            assert reflections.get_row('-1 2 3')[-1] == '12,000'
+            assert reflections.row_count == 2
+            await pilot.click('#reflections')
+            assert app.selected == 'Material'
+            await pilot.press('q')
+    asyncio.run(interact())
+    assert isinstance(app.failure, ValueError) if fails else app.failure is None
 
 
 def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeypatch):

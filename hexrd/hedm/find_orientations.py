@@ -19,6 +19,9 @@ from hexrd.core.extensions import transforms_c_api, transforms as native
 from hexrd.core.material.material_data import Material, PlaneData, load_plane_data_cached
 from hexrd.core.transforms import xfcapi
 from hexrd.core.utils.npz import fingerprint, load_array_cache, save_array_cache
+from hexrd.hedm._progress import (
+    activity, diagnostic, progress_bar, report_hkls, report_peaks, stage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,48 +113,59 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
         blob = experiment.find_orientations.seed_search.method is not SeedSearchMethod.LABEL
         threading.Thread(target=_prefetch_heavy_imports, args=(blob,), daemon=True).start()
 
-    if material is None:
-        from dataclasses import asdict
+    with stage('Material'):
+        if material is None:
+            from dataclasses import asdict
 
-        def load_material():
-            import numba
+            def load_material():
+                import numba
 
-            numba.set_num_threads(max(1, min(
-                experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
-            return experiment.get_active_material()
+                numba.set_num_threads(max(1, min(
+                    experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
+                return experiment.get_active_material()
 
-        plane_data = load_plane_data_cached(
-            experiment._materials_file,
-            os.path.join(_cache_dir(experiment), 'plane-data.npz'),
-            dict(material=asdict(experiment.active_material),
-                 beam_energy=experiment.beam.energy),
-            load_material)
-    else:
-        plane_data = material.plane_data
+            plane_data = load_plane_data_cached(
+                experiment._materials_file,
+                os.path.join(_cache_dir(experiment), 'plane-data.npz'),
+                dict(material=asdict(experiment.active_material),
+                     beam_energy=experiment.beam.energy),
+                load_material)
+        else:
+            plane_data = material.plane_data
 
-    maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
+    with stage('Eta/omega maps'):
+        maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
 
-    if grid_file is not None:
-        fibers = np.load(grid_file)
-        min_samples = 1
-    elif fo.direct_search is not None:
-        spacing = fo.direct_search.average_angular_spacing
-        eta_tol, ome_tol = np.degrees([fo.eta.tolerance, fo.omega.tolerance])
-        if spacing > max(eta_tol, ome_tol):
-            logger.warning(
-                'Direct-search grid spacing %g deg is coarser than the eta/omega '
-                'tolerances (%g/%g deg). Grains can be missed before clustering; '
-                'validate grid resolution or use seed_search.', spacing, eta_tol, ome_tol)
-        fibers = generate_orientation_grid(experiment, plane_data)
-        min_samples = 1
-    else:
-        fibers = _load_or_generate_fibers(experiment, plane_data, maps, fiber_cache)
+    with stage('Fibers'):
+        if grid_file is not None:
+            activity('Loading quaternion grid')
+            fibers = np.load(grid_file)
+        elif fo.direct_search is not None:
+            spacing = fo.direct_search.average_angular_spacing
+            eta_tol, ome_tol = np.degrees([fo.eta.tolerance, fo.omega.tolerance])
+            if spacing > max(eta_tol, ome_tol):
+                logger.warning(
+                    'Direct-search grid spacing %g deg is coarser than the eta/omega '
+                    'tolerances (%g/%g deg). Grains can be missed before clustering; '
+                    'validate grid resolution or use seed_search.', spacing, eta_tol, ome_tol)
+            activity('Generating uniform orientation grid')
+            fibers = generate_orientation_grid(experiment, plane_data)
+        else:
+            report_hkls('Seed', plane_data.unexcluded_hkls[
+                maps.ring_ids[fo.seed_search.hkl_seeds]])
+            fibers = _load_or_generate_fibers(experiment, plane_data, maps, fiber_cache)
+    with stage('Sampling'):
         min_samples = (_cached_min_samples(experiment, plane_data, maps)
-                       if fibers.shape[1] else 1)
+                       if grid_file is None and fo.direct_search is None and fibers.shape[1]
+                       else 1)
 
-    completeness = score_orientations(experiment, plane_data, maps, fibers)
-    qbar = cluster_grains(experiment, plane_data, fibers, completeness,
-                          min_samples=min_samples)
+    with stage('Scoring'):
+        report_hkls('Scoring', plane_data.unexcluded_hkls[maps.ring_ids])
+        completeness = score_orientations(experiment, plane_data, maps, fibers)
+    with stage('Clustering'):
+        qbar = cluster_grains(experiment, plane_data, fibers, completeness,
+                              min_samples=min_samples)
+        diagnostic('Grains', f'{qbar.shape[1]:,}')
 
     return FindOrientationsResult(
         grain_orientations=qbar,
@@ -204,6 +218,7 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
     path = experiment.eta_ome_maps_file
     source_cache = os.path.join(_cache_dir(experiment), 'map-source.npz')
     if clean or not os.path.exists(path):
+        activity('Building from detector frames')
         maps = build_eta_omega_maps(experiment, plane_data)
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
         _save_eta_omega_maps(maps, path, plane_data, np.radians(om.eta_step))
@@ -211,10 +226,13 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
         if clean:
             return maps
     else:
+        activity('Loading saved maps')
         maps = _load_eta_omega_maps(path, plane_data,
                                     experiment.active_material.two_theta_width, source_cache)
         if np.any((maps.ring_ids < 0) | (maps.ring_ids >= len(plane_data.unexcluded_hkls))):
             maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=True)
+        else:
+            report_hkls('Map', plane_data.unexcluded_hkls[maps.ring_ids])
     _filter_maps(maps, om.filter_maps, om.filter_fwhm)
     return maps
 
@@ -274,6 +292,7 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     fo = experiment.find_orientations
 
     ring_ids = _resolve_active_rings(fo.orientation_maps.active_hkls, plane_data)
+    report_hkls('Map', plane_data.unexcluded_hkls[ring_ids])
 
     half = np.radians(experiment.active_material.two_theta_width) / 2
     ring_tths = plane_data.two_thetas[~plane_data.exclusions][ring_ids]
@@ -629,7 +648,9 @@ def _load_or_generate_fibers(experiment, plane_data, maps, cache_file):
     if cached is not None and 'fibers' in cached:
         fibers = cached['fibers']
         if fibers.ndim == 2 and fibers.shape[0] == 4 and fibers.dtype == np.float64:
+            activity('Loaded cached fibers')
             return fibers
+    activity('Finding peaks and generating fibers')
     fibers = generate_orientation_fibers(experiment, plane_data, maps)
     save_array_cache(cache_file, key, fibers=fibers)
     return fibers
@@ -652,8 +673,6 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     Raises:
         ValueError: If no seed-ring indices are configured.
     """
-    from tqdm import tqdm
-
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
     csym = rotations.quatProductMatrix(
@@ -675,6 +694,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
 
     centers = []
     for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
+        report_peaks(hkl, num_spots)
         if not num_spots:
             continue
         prepared = _prepare_fiber(hkl, plane_data.B, fiber_ndiv)
@@ -686,7 +706,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
             eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
             centers.append((*prepared, tth, eta_c, ome_c))
     workers = max(1, min(experiment.max_workers, len(centers)))
-    with tqdm(total=len(centers), desc='Generating fibers', unit='fiber', disable=None) as progress:
+    with progress_bar(total=len(centers), desc='Generating fibers', unit='fiber', disable=None) as progress:
         def generate(center):
             result = _fiber(*center, chi, csym)
             progress.update(1)
@@ -802,8 +822,6 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     Returns:
         Completeness score for each trial orientation.
     """
-    from tqdm import tqdm
-
     fo = experiment.find_orientations
     if q_fibers.shape[1] == 0:
         return np.empty(0)
@@ -860,11 +878,12 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
         hit_status = _hit_status_maps(ring_maps, dpix_eta, dpix_ome, fo.threshold)
         save_array_cache(status_file, status_key, status=hit_status)
     if bins is not None and hit_status is not None:
+        activity('Scoring cached reflection bins')
         return native._scoreOrientationBins(bins, hit_status)
     bins = np.empty((n, 2, len(symm_hkls)), dtype=np.int32) if cache_bins else None
     if hit_status is not None and hit_status.size >= 16*1024**2:
         hit_status = _pack_hit_status(hit_status)
-    with tqdm(total=n, desc='Scoring orientations', unit='orientation', disable=None) as progress:
+    with progress_bar(total=n, desc='Scoring orientations', unit='orientation', disable=None) as progress:
         # Limit native batch size for live progress updates.
         chunks = workers if progress.disable else max(workers, (n + 262143) // 262144)
         bounds = np.linspace(0, n, chunks + 1, dtype=int)
@@ -1146,8 +1165,9 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
 
     keep = q_fibers[:, np.asarray(completeness) > fo.clustering.completeness]
     n = keep.shape[1]
-    logger.info('%d/%d trials exceed %.1f%% completeness',
-                n, q_fibers.shape[1], 100 * fo.clustering.completeness)
+    diagnostic('Candidates',
+               f'{n:,}/{q_fibers.shape[1]:,} (score > {fo.clustering.completeness:.1%})')
+    diagnostic('Best trial', f'{np.max(completeness):.1%}' if len(completeness) else 'No trials')
     if n == 0:
         return np.zeros((4, 0))
     if n == 1:
