@@ -5,7 +5,6 @@ import os
 import sys
 from contextlib import nullcontext
 from dataclasses import replace
-import multiprocessing as mp
 
 import numpy as np
 
@@ -74,9 +73,8 @@ def execute(args, parser):
 
         dashboard = Dashboard()
         app = OrientationDashboard(dashboard, lambda: _execute(args, parser, dashboard), args.yml)
-        startup_lock = mp.get_context().RLock()
         app.run()
-        
+
         if dashboard.message:
             print(dashboard.message, file=sys.stderr)
         if app.failure is not None:

@@ -1,6 +1,7 @@
 """Textual presentation, imported only for interactive find-orientations runs."""
 
 from dataclasses import replace
+import multiprocessing as mp
 import threading
 from time import monotonic
 
@@ -60,6 +61,7 @@ class OrientationDashboard(App):
 
     def __init__(self, dashboard, workflow, config):
         super().__init__()
+        self._startup_lock = mp.get_context().RLock()
         self.dashboard = dashboard
         self.workflow = workflow
         self.config = config
