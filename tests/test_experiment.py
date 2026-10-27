@@ -501,7 +501,8 @@ def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch
 
 
 @pytest.mark.parametrize('repeated_rows', [False, True])
-def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repeated_rows):
+@pytest.mark.parametrize('style', ['npz', 'fch5'])
+def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repeated_rows, style):
     import threading
     from types import SimpleNamespace
     from hexrd.hedm import find_orientations as fo
@@ -511,6 +512,15 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
     _write_frame_cache(synthetic_config.parent / 'p0_cache.npz', frames,
                        [[0., 120.], [120., 240.], [240., 360.]])
     experiment = HedmExperiment(str(synthetic_config))
+    if style == 'fch5':
+        from hexrd.core import imageseries
+        from hexrd.hedm.experiment import _AdapterImageSeries
+
+        source = imageseries.open(str(synthetic_config.parent / 'p0_cache.npz'), 'frame-cache')
+        cache = synthetic_config.parent / 'frames.fch5'
+        imageseries.write(source, str(cache), 'frame-cache', style='fch5', threshold=0)
+        experiment.image_series_list = [_AdapterImageSeries('p0', str(cache), 'frame-cache', {'style': 'fch5'})]
+        monkeypatch.setattr('hexrd.hedm.experiment._FCH5_PARALLEL_MIN_PIXELS', 0)
     plane = SimpleNamespace(unexcluded_hkls=np.tile([1, 1, 1], (65, 1)),
                             two_thetas=np.full(65, 0.002), exclusions=np.zeros(65, bool))
     if repeated_rows:
@@ -518,18 +528,22 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
         monkeypatch.setattr(fo, '_omega_grid', lambda series:
                             (np.zeros(3, dtype=int), *omega_grid(series)[1:]))
     expected = fo.build_eta_omega_maps(experiment, plane)
-    threads, local, barrier = set(), threading.local(), threading.Barrier(2)
+    threads, last_started = set(), threading.Event()
     bin_pixels = fo._bin_pixels
 
     def bin_concurrently(*args):
         threads.add(threading.get_ident())
-        if not repeated_rows and not getattr(local, 'started', False):
-            local.started = True
-            barrier.wait(timeout=5)
+        if not repeated_rows:
+            if args[3][0] == 0:
+                assert last_started.wait(5), 'completed frames must free worker slots'
+            elif args[3][0] == 2:
+                last_started.set()
         return bin_pixels(*args)
 
     monkeypatch.setattr(fo, '_bin_pixels', bin_concurrently)
     experiment.max_workers = 2
+    if style == 'fch5':
+        experiment.image_series_list[0]._max_workers = 2
     actual = fo.build_eta_omega_maps(experiment, plane)
     assert actual.ring_maps.tobytes() == expected.ring_maps.tobytes()
     assert np.nanmax(actual.ring_maps) == 1e16
@@ -583,6 +597,28 @@ def test_registered_image_series_and_metadata_panel(synthetic_config, style, mon
     if style == 'fch5':
         assert not series._series._adapter._framelist_was_loaded
         assert series._series._adapter._framelist == []
+        monkeypatch.setattr('hexrd.hedm.experiment._FCH5_PARALLEL_MIN_PIXELS', 0)
+        series._max_workers = 2
+        parallel = list(series.pixel_chunks(np.arange(3), threshold=1.))
+        assert sorted(int(chunk[3][0]) for chunk in parallel) == [0, 1, 2]
+        for ids, values, offsets, rows in parallel:
+            np.testing.assert_array_equal(ids, [8])
+            np.testing.assert_array_equal(values, [40_000.])
+            np.testing.assert_array_equal(offsets, [0, 1])
+        import multiprocessing as mp
+
+        children = set()
+
+        def cancel_after_spawn():
+            children.update(child.pid for child in mp.active_children())
+            if children:
+                raise KeyboardInterrupt
+
+        with monkeypatch.context() as patch:
+            patch.setattr('hexrd.hedm._progress.check_cancelled', cancel_after_spawn)
+            with pytest.raises(KeyboardInterrupt):
+                list(series.pixel_chunks(np.arange(3)))
+        assert children and not children.intersection(child.pid for child in mp.active_children())
     assert len(chunks) == 2
     for ids, values, offsets, rows in chunks:
         np.testing.assert_array_equal(ids, np.full(len(rows), 8))
@@ -598,6 +634,23 @@ def test_registered_image_series_and_metadata_panel(synthetic_config, style, mon
         yaml.safe_dump(config, stream)
     with pytest.raises(ValueError, match='pixels: roi'):
         HedmExperiment(str(synthetic_config))
+
+
+@pytest.mark.parametrize('dtype', [np.uint16, np.float64])
+@pytest.mark.parametrize('index_dtype', [np.uint16, np.float64])
+def test_fch5_filter_coalesces_before_thresholding(tmp_path, dtype, index_dtype):
+    from hexrd.hedm.experiment import _fch5_pixels
+
+    indices = np.array([[0, 1], [0, 0], [0, 1], [0, 1]], dtype=index_dtype)
+    data = np.array([40000, 5, 40000, 5] if dtype == np.uint16 else [np.nan, 0.5, 1., 1.], dtype=dtype)
+    reference = csr_array((data, (indices[:, 0], indices[:, 1])), shape=(1, 2)).tocoo()
+    with h5py.File(tmp_path / 'pixels.h5', 'w') as group:
+        group['indices'], group['data'] = indices, data[:, None]
+        for threshold in (None, 10000.):
+            ids, values = _fch5_pixels(group, 0, 4, (1, 2), np.dtype(dtype), threshold)
+            keep = np.ones(reference.nnz, bool) if threshold is None else ~(reference.data.astype(float) < threshold)
+            np.testing.assert_array_equal(ids, reference.col[keep])
+            np.testing.assert_array_equal(values, reference.data[keep])
 
 
 def test_grouped_panel_roi_config(synthetic_config):

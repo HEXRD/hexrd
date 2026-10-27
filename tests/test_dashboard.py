@@ -53,6 +53,26 @@ def workflow():
             # own multiprocessing initialization lock (e.g. with spawn).
             with mp.get_context().RLock():
                 pass
+        with stage('Eta/omega maps'):
+            import h5py
+            import numpy as np
+            from pathlib import Path
+            from tempfile import TemporaryDirectory
+            import hexrd.hedm.experiment as experiment
+            from hexrd.hedm.experiment import _AdapterImageSeries
+
+            experiment._FCH5_PARALLEL_MIN_PIXELS = 0
+            with TemporaryDirectory() as directory:
+                filename = str(Path(directory) / 'frames.fch5')
+                with h5py.File(filename, 'w') as group:
+                    group.attrs['HEXRD_FRAMECACHE_VERSION'] = 1
+                    group['shape'], group['nframes'], group['dtype'] = [1, 1], 2, b'uint16'
+                    group.create_group('metadata')['omega'] = [[0., 1.], [1., 2.]]
+                    group['frame_ids'] = [0, 1, 1, 2]
+                    group['indices'], group['data'] = [[0, 0], [0, 0]], [[10], [20]]
+                series = _AdapterImageSeries('p', filename, 'frame-cache', {'style': 'fch5'}, 2)
+                chunks = list(series.pixel_chunks(np.arange(2), threshold=0.))
+                assert sorted(int(chunk[1][0]) for chunk in chunks) == [10, 20]
     finally:
         dashboard.close()
 

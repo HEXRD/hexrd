@@ -2,8 +2,7 @@
 import os
 import logging
 import threading
-from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from contextvars import copy_context
 from dataclasses import dataclass
@@ -342,7 +341,7 @@ def build_eta_omega_maps(experiment: HedmExperiment,
             if len(np.unique(rows)) != len(rows):
                 workers = 1
             chunk_size = 1 if workers > 1 else (262144 if not progress.disable else 8_000_000)
-            chunks = (ims.pixel_chunks(rows, max_pixels=chunk_size) if hasattr(ims, 'pixel_chunks')
+            chunks = (ims.pixel_chunks(rows, max_pixels=chunk_size, threshold=threshold) if hasattr(ims, 'pixel_chunks')
                       else _pixel_chunks(ims.images, rows, max_pixels=chunk_size))
 
             def bin_chunk(chunk):
@@ -358,7 +357,7 @@ def build_eta_omega_maps(experiment: HedmExperiment,
 
             # Exclusive omega rows preserve addition order without per-worker maps.
             with (ThreadPoolExecutor(workers) if workers > 1 else nullcontext()) as pool:
-                pending, queued_pixels = deque(), 0
+                pending, queued_pixels = {}, 0
                 for chunk in chunks:
                     check_cancelled()
                     if pool is None:
@@ -366,13 +365,14 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                     else:
                         while pending and (len(pending) >= workers or
                                            queued_pixels + len(chunk[0]) > 64 * 1024**2):
-                            future, pixels = pending.popleft()
-                            future.result()
-                            queued_pixels -= pixels
-                        pending.append((pool.submit(copy_context().run, bin_chunk, chunk), len(chunk[0])))
+                            completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+                            for future in completed:
+                                future.result()
+                                queued_pixels -= pending.pop(future)
+                        pending[pool.submit(copy_context().run, bin_chunk, chunk)] = len(chunk[0])
                         queued_pixels += len(chunk[0])
                     processed += len(chunk[3])
-                for future, _ in pending:
+                for future in pending:
                     future.result()
 
             progress.update(len(ims) - processed)

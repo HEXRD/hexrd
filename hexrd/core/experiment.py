@@ -239,7 +239,7 @@ class ImageSeries:
                 self._images = [im for part in parts for im in part]
         return self._images
 
-    def pixel_chunks(self, row_of_frame, max_pixels=8_000_000):
+    def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
         """Stream sparse pixels without materializing the image series."""
         def load_frame(i):
             data = self._arrs[f'{i}_data']

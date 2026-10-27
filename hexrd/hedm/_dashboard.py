@@ -81,7 +81,7 @@ class OrientationDashboard(App):
 
     def __init__(self, dashboard, workflow, config):
         super().__init__()
-        self._startup_lock = mp.get_context().RLock()
+        self._startup_lock = mp.get_context('spawn').RLock()
         self.dashboard = dashboard
         self.workflow = workflow
         self.config = config
