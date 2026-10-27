@@ -1,3 +1,5 @@
+from array import array
+
 import numpy as np
 import numba
 from numba import prange
@@ -8,12 +10,11 @@ from hexrd.core import constants
 
 
 @numba.njit(cache=True, nogil=True, parallel=True)
-def _sample(pgnum, N, delta, shift, ap_2):
+def _sample_slab(pgnum, N, delta, shift, ap_2, first, stop):
+    side = 2 * N + 1
+    res = np.full(((stop - first) * side**2, 4), np.nan, dtype=np.float64)
 
-    N3 = (2 * N + 1) ** 3
-    res = np.full((N3, 4), np.nan, dtype=np.float64)
-
-    for ii in prange(-N, N + 1):
+    for ii in prange(first, stop):
         xx = (ii + shift) * delta
         for jj in prange(-N, N + 1):
             yy = (jj + shift) * delta
@@ -25,14 +26,20 @@ def _sample(pgnum, N, delta, shift, ap_2):
                 if ma <= ap_2:
                     ro = cu2ro(cu)
                     if insideFZ(ro, pgnum):
-                        idx = (
-                            (ii + N) * (2 * N + 1) ** 2
-                            + (jj + N) * (2 * N + 1)
-                            + (kk + N)
-                        )
+                        idx = (ii - first) * side**2 + (jj + N) * side + kk + N
                         res[idx, :] = ro2qu(ro)
+    return res[~np.isnan(res[:, 0])]
 
-    return res
+
+def _sample(pgnum, N, delta, shift, ap_2):
+    # Compact bounded slabs instead of allocating the entire sampling cube.
+    step = max(numba.get_num_threads(), 1_048_576 // (2 * N + 1)**2)
+    values = array('d')
+    for first in range(-N, N + 1, step):
+        slab = _sample_slab(pgnum, N, delta, shift, ap_2, first, min(first + step, N + 1))
+        if slab.size:
+            values.frombytes(memoryview(slab).cast('B'))
+    return np.frombuffer(values, dtype=np.float64).reshape(-1, 4)
 
 
 class sampleRFZ:
@@ -98,10 +105,7 @@ class sampleRFZ:
             )
 
     def sample(self):
-        res = _sample(self.pgnum, self.cubN, self.delta, self.shift, self.ap_2)
-        mask = ~np.isnan(res[:, 0])
-        res = res[mask, :]
-        self.orientations = res
+        self.orientations = _sample(self.pgnum, self.cubN, self.delta, self.shift, self.ap_2)
 
     def sample_if_possible(self):
         required_attributes = ('pgnum', 'avg_ang_spacing', 'sampling_type')

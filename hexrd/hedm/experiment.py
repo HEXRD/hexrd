@@ -30,10 +30,25 @@ class _AdapterImageSeries(ImageSeries):
 
     def pixel_chunks(self, row_of_frame, max_pixels=8_000_000):
         from scipy.sparse import csr_array
+        from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
         from hexrd.hedm.find_orientations import _pixel_chunks
 
-        frames = (csr_array(self._series[i]) for i in range(len(self)))
-        yield from _pixel_chunks(frames, row_of_frame, max_pixels)
+        def frames():
+            adapter = self._series._adapter
+            if isinstance(adapter, FrameCacheImageSeriesAdapter) and adapter._style == 'fch5':
+                # Indexing this adapter loads every frame; read sparse slices directly.
+                with adapter._fch5_group_cm() as group:
+                    frame_ids = group['frame_ids'][()]
+                    for start, stop in frame_ids.reshape(-1, 2):
+                        indices = group['indices'][int(start):int(stop)]
+                        data = group['data'][int(start):int(stop), 0]
+                        yield csr_array((data, (indices[:, 0], indices[:, 1])),
+                                        shape=tuple(adapter.shape), dtype=adapter.dtype)
+            else:
+                for i in range(len(self)):
+                    yield csr_array(self._series[i])
+
+        yield from _pixel_chunks(frames(), row_of_frame, max_pixels)
 
     @property
     def images(self):

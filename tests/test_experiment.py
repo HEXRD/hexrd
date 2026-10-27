@@ -464,7 +464,7 @@ def test_experiment_study_overlay(synthetic_config):
 
 
 @pytest.mark.parametrize('style', ['hdf5', 'fch5'])
-def test_registered_image_series_and_metadata_panel(synthetic_config, style):
+def test_registered_image_series_and_metadata_panel(synthetic_config, style, monkeypatch):
     with open(synthetic_config) as stream:
         config = next(yaml.safe_load_all(stream))
     frames = np.zeros((3, 4, 6), dtype=np.uint16)
@@ -497,8 +497,16 @@ def test_registered_image_series_and_metadata_panel(synthetic_config, style):
     assert series.panel == 'p0'
     assert len(series) == 3
     assert np.array_equal(series.omega, np.radians(omega))
-    chunks = list(series.pixel_chunks(np.arange(3), max_pixels=2))
+    with monkeypatch.context() as patch:
+        if style == 'fch5':
+            def no_bulk_load():
+                pytest.fail('streaming must not load the complete frame cache')
+            patch.setattr(series._series._adapter, '_load_framelist', no_bulk_load)
+        chunks = list(series.pixel_chunks(np.arange(3), max_pixels=2))
     assert series._images is None
+    if style == 'fch5':
+        assert not series._series._adapter._framelist_was_loaded
+        assert series._series._adapter._framelist == []
     assert len(chunks) == 2
     for ids, values, offsets, rows in chunks:
         np.testing.assert_array_equal(ids, np.full(len(rows), 8))

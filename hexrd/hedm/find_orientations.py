@@ -139,7 +139,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
     with stage('Fibers'):
         if grid_file is not None:
             activity('Loading quaternion grid')
-            fibers = np.load(grid_file)
+            fibers = np.load(grid_file, mmap_mode='r')
         elif fo.direct_search is not None:
             spacing = fo.direct_search.average_angular_spacing
             eta_tol, ome_tol = np.degrees([fo.eta.tolerance, fo.omega.tolerance])
@@ -313,8 +313,10 @@ def build_eta_omega_maps(experiment: HedmExperiment,
         # Preserve NaN gaps; covered bins sum intensities across panels.
         rows = row_of_frame[:len(ims)]
         for ring, bins in enumerate(coverage):
-            covered = np.ix_(rows, np.flatnonzero(bins))
-            ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered])
+            bins = np.flatnonzero(bins)
+            for start in range(0, len(rows), 256):
+                covered = np.ix_(rows[start:start + 256], bins)
+                ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered], copy=False)
 
         # Pack each frame chunk once, even for materials with over 63 rings.
         threshold = float(fo.orientation_maps.threshold)
@@ -446,7 +448,7 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
     lazy = cached is not None and 'content_key' in cached and cached['content_key'].shape == ()
     def read_maps():
         with _NpzReader(path) as archive:
-            return np.array(archive['dataStore'], dtype=np.float64) if legacy else archive['ring_maps']
+            return np.asarray(archive['dataStore'], dtype=np.float64) if legacy else archive['ring_maps']
 
     with _NpzReader(path) as d:
         legacy = 'dataStore' in d
@@ -801,9 +803,13 @@ _hit_status_maps = native.orientationHitStatus
 def _pack_hit_status(status):
     """Pack two-bit status codes into 8x8 tiles."""
     rings, rows, cols = status.shape
-    padded = np.pad(status, ((0, 0), (0, -rows % 8), (0, -cols % 8)), constant_values=-1)
-    tiles = padded.reshape(rings, (rows+7)//8, 8, (cols+7)//8, 8).transpose(0, 1, 3, 2, 4)
-    return np.packbits(np.stack((tiles >= 0, tiles > 0), axis=-1), bitorder='little').view(np.int8)
+    packed = np.empty((rings, ((rows+7)//8) * ((cols+7)//8) * 16), dtype=np.int8)
+    for ring, values in enumerate(status):
+        padded = np.pad(values, ((0, -rows % 8), (0, -cols % 8)), constant_values=-1)
+        tiles = padded.reshape((rows+7)//8, 8, (cols+7)//8, 8).transpose(0, 2, 1, 3)
+        packed[ring] = np.packbits(
+            np.stack((tiles >= 0, tiles > 0), axis=-1), bitorder='little').view(np.int8)
+    return packed.ravel()
 
 
 def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
@@ -850,9 +856,11 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     shape = (len(maps.ring_ids), len(maps.omega_edges)-1, len(maps.eta_edges)-1)
     cache_dir = _cache_dir(experiment)
     sources = (__file__, native.__file__, rotations.__file__, const.__file__)
+    cache_bins = (np.prod(shape) <= np.iinfo(np.int32).max and
+                  n*len(symm_hkls)*8 <= 128*1024**2)
     bins_key = fingerprint(dict(wavelength=plane_data.wavelength, offset=ome_offset, shape=shape),
         files=sources, packages=('numpy',), arrays=(q_fibers, symm_hkls, bmat, beam_vector,
-            maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ring_for_hkl))
+            maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ring_for_hkl)) if cache_bins else None
     bins_file = os.path.join(cache_dir, 'reflection-bins.npz')
     cached = load_array_cache(bins_file, bins_key, mmap=True)
     bins = cached.get('bins') if cached is not None else None
@@ -868,8 +876,7 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     # Only the shape is needed when hit status is cached.
     ring_maps = (np.ascontiguousarray(maps.ring_maps) if hit_status is None else
                  np.broadcast_to(np.zeros(()), shape))
-    cache_bins = (bins_key is not None and np.prod(shape) <= np.iinfo(np.int32).max and
-                  n*len(symm_hkls)*8 <= 128*1024**2)
+    cache_bins = cache_bins and bins_key is not None
     window_area = (2 * dpix_eta + 1) * (2 * dpix_ome + 1)
     # Serial lookup construction must pay for each worker's share of scoring.
     if hit_status is None and (cache_bins or
@@ -883,28 +890,28 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     bins = np.empty((n, 2, len(symm_hkls)), dtype=np.int32) if cache_bins else None
     if hit_status is not None and hit_status.size >= 16*1024**2:
         hit_status = _pack_hit_status(hit_status)
+    scores = np.empty(n)
     with progress_bar(total=n, desc='Scoring orientations', unit='orientation', disable=None) as progress:
-        # Limit native batch size for live progress updates.
-        chunks = workers if progress.disable else max(workers, (n + 262143) // 262144)
+        chunks = max(workers, (n + 262143) // 262144)
         bounds = np.linspace(0, n, chunks + 1, dtype=int)
 
         def score_chunk(start, stop):
             orientations = q_fibers[:, start:stop]
             if orientations.dtype != np.float64:
                 orientations = rotations.rotMatOfQuat(orientations).reshape(-1, 3, 3)
-            result = native.scoreOrientations(
+            scores[start:stop] = native.scoreOrientations(
                 orientations, symm_hkls, bmat, plane_data.wavelength, beam_vector,
                 maps.eta_edges, maps.omega_edges, valid_eta, valid_ome, ome_offset,
                 ring_maps, ring_for_hkl, dpix_eta, dpix_ome, float(fo.threshold), hit_status,
                 bins[start:stop] if bins is not None else None)
             progress.update(stop - start)
-            return result
 
         if chunks == 1:
-            scores = score_chunk(0, n)
+            score_chunk(0, n)
         else:
             with ThreadPoolExecutor(workers) as pool:
-                scores = np.concatenate(list(pool.map(score_chunk, bounds[:-1], bounds[1:])))
+                for _ in pool.map(score_chunk, bounds[:-1], bounds[1:]):
+                    pass
     if bins is not None:
         save_array_cache(bins_file, bins_key, bins=bins)
     return scores

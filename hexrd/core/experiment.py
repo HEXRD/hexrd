@@ -180,22 +180,26 @@ def _pixel_chunks(frames, row_of_frame, max_pixels):
     first, total = 0, 0
 
     def pack(stop):
-        return (np.concatenate(ids), np.concatenate(values).astype(np.float64, copy=False),
+        return (np.concatenate(ids), np.concatenate(values, dtype=np.float64, casting='unsafe'),
                 np.r_[0, np.cumsum(counts)], np.asarray(row_of_frame[first:stop]))
 
     stop = 0
     for stop, (pixels, weights) in enumerate(frames, 1):
         if counts and total + len(pixels) > max_pixels:
-            if total:
-                yield pack(stop - 1)
+            packed = pack(stop - 1) if total else None
             ids, values, counts = [], [], []
             first, total = stop - 1, 0
+            if packed is not None:
+                yield packed
+                del packed
         ids.append(pixels)
         values.append(weights)
         counts.append(len(pixels))
         total += len(pixels)
     if total:
-        yield pack(stop)
+        packed = pack(stop)
+        ids, values, counts = [], [], []
+        yield packed
 
 
 class ImageSeries:

@@ -27,6 +27,34 @@ from hexrd.hedm.find_orientations import (
 LAUE_GROUPS = ('Ci', 'C2h', 'D2h', 'C4h', 'D4h', 'C3i', 'D3d', 'C6h', 'D6h', 'Th', 'Oh')
 
 
+def test_grid_sampler_preserves_legacy_order():
+    from hexrd.core import constants
+    from hexrd.hedm.sampleOrientations.conversions import cu2ro, ro2qu
+    from hexrd.hedm.sampleOrientations.rfz import insideFZ
+    from hexrd.hedm.sampleOrientations.sampleRFZ import _sample, _sample_slab
+
+    n = 3
+    half = constants.cuA_2
+    delta = half / n
+    for group in (1, 3, 9, 16, 20, 27, 28, 32):
+        for shift in (0., 0.5):
+            expected = []
+            for i in range(-n, n + 1):
+                for j in range(-n, n + 1):
+                    for k in range(-n, n + 1):
+                        cube = (np.array([i, j, k]) + shift) * delta
+                        if np.max(np.abs(cube)) <= half:
+                            rod = cu2ro(cube)
+                            if insideFZ(rod, group):
+                                expected.append(ro2qu(rod))
+            np.testing.assert_array_equal(
+                _sample(group, n, delta, shift, half), np.array(expected).reshape(-1, 4))
+    n = 64
+    np.testing.assert_array_equal(
+        _sample(32, n, half / n, 0., half),
+        _sample_slab(32, n, half / n, 0., half, -n, n + 1))
+
+
 @pytest.fixture(autouse=True)
 def isolate_workflow_cache(tmp_path, monkeypatch):
     monkeypatch.setenv('XDG_CACHE_HOME', str(tmp_path / 'cache'))
@@ -328,6 +356,13 @@ def test_hit_status_preserves_nan_precedence(dpix_eta, dpix_ome, shape):
     maps[1].flat[:2] = [np.nan, 1.0][:min(2, maps[1].size)]
     maps[2].flat[:2] = [1.0, np.nan][:min(2, maps[2].size)]
     status = _hit_status_maps(maps, dpix_eta, dpix_ome, 0.7)
+    packed = _pack_hit_status(status).view(np.uint8)
+    tiled = np.unpackbits(packed, bitorder='little').reshape(
+        shape[0], (shape[1]+7)//8, (shape[2]+7)//8, 8, 8, 2)
+    decoded = tiled[..., 0].astype(np.int8) + tiled[..., 1].astype(np.int8) - 1
+    decoded = decoded.transpose(0, 1, 3, 2, 4).reshape(
+        shape[0], ((shape[1]+7)//8)*8, ((shape[2]+7)//8)*8)
+    np.testing.assert_array_equal(decoded[:, :shape[1], :shape[2]], status)
     for r in range(len(maps)):
         for o, e in np.ndindex(maps.shape[1:]):
             assert status[r, o, e] == _reference_hit(
