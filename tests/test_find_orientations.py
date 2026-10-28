@@ -145,6 +145,9 @@ def test_direct_search_matches_saved_grid(example_repo_path, tmp_path, monkeypat
             dashboard.close()
         assert 'Seed' not in dashboard.hkls
         assert dashboard.stages['Fibers'].status == 'done'
+        fibers = dashboard.stages['Fibers']
+        assert fibers.count == fibers.total > 0
+        assert fibers.unit == 'batch'
         assert dashboard.stages['Sampling'].status == 'done'
         assert dashboard.diagnostics['Grains'] == str(direct.num_grains)
         assert 'coarser than the eta/omega tolerances' in caplog.text

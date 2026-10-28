@@ -31,11 +31,12 @@ def _sample_slab(pgnum, N, delta, shift, ap_2, first, stop):
     return res[~np.isnan(res[:, 0])]
 
 
-def _sample(pgnum, N, delta, shift, ap_2):
+def _sample(pgnum, N, delta, shift, ap_2, progress=None):
     # Compact bounded slabs instead of allocating the entire sampling cube.
     step = max(numba.get_num_threads(), 1_048_576 // (2 * N + 1)**2)
     values = array('d')
-    for first in range(-N, N + 1, step):
+    slabs = range(-N, N + 1, step)
+    for first in progress(slabs) if progress is not None else slabs:
         slab = _sample_slab(pgnum, N, delta, shift, ap_2, first, min(first + step, N + 1))
         if slab.size:
             values.frombytes(memoryview(slab).cast('B'))
@@ -66,7 +67,8 @@ class sampleRFZ:
 
     """
 
-    def __init__(self, pgnum, sampling_type='default', average_angular_spacing=3.0):
+    def __init__(self, pgnum, sampling_type='default', average_angular_spacing=3.0,
+                 progress=None):
         """__init__ method of the sampleRFZ class.
 
 
@@ -80,9 +82,12 @@ class sampleRFZ:
             of each cubochoric cell
         average_angular_spacing : float
             average angular spacing in degrees
+        progress : callable, optional
+            Iterable wrapper for reporting completed sampling batches.
 
         """
 
+        self._progress = progress
         self.ap_2 = constants.cuA_2
         self.pgnum = pgnum
         self.sampling_type = sampling_type
@@ -105,7 +110,8 @@ class sampleRFZ:
             )
 
     def sample(self):
-        self.orientations = _sample(self.pgnum, self.cubN, self.delta, self.shift, self.ap_2)
+        self.orientations = _sample(self.pgnum, self.cubN, self.delta, self.shift, self.ap_2,
+                                    self._progress)
 
     def sample_if_possible(self):
         required_attributes = ('pgnum', 'avg_ang_spacing', 'sampling_type')

@@ -195,7 +195,17 @@ def generate_orientation_grid(experiment: HedmExperiment,
     if not 1 <= group <= 32:
         raise ValueError('direct_search requires a material or explicit point_group_number (1-32)')
     numba.set_num_threads(max(1, min(experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
-    grid = sampleRFZ(group, average_angular_spacing=search.average_angular_spacing).orientations.T
+
+    def track(slabs):
+        with progress_bar(total=len(slabs), desc='Generating orientation grid',
+                          unit='batch', disable=None) as progress:
+            for first in slabs:
+                check_cancelled()
+                yield first
+                progress.update(1)
+
+    grid = sampleRFZ(group, average_angular_spacing=search.average_angular_spacing,
+                     progress=track).orientations.T
     logger.info('Generated %d trial orientations for point group %d at %g deg spacing',
                 grid.shape[1], group, search.average_angular_spacing)
     return grid
