@@ -20,6 +20,31 @@ import threading
 import time
 
 
+def limit_address_space(mebibytes):
+    """Hard allocation ceiling, installed before importing numerical libraries.
+
+    Unlike a sampled RSS watchdog, RLIMIT_AS rejects an allocation before it
+    can exhaust RAM. This guard is for serial benchmarks only: the limit is
+    per process, so it must not be advertised as an aggregate worker limit.
+    """
+    if mebibytes is None:
+        return
+    if sys.platform != 'linux':
+        raise RuntimeError('The benchmark allocation guard requires Linux RLIMIT_AS')
+    import resource
+
+    requested = int(mebibytes * 1024**2)
+    _, hard = resource.getrlimit(resource.RLIMIT_AS)
+    if hard != resource.RLIM_INFINITY:
+        requested = min(requested, hard)
+    resource.setrlimit(resource.RLIMIT_AS, (requested, requested))
+    # Thread stacks and BLAS workspaces count against the allocation ceiling.
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    return requested // 1024**2
+
+
 class MemoryMonitor:
     """Sample physical memory across the parent and its worker processes.
 
@@ -107,10 +132,15 @@ def _merge(base, overlay):
 
 
 def run(args):
+    allocation_limit = limit_address_space(args.memory_limit_mb)
+    if args.direct_io:
+        os.environ['HEXRD_FIT_GRAINS_DIRECT_IO'] = '1'
     # Select the source tree before importing any part of HEXRD. Master needs
     # its own compiled extensions; sharing the branch's would invalidate the
     # comparison of the native transforms.
     source = args.source.resolve()
+    if args.direct_io and not (source / 'hexrd/hedm/_image_cache.py').is_file():
+        raise ValueError('--direct-io requires a source tree with lazy FCH5 readers')
     sys.path.insert(0, str(source))
     import hexrd
     import numpy as np
@@ -207,6 +237,8 @@ def run(args):
         'grain_count': len(original_grains),
         'study': args.study,
         'workers': args.workers,
+        'address_space_limit_mb': allocation_limit,
+        'direct_fch5_reads': os.environ.get('HEXRD_FIT_GRAINS_DIRECT_IO') == '1',
         'image_cache': settings.get('fit_grains', {}).get('image_cache', {}),
         'setup_seconds': setup_seconds,
         'seconds': timings,
@@ -333,7 +365,17 @@ def main():
         help='Output prefix for .yml, .json, .pkl, and optional profiles',
     )
     runner.add_argument('--workers', type=int, default=1)
+    runner.add_argument(
+        '--memory-limit-mb',
+        type=int,
+        help='Hard Linux address-space limit in MiB; requires --workers 1',
+    )
     runner.add_argument('--image-mode', choices=('auto', 'eager', 'lazy'))
+    runner.add_argument(
+        '--direct-io',
+        action='store_true',
+        help='Bypass filesystem cache for lazy FCH5 reads using Linux O_DIRECT',
+    )
     runner.add_argument(
         '--image-cache-mb', type=float, help='Total image cache MiB across workers'
     )
@@ -384,6 +426,11 @@ def main():
         args.repeat < 1 or (args.limit is not None and args.limit < 1)
     ):
         parser.error('--repeat and --limit must be positive')
+    if args.command == 'run' and args.memory_limit_mb is not None:
+        if args.memory_limit_mb < 1 or args.workers != 1:
+            parser.error('--memory-limit-mb must be positive and requires --workers 1')
+    if args.command == 'run' and args.direct_io and args.image_mode != 'lazy':
+        parser.error('--direct-io requires --image-mode lazy')
     args.func(args)
 
 

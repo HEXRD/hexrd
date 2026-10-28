@@ -55,6 +55,8 @@ class FrameCache:
     def _reset(self):
         self.pid = os.getpid()
         self.frames = OrderedDict()
+        self.metadata = OrderedDict()
+        self.metadata_bytes = 0
         self.files = OrderedDict()
         self.bytes = self.peak_bytes = self.hits = self.misses = 0
 
@@ -73,6 +75,56 @@ class FrameCache:
             handle = reader.open()
         self.files[reader] = handle
         return handle
+
+    def _evict(self, size, reporter):
+        while self.bytes + size > self.max_bytes:
+            store = self.frames if self.frames else self.metadata
+            _, (_, old_size) = store.popitem(last=False)
+            self.bytes -= old_size
+            if store is self.metadata:
+                self.metadata_bytes -= old_size
+            if reporter is not None:
+                reporter.data['evictions'] += 1
+
+    def array(self, reader, kind, index, load, *, metadata=False):
+        """Cache decoded chunks and compact indexes under one byte allowance.
+
+        Protect small row indexes from intensity chunk churn, with a separate
+        quota inside (never in addition to) the total cache budget.
+        """
+        self._process()
+        store = self.metadata if metadata else self.frames
+        key = (reader, kind, int(index))
+        reporter = current_reporter()
+        item = store.pop(key, None)
+        if item is not None:
+            self.hits += 1
+            store[key] = item
+            if reporter is not None:
+                reporter.cache_hit()
+            return item[0]
+        self.misses += 1
+        if reporter is not None:
+            reporter.data['cache_misses'] += 1
+        value = load()
+        value.flags.writeable = False
+        size = frame_bytes(value)
+        quota = min(128 * _MIB, self.max_bytes // 4) if metadata else self.max_bytes
+        if size <= quota:
+            if metadata:
+                while self.metadata_bytes + size > quota:
+                    _, (_, old_size) = store.popitem(last=False)
+                    self.bytes -= old_size
+                    self.metadata_bytes -= old_size
+                    if reporter is not None:
+                        reporter.data['evictions'] += 1
+            self._evict(size, reporter)
+            store[key] = (value, size)
+            self.bytes += size
+            if metadata:
+                self.metadata_bytes += size
+            self.peak_bytes = max(self.peak_bytes, self.bytes)
+        return value
 
     def frame(self, reader, index):
         self._process()
@@ -109,11 +161,7 @@ class FrameCache:
             raise ValueError('image frame shape/dtype differs from its metadata')
         size = frame_bytes(frame)
         if not reader.resident and size <= self.max_bytes:
-            while self.bytes + size > self.max_bytes:
-                _, (_, old_size) = self.frames.popitem(last=False)
-                self.bytes -= old_size
-                if reporter is not None:
-                    reporter.data['evictions'] += 1
+            self._evict(size, reporter)
             self.frames[key] = (frame, size)
             self.bytes += size
             self.peak_bytes = max(self.peak_bytes, self.bytes)
@@ -125,6 +173,8 @@ class FrameCache:
 
     def close(self):
         self.frames.clear()
+        self.metadata.clear()
+        self.metadata_bytes = 0
         self.bytes = 0
         for file in self.files.values():
             file.close()
@@ -150,6 +200,30 @@ class FileReader:
     peak_frame: int = 0
     resident: bool = False
 
+    def _chunk_reader(self, cache):
+        if self.fmt != 'fch5' or (self.estimate or 0) <= max(
+            64 * _MIB, cache.max_bytes
+        ):
+            return None
+        from hexrd.hedm._fch5_pixels import Fch5Pixels
+
+        handle = cache.opened(self)
+        sampler = getattr(handle, '_hexrd_pixel_sampler', None)
+        if sampler is None:
+            sampler = Fch5Pixels(self, handle)
+            handle._hexrd_pixel_sampler = sampler
+        return sampler
+
+    def sample_pixels(self, index, rows, cols, cache):
+        if (self, int(index)) in cache.frames:
+            return None
+        sampler = self._chunk_reader(cache)
+        return sampler.sample(int(index), rows, cols, cache) if sampler else None
+
+    def read_positions(self, indices, cache):
+        sampler = self._chunk_reader(cache)
+        return sampler.bounds[indices, 0] if sampler else None
+
     def open(self):
         if self.fmt == 'npz':
             return zipfile.ZipFile(self.filename)
@@ -157,6 +231,10 @@ class FileReader:
             import h5py
             import hdf5plugin  # Register frame-cache codecs.
 
+            if os.environ.get('HEXRD_FIT_GRAINS_DIRECT_IO') == '1':
+                from hexrd.hedm._direct_io import open_direct_hdf5
+
+                return open_direct_hdf5(self.filename, rdcc_nbytes=_MIB)
             return h5py.File(self.filename, 'r', rdcc_nbytes=_MIB)
         from hexrd.core import imageseries
 
@@ -347,12 +425,26 @@ class StreamingView:
         # Sorting source frames improves HDD locality. Each frame is released
         # before reading the next; only sampled patch pixels span the window.
         ordered = np.argsort(frame_ids.ravel(), kind='stable')
+        positions = getattr(self.view.reader, 'read_positions', None)
+        if positions is not None:
+            actual = frame_ids.ravel()
+            if self.view.mapping is not None:
+                actual = np.asarray(self.view.mapping)[actual]
+            positions = positions(actual, self.cache)
+            if positions is not None:
+                # Parallel FCH5 writers can store frames out of omega order.
+                # Sort physical offsets to reduce HDD seeks; scatter positions
+                # and centroid arithmetic retain the original patch order.
+                ordered = np.lexsort((frame_ids.ravel(), positions))
         boundaries = np.flatnonzero(np.diff(frame_ids.ravel()[ordered])) + 1
         groups = np.split(ordered, boundaries)
+        from hexrd.hedm._progress import check_cancelled
+
         reporter = current_reporter()
         if reporter is not None:
             reporter.batch(len(groups) if len(ordered) else 0)
         for group in groups:
+            check_cancelled()
             if not len(group):
                 continue
             frame_id = frame_ids.ravel()[group[0]]
@@ -370,39 +462,46 @@ class StreamingView:
                 if self.view.mapping is not None
                 else int(frame_id)
             )
-            frame = self.cache.frame(self.view.reader, actual)
             if self.view.roi is not None:
                 rr += self.view.roi[0]
                 cc += self.view.roi[1]
-            if sparse.issparse(frame) and frame.has_sorted_indices:
-                # This temporary native view borrows just one frame. It is
-                # discarded before the next read, avoiding ROI copies and a
-                # separate Numba sampler/LLVM heap in each spawned worker.
-                sampled = native._SparseFrames([frame]).gather(
-                    np.zeros((1, 1), dtype=np.int64),
-                    np.array([0, len(rr)], dtype=np.int64),
-                    rr,
-                    cc,
-                )
-            else:
-                sampled = (
-                    sample_pixels(frame, rr, cc)
-                    if sparse.issparse(frame)
-                    else frame[rr, cc]
-                )
-            if not self.view.dense and not sparse.issparse(frame):
-                sampled = sampled.copy()
-                sampled[sampled == 0] = 0  # CSR conversion removes negative zero.
+            direct = getattr(self.view.reader, 'sample_pixels', None)
+            sampled = direct(actual, rr, cc, self.cache) if direct else None
+            if sampled is None:
+                sampled = self._sample_frame(actual, rr, cc, native, sample_pixels)
             cursor = 0
             for p, k in occurrences:
                 size = int(sizes[p])
                 first = int(offsets[p]) * depth + int(k) * size
                 output[first : first + size] = sampled[cursor : cursor + size]
                 cursor += size
-            del frame, sampled
+            del sampled
             if reporter is not None:
                 reporter.sampled_frame()
         return output
+
+    def _sample_frame(self, actual, rr, cc, native, sample_pixels):
+        frame = self.cache.frame(self.view.reader, actual)
+        if sparse.issparse(frame) and frame.has_sorted_indices:
+            # This temporary native view borrows just one frame. It is
+            # discarded before the next read, avoiding ROI copies and a
+            # separate Numba sampler/LLVM heap in each spawned worker.
+            sampled = native._SparseFrames([frame]).gather(
+                np.zeros((1, 1), dtype=np.int64),
+                np.array([0, len(rr)], dtype=np.int64),
+                rr,
+                cc,
+            )
+        else:
+            sampled = (
+                sample_pixels(frame, rr, cc)
+                if sparse.issparse(frame)
+                else frame[rr, cc]
+            )
+        if not self.view.dense and not sparse.issparse(frame):
+            sampled = sampled.copy()
+            sampled[sampled == 0] = 0  # CSR conversion removes negative zero.
+        return sampled
 
     def extract(self, frame_ids, offsets, rows, cols, shapes, threshold):
         from hexrd.core.extensions import transforms as native
@@ -716,7 +815,16 @@ class ImagePlan:
             )
             for name, s in series.items()
         }
-        diagnostic('Image access', 'Lazy (bounded RAM)')
+        diagnostic('Image access', 'Lazy (bounded image cache)')
+        if any(getattr(r, 'fmt', None) == 'fch5' for r in builder.readers):
+            diagnostic(
+                'FCH5 reads',
+                (
+                    'Direct (bypass filesystem cache)'
+                    if os.environ.get('HEXRD_FIT_GRAINS_DIRECT_IO') == '1'
+                    else 'Buffered'
+                ),
+            )
         diagnostic(
             'Image cache total', f'{self.cache.max_bytes * workers / _MIB:.0f} MiB'
         )

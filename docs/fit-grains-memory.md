@@ -60,7 +60,7 @@ The budget covers retained image buffers, including underlying allocations and
 entry overhead. It is **not a hard limit on process RSS**: Python/native libraries,
 metadata, calibration arrays, decoder/chunk workspace, one active source frame,
 patch buffers and fitting results need additional memory. HDF5 readers use a
-1 MiB chunk-cache allowance per open file, and each worker retains at most eight
+1 MiB raw-chunk cache allowance per dataset, and each worker retains at most eight
 open readers. Already materialized, caller-owned arrays remain resident; their
 contents (including caller edits) are preserved. On fork platforms these arrays
 can remain shared; parallel resident-array inputs on spawn-only platforms require
@@ -70,6 +70,46 @@ is rejected instead of silently changing its behavior.
 The normal CLI does not collect every grain's extracted spot data in RAM.
 Python callers using `return_pull_spots_data=True` still explicitly request that
 potentially large result collection, outside the image allowance.
+
+For large FCH5 scans, the lazy extraction path now indexes row coordinates and
+reads only the column/intensity chunks needed for each spot window. It does not
+materialize a complete sparse frame for ordinary sorted, unique coordinates.
+Noncanonical coordinates retain the existing CSR conversion and duplicate
+handling. Compact row indexes and decoded chunks count against the same byte
+allowance. Row indexes have a protected quota of at most one quarter of that
+allowance, capped at 128 MiB per worker; this is included in the total, not extra
+RAM. No image scratch files or altered intensity thresholds are involved.
+
+### Running benchmarks on a memory-constrained workstation
+
+An 8192 MiB image-cache allowance does **not** enforce an 8 GiB process limit.
+Do not use the full RAM allowance for retained images. The benchmark's Linux
+allocation guard applies a hard `RLIMIT_AS` ceiling before numerical libraries
+are imported. Unlike a sampled memory watchdog, it rejects an allocation before
+it can exceed the ceiling. This setting requires a single worker because an
+address-space limit is per process, not an aggregate multiprocessing limit.
+
+```bash
+python scripts/benchmark_fit_grains.py run \
+  --source "$PWD" --config /path/to/config.yml --grains /path/to/grains.out \
+  --workers 1 --image-mode lazy --image-cache-mb 512 \
+  --memory-limit-mb 4096 --direct-io --limit 1 --memory --output /path/to/output-prefix
+```
+
+Run comparisons sequentially. The 4 GiB ceiling includes Python, native fitting
+workspaces, thread stacks and mappings as well as the cache; allocation can fail
+even with RSS below that value. The guard changes only the benchmark process,
+not the scientific configuration or the normal CLI's memory policy.
+
+The process limit does not cover Linux's filesystem page cache. This matters on
+WSL hosts, where cached input pages can occupy host RAM despite low process RSS.
+For lazy FCH5 inputs, `--direct-io` sets `HEXRD_FIT_GRAINS_DIRECT_IO=1`, using
+Linux `O_DIRECT` through an aligned HDF5 file-object reader. It bypasses the
+filesystem cache without changing file contents or decoded values. Unsupported
+filesystems raise an error; there is no silent fallback to buffered reads. This
+option covers lazy FCH5 payload reads, not other input formats or the normal
+eager master reader. A verified system cgroup memory limit is needed for a hard
+aggregate ceiling that also covers every input format and all worker processes.
 
 ## HDD tradeoff
 
