@@ -116,7 +116,7 @@ def test_fit_dashboard_completion():
             await pilot.pause(0.3)
             assert app.failure is None and app.finished.is_set()
             table = app.query_one('#reflections', DataTable)
-            assert table.get_row('7') == ['7', 'Done', '3/3', '95.0%', '0.002']
+            assert table.get_row('7')[:5] == ['7', 'Done', '3/3', '95.0%', '0.002']
             assert table.get_row('9')[1] == 'Insufficient reflections'
             assert 'FITTING SUMMARY' in str(
                 app.query_one('#stage-name', Static).render()

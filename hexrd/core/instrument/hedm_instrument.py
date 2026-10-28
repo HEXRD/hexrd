@@ -1805,6 +1805,11 @@ class HEDMInstrument(object):
         write_hdf5 = filename is not None and output_format == 'hdf5'
         write_text = filename is not None and output_format == 'text'
 
+        from hexrd.hedm._fit_progress import current_reporter
+        reporter = current_reporter()
+        if reporter is not None:
+            reporter.phase('Predicting reflections', force=True)
+
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = np.asarray(grain_params[3:6])
 
@@ -1901,6 +1906,8 @@ class HEDMInstrument(object):
                     output[detector_id] = records if _packed else list(records)
                 continue
 
+            if reporter is not None:
+                reporter.panel(len(hkl_ids))
             patches = self._get_panel_patches(
                 panel, ang_centers, ang_pixel_size[mask], tth_tol, eta_tol,
                 rMat_c, tVec_c, npdiv,
@@ -1927,6 +1934,8 @@ class HEDMInstrument(object):
                 ]
                 if -1 in frame_indices:
                     logger.warning(f"window for {hkl} falls outside omega range")
+                    if reporter is not None:
+                        reporter.data['pass_total'] -= 1
                     continue
 
                 # Clip pixel indices to valid detector dimensions
@@ -1942,6 +1951,8 @@ class HEDMInstrument(object):
                 )
                 contains_signal = np.any(patch_data_raw > threshold)
                 patch_has_signal.append(contains_signal)
+                if reporter is not None:
+                    reporter.reflections(1, int(contains_signal))
 
                 # initialize spot data parameters
                 peak_id = next_invalid_peak_id

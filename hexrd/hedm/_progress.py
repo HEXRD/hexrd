@@ -9,19 +9,26 @@ import os
 import threading
 from time import monotonic
 
-
 logger = logging.getLogger('hexrd.hedm')
 _dashboard = ContextVar('hedm_dashboard', default=None)
-STAGES = ('Configuration', 'Material', 'Eta/omega maps', 'Fibers',
-          'Sampling', 'Scoring', 'Clustering', 'Write results')
+STAGES = (
+    'Configuration',
+    'Material',
+    'Eta/omega maps',
+    'Fibers',
+    'Sampling',
+    'Scoring',
+    'Clustering',
+    'Write results',
+)
 FIT_STAGES = ('Configuration', 'Material', 'Load images', 'Fit grains', 'Write results')
 
 
 @dataclass
 class _Stage:
     status: str = 'pending'
-    started: float = 0.
-    elapsed: float = 0.
+    started: float = 0.0
+    elapsed: float = 0.0
     count: int = 0
     total: int = 0
     unit: str = ''
@@ -111,8 +118,10 @@ def report_grain(event):
         dashboard.grains[grain_id] = event
         while len(dashboard.grains) > 32:
             dashboard.grains.pop(next(iter(dashboard.grains)))
-        if (state in ('Done', 'Insufficient reflections')
-                and grain_id not in dashboard.finished_grains):
+        if (
+            state in ('Done', 'Insufficient reflections')
+            and grain_id not in dashboard.finished_grains
+        ):
             dashboard.finished_grains.add(grain_id)
             dashboard.diagnostics['Grains finished'] = str(
                 len(dashboard.finished_grains)
@@ -121,6 +130,24 @@ def report_grain(event):
                 dashboard.diagnostics['Insufficient reflections'] = str(
                     int(dashboard.diagnostics.get('Insufficient reflections', '0')) + 1
                 )
+
+
+def report_fit_metrics(snapshot):
+    dashboard = current_dashboard()
+    if dashboard is None:
+        return
+    with dashboard.lock:
+        old = dashboard.fit_workers.get(snapshot['worker'])
+        if old is None or snapshot['sequence'] > old['sequence']:
+            dashboard.fit_workers[snapshot['worker']] = snapshot
+            grain = snapshot['grain']
+            if grain is not None:
+                dashboard.fit_grain_metrics.pop(grain, None)
+                dashboard.fit_grain_metrics[grain] = snapshot
+                while len(dashboard.fit_grain_metrics) > 32:
+                    dashboard.fit_grain_metrics.pop(
+                        next(iter(dashboard.fit_grain_metrics))
+                    )
 
 
 def activity(message):
@@ -183,6 +210,10 @@ class Dashboard(logging.Handler):
         self.diagnostics = {}
         self.hkls = {}
         self.peaks = {}
+        self.fit_workers = {}
+        self.fit_grain_metrics = {}
+        self.fit_started = 0.0
+        self.fit_passes_planned = 0
         self.grains = {}
         self.finished_grains = set()
         self.events = deque(maxlen=500)

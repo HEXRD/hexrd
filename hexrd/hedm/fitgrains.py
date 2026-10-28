@@ -34,6 +34,7 @@ from hexrd.hedm._progress import (
     diagnostic,
     progress_bar,
     report_grain,
+    report_fit_metrics,
     stage,
 )
 
@@ -69,6 +70,18 @@ def fit_grain_FF_init(params):
     paramMP = params
     if multiprocessing.current_process().name != 'MainProcess':
         detach_dashboard()
+    from hexrd.hedm._fit_progress import FitReporter, set_reporter
+
+    queue = params.get('progress_queue')
+    set_reporter(
+        FitReporter(
+            queue,
+            lazy=params.get('lazy_images', False),
+            cache_limit=params.get('image_cache_limit', 0),
+        )
+        if params.get('collect_metrics', current_dashboard() is not None)
+        else None
+    )
 
 
 def fit_grain_FF_cleanup():
@@ -77,12 +90,20 @@ def fit_grain_FF_cleanup():
     """
     global paramMP
     del paramMP
+    from hexrd.hedm._fit_progress import set_reporter
+
+    set_reporter(None)
 
 
 def _grain_event(grain_id, state, index, passes, completeness=None, chisq=None):
     if state == 'Extracting':
         paramMP['progress_pass'] = index
     event = (int(grain_id), state, index, passes, completeness, chisq)
+    from hexrd.hedm._fit_progress import current_reporter
+
+    reporter = current_reporter()
+    if reporter is not None:
+        reporter.grain(grain_id, state, index, passes)
     queue = paramMP.get('progress_queue')
     if queue is None:
         report_grain(event)
@@ -102,6 +123,9 @@ def _consume_fit_progress(queue, bar):
             event = queue.get_nowait()
         except Empty:
             break
+        if isinstance(event, dict) and event.get('kind') == 'fit_metrics':
+            report_fit_metrics(event)
+            continue
         report_grain(event)
         grain, state, index, passes, *_ = event
         activity(f'Grain {grain}: {state.lower()} · pass {index}/{passes}')
@@ -131,6 +155,20 @@ def fit_grain_FF_reduced(grain_id):
         result[2],
     )
     return result
+
+
+def _fit_grain_with_metrics(grain_id):
+    """Return a reliable final snapshot on the required result channel.
+
+    Routine telemetry is nonblocking and may be dropped when its queue fills.
+    The final cumulative counters travel with the fit result, so the parent
+    can reconcile them even if a worker's last telemetry update was dropped.
+    """
+    from hexrd.hedm._fit_progress import current_reporter
+
+    result = fit_grain_FF_reduced(grain_id)
+    reporter = current_reporter()
+    return result, dict(reporter.data) if reporter is not None else None
 
 
 def _write_pending_spots(grain_id):
@@ -210,6 +248,9 @@ def _fit_grain_FF_reduced(grain_id):
     grain = grains_table[grain_id]
     grain_params = grain[3:15]
 
+    from hexrd.hedm._fit_progress import current_reporter
+
+    reporter = current_reporter()
     passes = min(len(tth_tol), len(eta_tol), len(ome_tol))
     for pass_index, tols in enumerate(zip(tth_tol, eta_tol, ome_tol), 1):
         _grain_event(grain_id, 'Extracting', pass_index, passes)
@@ -234,6 +275,9 @@ def _fit_grain_FF_reduced(grain_id):
         if spots_filename is not None:
             paramMP['pending_spot_data'] = results
 
+        if reporter is not None:
+            reporter.phase('Culling reflections', force=True)
+
         culled_results, num_refl_valid, completeness = determine_valid_reflections(
             results, instrument, analysis_dirname
         )
@@ -241,6 +285,8 @@ def _fit_grain_FF_reduced(grain_id):
         # ======= DO LEASTSQ FIT =======
 
         if num_refl_valid <= 12:  # not enough reflections to fit... exit
+            if reporter is not None:
+                reporter.pass_complete(skipped=passes - pass_index)
             warnings.warn(
                 f'Not enough valid reflections ({num_refl_valid}) to fit, ' f'exiting',
                 RuntimeWarning,
@@ -272,6 +318,8 @@ def _fit_grain_FF_reduced(grain_id):
                 simOnly=False,
                 return_value_flag=2,
             )
+            if reporter is not None:
+                reporter.pass_complete()
 
     if refit is not None:
         _grain_event(grain_id, 'Refitting', passes, passes, completeness, chisq)
@@ -317,6 +365,8 @@ def _fit_grain_FF_reduced(grain_id):
                 simOnly=False,
                 return_value_flag=2,
             )
+        if reporter is not None:
+            reporter.refit_complete()
     result = (grain_id, completeness, chisq, grain_params)
     if return_pull_spots_data:
         result += ((complvec, results),)
@@ -609,6 +659,9 @@ def _fit_grains(
             analysis_dirname=experiment.analysis_dir,
             spots_filename=spots_filename,
             return_pull_spots_data=return_pull_spots_data,
+            collect_metrics=current_dashboard() is not None,
+            lazy_images=image_plan.lazy,
+            image_cache_limit=image_plan.cache.max_bytes if image_plan.lazy else 0,
         )
 
         if (len(grains_table) > 1 and ncpus != 1) or check_if_canceled_func:
@@ -647,6 +700,12 @@ def _fit_grains(
     if dashboard is not None:
         with dashboard.lock:
             dashboard.grains.clear()
+            dashboard.fit_workers.clear()
+            dashboard.fit_grain_metrics.clear()
+            dashboard.fit_started = timeit.default_timer()
+            dashboard.fit_passes_planned = len(grains_table) * min(
+                len(params[key]) for key in ('tth_tol', 'eta_tol', 'ome_tol')
+            )
             dashboard.finished_grains.clear()
             dashboard.diagnostics['Grains finished'] = '0'
             dashboard.diagnostics['Insufficient reflections'] = '0'
@@ -702,7 +761,11 @@ def _fit_grains(
                     gc.unfreeze()
             try:
                 async_result = pool.map_async(
-                    fit_grain_FF_reduced,
+                    (
+                        _fit_grain_with_metrics
+                        if dashboard is not None
+                        else fit_grain_FF_reduced
+                    ),
                     np.array(grains_table[:, 0], dtype=int),
                     chunksize=chunksize,
                 )
@@ -719,6 +782,13 @@ def _fit_grains(
 
                 check_cancelled()
                 fit_results = async_result.get()
+                if dashboard is not None:
+                    records = []
+                    for result, snapshot in fit_results:
+                        records.append(result)
+                        if snapshot is not None:
+                            report_fit_metrics(snapshot)
+                    fit_results = records
                 completed += _consume_fit_progress(progress_queue, bar)
                 bar.update(max(0, len(fit_results) - completed))
                 for result in fit_results:

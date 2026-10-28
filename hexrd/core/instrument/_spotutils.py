@@ -120,6 +120,8 @@ def pull_spots_batched(
     from hexrd.core.rotations import mapAngle
     import logging
 
+    from hexrd.hedm._fit_progress import current_reporter
+    reporter = current_reporter()
     threshold = _comparison_threshold(view.dtype, threshold)
     omega_eval = np.degrees(predicted[:, 2, None]) + ome_grid
     frame_ids = omega_to_frames(series, omega_eval)
@@ -127,6 +129,8 @@ def pull_spots_batched(
     for hkl in hkls[~valid_windows]:
         logging.getLogger().warning(f'window for {hkl} falls outside omega range')
     valid_ids = np.flatnonzero(valid_windows)
+    if reporter is not None:
+        reporter.panel(len(valid_ids))
     patches = instrument._get_panel_patches(
         panel,
         predicted[valid_ids],
@@ -147,6 +151,8 @@ def pull_spots_batched(
         centers, sums, maxima, valid = view.extract(
             frame_ids[ids], offsets, rows, cols, shapes, threshold
         )
+        if reporter is not None:
+            reporter.reflections(len(ids), np.count_nonzero(valid))
         angles = np.full((len(ids), 3), np.nan)
         angles[valid, :2] = (
             edges[valid, :2] + (0.5 + centers[valid, :0:-1]) * edges[valid, 2:]

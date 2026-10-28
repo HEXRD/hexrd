@@ -1,0 +1,173 @@
+{
+  "baseline_branch_revision": "51e1c853",
+  "master_revision": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+  "validation": {
+    "cases": [
+      {
+        "case": "inconel-final",
+        "identical_to_master": true,
+        "seconds": 57.1333282600026,
+        "metrics": {
+          "reflections": 1400755,
+          "frame_reads": 14400,
+          "evaluations": 414372,
+          "passes_done": 5070
+        }
+      },
+      {
+        "case": "dexelas-roi",
+        "identical_to_master": true,
+        "seconds": 19.640688640000008,
+        "metrics": {
+          "reflections": 2119,
+          "frame_reads": 13992,
+          "evaluations": 662,
+          "passes_done": 6
+        }
+      },
+      {
+        "case": "dexelas",
+        "identical_to_master": true,
+        "seconds": 17.214742261003266,
+        "metrics": {
+          "reflections": 2173,
+          "frame_reads": 16211,
+          "evaluations": 480,
+          "passes_done": 6
+        }
+      },
+      {
+        "case": "ruby-0",
+        "identical_to_master": true,
+        "seconds": 8.10650090100171,
+        "metrics": {
+          "reflections": 937,
+          "frame_reads": 6320,
+          "evaluations": 252,
+          "passes_done": 2
+        }
+      },
+      {
+        "case": "ruby-1",
+        "identical_to_master": true,
+        "seconds": 8.49310512000011,
+        "metrics": {
+          "reflections": 937,
+          "frame_reads": 6313,
+          "evaluations": 160,
+          "passes_done": 2
+        }
+      },
+      {
+        "case": "ruby-2",
+        "identical_to_master": true,
+        "seconds": 8.318225928000174,
+        "metrics": {
+          "reflections": 937,
+          "frame_reads": 6324,
+          "evaluations": 210,
+          "passes_done": 2
+        }
+      },
+      {
+        "case": "ruby-3",
+        "identical_to_master": true,
+        "seconds": 8.44402407799862,
+        "metrics": {
+          "reflections": 937,
+          "frame_reads": 6319,
+          "evaluations": 173,
+          "passes_done": 2
+        }
+      },
+      {
+        "case": "ruby-4",
+        "identical_to_master": true,
+        "seconds": 8.279636947001563,
+        "metrics": {
+          "reflections": 937,
+          "frame_reads": 6318,
+          "evaluations": 163,
+          "passes_done": 2
+        }
+      },
+      {
+        "case": "ruby-5",
+        "identical_to_master": true,
+        "seconds": 8.38166267500128,
+        "metrics": {
+          "reflections": 937,
+          "frame_reads": 6320,
+          "evaluations": 175,
+          "passes_done": 2
+        }
+      },
+      {
+        "case": "zirconium",
+        "identical_to_master": true,
+        "seconds": 4.296730578000279,
+        "metrics": {
+          "reflections": 2726,
+          "frame_reads": 4998,
+          "evaluations": 299,
+          "passes_done": 6
+        }
+      },
+      {
+        "case": "written-five",
+        "identical_to_master": true,
+        "seconds": 6.011754065999412,
+        "metrics": {
+          "reflections": 4259,
+          "frame_reads": 15300,
+          "evaluations": 1304,
+          "passes_done": 15
+        }
+      }
+    ],
+    "five_spot_files_byte_identical": true
+  },
+  "final_parallel_passes": 5070,
+  "performance": {
+    "before_seconds": [
+      9.82264521199977,
+      6.338396922001266,
+      6.947208818000945
+    ],
+    "after_seconds": [
+      7.128915027999028,
+      6.907667570001649,
+      6.9425590240025485
+    ],
+    "before_median_seconds": 6.947208818000945,
+    "after_median_seconds": 6.9425590240025485,
+    "workers": 10,
+    "mode": "eager",
+    "telemetry": "Dashboard active before and after; no returned spot collection"
+  },
+  "real_lazy_tui": {
+    "passes_done": 9,
+    "frame_reads": 8970,
+    "frame_hits": 0,
+    "reflections": 2497,
+    "evaluations": 854
+  },
+  "real_pty": "Completed fit-grains and closed with q",
+  "remote_c103_tested": false,
+  "artifacts": "/tmp/hexrd-fit-metrics",
+  "regression_tests": {
+    "passed": 571,
+    "warnings": 1,
+    "seconds": 27.82
+  },
+  "environment": {
+    "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+    "numpy": "2.3.5",
+    "scipy": "1.17.1",
+    "thread_environment": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": null
+    }
+  }
+}

@@ -180,8 +180,19 @@ def fitGrain(
         wavelength,
         omePeriod,
     )
+    from hexrd.hedm._fit_progress import current_reporter
+
+    reporter = current_reporter()
+    objective = objFuncFitGrain
+    if reporter is not None:
+
+        def objective(*args):
+            result = objFuncFitGrain(*args)
+            reporter.evaluation()
+            return result
+
     results = optimize.leastsq(
-        objFuncFitGrain,
+        objective,
         gFit,
         args=fitArgs,
         diag=1.0 / gScl[gFlag].flatten(),

@@ -981,6 +981,9 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.press('l')
                 assert not app.query_one(RichLog).display
                 app.query_one('#stages', DataTable).focus()
+                # Focus is dispatched asynchronously; let it settle before
+                # moving the cursor so the live-follow timer cannot race it.
+                await pilot.pause()
                 app.query_one('#stages', DataTable).move_cursor(row=0)
                 await pilot.press('enter')
                 assert app.selected == 'Configuration'

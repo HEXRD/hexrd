@@ -10,6 +10,9 @@ from dataclasses import dataclass
 import multiprocessing
 import os
 import zipfile
+from time import monotonic
+
+from hexrd.hedm._fit_progress import current_reporter
 
 import numpy as np
 from scipy import sparse
@@ -79,12 +82,28 @@ class FrameCache:
         if not 0 <= index < reader.nframes:
             raise IndexError('image frame index out of bounds')
         key = (reader, index)
+        reporter = current_reporter()
         item = self.frames.pop(key, None)
         if item is not None:
             self.hits += 1
             self.frames[key] = item
+            if reporter is not None:
+                reporter.cache_hit()
+                reporter.cache(self)
             return item[0]
         self.misses += 1
+        # Processed frames may recursively load their source. Count source
+        # reads once, rather than counting the processing result as disk I/O.
+        track_read = (
+            reporter is not None
+            and not reader.resident
+            and not isinstance(reader, ProcessedReader)
+        )
+        if reporter is not None and not reader.resident:
+            reporter.data['cache_misses'] += 1
+        if track_read:
+            reporter.read_started()
+            started = monotonic()
         frame = reader.read(index, self)
         if tuple(frame.shape) != tuple(reader.shape) or frame.dtype != reader.dtype:
             raise ValueError('image frame shape/dtype differs from its metadata')
@@ -93,9 +112,15 @@ class FrameCache:
             while self.bytes + size > self.max_bytes:
                 _, (_, old_size) = self.frames.popitem(last=False)
                 self.bytes -= old_size
+                if reporter is not None:
+                    reporter.data['evictions'] += 1
             self.frames[key] = (frame, size)
             self.bytes += size
             self.peak_bytes = max(self.peak_bytes, self.bytes)
+        if track_read:
+            reporter.read_finished(size, monotonic() - started)
+        if reporter is not None:
+            reporter.cache(self)
         return frame
 
     def close(self):
@@ -323,7 +348,11 @@ class StreamingView:
         # before reading the next; only sampled patch pixels span the window.
         ordered = np.argsort(frame_ids.ravel(), kind='stable')
         boundaries = np.flatnonzero(np.diff(frame_ids.ravel()[ordered])) + 1
-        for group in np.split(ordered, boundaries):
+        groups = np.split(ordered, boundaries)
+        reporter = current_reporter()
+        if reporter is not None:
+            reporter.batch(len(groups) if len(ordered) else 0)
+        for group in groups:
             if not len(group):
                 continue
             frame_id = frame_ids.ravel()[group[0]]
@@ -371,12 +400,17 @@ class StreamingView:
                 output[first : first + size] = sampled[cursor : cursor + size]
                 cursor += size
             del frame, sampled
+            if reporter is not None:
+                reporter.sampled_frame()
         return output
 
     def extract(self, frame_ids, offsets, rows, cols, shapes, threshold):
         from hexrd.core.extensions import transforms as native
 
         pixels = self.gather(frame_ids, offsets, rows, cols)
+        reporter = current_reporter()
+        if reporter is not None:
+            reporter.phase('Computing centroids', force=True)
         return native._spotStats(
             pixels, offsets * frame_ids.shape[1], shapes, threshold
         )
