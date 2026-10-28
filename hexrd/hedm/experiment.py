@@ -7,11 +7,12 @@ with the ``find_orientations`` section of the config.
 import enum
 import os
 import threading
-from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field, TypeAdapter, field_validator
+from pydantic.dataclasses import dataclass
 
 from hexrd.core.experiment import Beam, Experiment, ImageSeries, _pixel_chunks
 
@@ -177,7 +178,7 @@ def _hkl_array(value: Any, key: str) -> Optional[np.ndarray]:
     return hkls
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class OrientationMaps:
     threshold: float | None
     active_hkls: Optional[np.ndarray]   # (n, 3) hkl vectors or (n,) master
@@ -211,12 +212,12 @@ class OrientationMaps:
                    None if filter_fwhm is None else float(filter_fwhm))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class SeedSearch:
     hkl_seeds: np.ndarray               # indices into the active rings
     fiber_step: float                   # radians
     method: SeedSearchMethod
-    method_kwargs: dict[str, float]
+    method_kwargs: dict[str, Any]
 
     @classmethod
     def from_dict(cls, d: dict, omega_tolerance_deg: float) -> 'SeedSearch':
@@ -235,7 +236,7 @@ class SeedSearch:
         return int(round(2 * np.pi / self.fiber_step))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class DirectSearch:
     """Uniform fundamental-zone sampling; angular spacing is in degrees.
 
@@ -251,29 +252,20 @@ class DirectSearch:
         use_quaternion_grid: orientations.npy
     """
 
-    average_angular_spacing: float
-    point_group_number: int | None = None
+    average_angular_spacing: float = Field(gt=0, allow_inf_nan=False)
+    point_group_number: int | None = Field(default=None, strict=True, ge=1, le=32)
 
-    def __post_init__(self):
-        spacing = self.average_angular_spacing
-        if not np.isfinite(spacing) or spacing <= 0:
-            raise ValueError('average_angular_spacing must be positive and finite')
-        group = self.point_group_number
-        if group is not None and (isinstance(group, (bool, np.bool_))
-                or not isinstance(group, (int, np.integer)) or not 1 <= group <= 32):
-            raise ValueError('point_group_number must be an integer from 1 to 32')
+    @field_validator('point_group_number', mode='before')
+    @classmethod
+    def normalize_point_group(cls, value):
+        return int(value) if isinstance(value, np.integer) else value
 
     @classmethod
     def from_dict(cls, d: dict) -> 'DirectSearch':
-        if not isinstance(d, dict):
-            raise ValueError('direct_search must be a mapping of sampling parameters')
-        if 'average_angular_spacing' not in d:
-            raise ValueError('direct_search requires average_angular_spacing in degrees')
-        return cls(float(d['average_angular_spacing']),
-                   d.get('point_group_number'))
+        return TypeAdapter(cls).validate_python(d)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Omega:
     tolerance: float           # radians
     period: np.ndarray         # radians
@@ -287,7 +279,7 @@ class Omega:
         return cls(np.radians(d.get('tolerance', 0.5)), period)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Eta:
     tolerance: float           # radians
     mask: Optional[float]      # radians
@@ -310,22 +302,23 @@ class Eta:
                          [np.pi / 2 + self.mask, 3 * np.pi / 2 - self.mask]])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Clustering:
     radius: float
     completeness: float
-    algorithm: ClusteringAlgorithm
+    algorithm: ClusteringAlgorithm = ClusteringAlgorithm.DBSCAN
+
+    @field_validator('algorithm', mode='before')
+    @classmethod
+    def normalize_algorithm(cls, value):
+        return value.lower() if isinstance(value, str) else value
 
     @classmethod
     def from_dict(cls, d: dict) -> 'Clustering':
-        missing = {'radius', 'completeness'} - d.keys()
-        if missing:
-            raise ValueError(f'clustering config requires {sorted(missing)}')
-        return cls(float(d['radius']), float(d['completeness']),
-                   ClusteringAlgorithm(d.get('algorithm', 'dbscan').lower()))
+        return TypeAdapter(cls).validate_python(d)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class FindOrientations:
     orientation_maps: OrientationMaps
     seed_search: SeedSearch
@@ -357,11 +350,11 @@ def _pair(value):
     return [value, value] if isinstance(value, (int, float)) else value
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class FitGrainsTolerance:
-    eta: list
-    omega: list
-    tth: list
+    eta: list | None
+    omega: list | None
+    tth: list | None
 
     @classmethod
     def from_dict(cls, d: dict) -> 'FitGrainsTolerance':
@@ -369,12 +362,12 @@ class FitGrainsTolerance:
                    _pair(d.get('tth')))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class FitGrains:
     do_fit: bool
     estimate: str | None
     npdiv: int
-    threshold: float
+    threshold: float | None
     tolerance: FitGrainsTolerance
     refit: list | None
     tth_max: bool | float

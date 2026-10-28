@@ -54,6 +54,7 @@ requirements:
     - numba
     - {{ pin_compatible('numpy') }}
     - psutil
+    - pydantic >=2,<3
     - pycifrw
     - python
     - python-xxhash

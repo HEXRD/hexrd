@@ -11,10 +11,10 @@ from __future__ import annotations
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from typing import Optional, TYPE_CHECKING
 
 import numpy as np
+from pydantic.dataclasses import dataclass
 import yaml
 
 _YamlLoader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
@@ -27,13 +27,13 @@ from hexrd.core.extensions import transforms
 from hexrd.core.utils.npz import _NpzReader
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class ActiveMaterial:
-    definitions: str
-    active: str
-    dmin: float                # angstrom
-    two_theta_width: float     # degrees
-    min_sfac_ratio: float
+    definitions: str | None
+    active: str | None
+    dmin: float | None                # angstrom
+    two_theta_width: float | None     # degrees
+    min_sfac_ratio: float | None
     reset_exclusions: bool = True
 
     @classmethod
@@ -43,7 +43,7 @@ class ActiveMaterial:
                    d.get('reset_exclusions', True))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Distortion:
     function_name: str
     parameters: np.ndarray
@@ -53,7 +53,7 @@ class Distortion:
         return cls(d.get('function_name', ''), np.array(d.get('parameters', [])))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Transform:
     tilt: np.ndarray
     translation: np.ndarray
@@ -68,7 +68,7 @@ class Transform:
         return transforms.make_rot_mat_of_exp_map(self.tilt)
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Pixels:
     columns: int
     rows: int
@@ -81,7 +81,7 @@ class Pixels:
                    d.get('size', [0.0, 0.0]), d.get('roi'))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Detector:
     name: str
     distortion: Distortion
@@ -108,7 +108,7 @@ class Detector:
         return np.meshgrid(row, col, indexing='ij')
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Beam:
     energy: float
     vector: np.ndarray
@@ -132,7 +132,7 @@ class Beam:
                    d.get('energy_correction'))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class OscillationStage:
     chi: float
     translation: np.ndarray

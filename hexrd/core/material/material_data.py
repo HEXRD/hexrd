@@ -1,10 +1,11 @@
 """Material bridge exposing crystallographic arrays to workflows."""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, field
 from pathlib import Path
 
 import numpy as np
+from pydantic.dataclasses import dataclass
 
 from hexrd.core import material as _material
 from hexrd.core import valunits
@@ -57,7 +58,7 @@ def load_plane_data_cached(definitions, cache_file, settings, load_material):
     return plane_data
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, config={'arbitrary_types_allowed': True})
 class PlaneData:
     """Everything the diffraction workflows need to know about a crystal.
 
@@ -88,7 +89,7 @@ class PlaneData:
     wavelength: float
     master_hkl_ids: np.ndarray = field(default_factory=lambda: np.empty(0, dtype=int))
     lattice_parameters: np.ndarray = field(default_factory=lambda: np.empty(0))
-    strain_magnitude: float = 0.0
+    strain_magnitude: float | None = 0.0
     point_group_number: int = 0
 
     def __post_init__(self):

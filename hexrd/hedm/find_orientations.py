@@ -4,10 +4,10 @@ import logging
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from contextvars import copy_context
-from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
+from pydantic.dataclasses import dataclass
 
 from hexrd.core import constants as const
 from hexrd.core import distortion as distortion_pkg
@@ -27,10 +27,10 @@ from hexrd.hedm._progress import (
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class EtaOmegaMaps:
     """Diffraction intensity binned over (omega, eta) for each active ring."""
-    ring_maps: np.ndarray         # (n_rings, n_omega, n_eta) float64
+    ring_maps: np.ndarray | Callable[[], np.ndarray]  # lazy or (ring, omega, eta) float64
     eta_edges: np.ndarray         # (n_eta + 1,)
     omega_edges: np.ndarray       # (n_omega + 1,)
     omegas: np.ndarray            # (n_omega,) bin centers
@@ -40,7 +40,11 @@ class EtaOmegaMaps:
     eta_step: float               # radians
 
 
+@dataclass(config={'arbitrary_types_allowed': True})
 class _LazyEtaOmegaMaps(EtaOmegaMaps):
+    def __post_init__(self):
+        self._ring_maps = self.__dict__.pop('ring_maps')
+
     @property
     def ring_maps(self):
         if callable(self._ring_maps):
@@ -67,7 +71,7 @@ def _map_key(maps):
     return fingerprint({}, arrays=(maps.ring_maps,))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class FindOrientationsResult:
     """What find_orientations returns: the grains found, plus every scored trial.
 

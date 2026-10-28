@@ -3,11 +3,12 @@
 from collections import deque
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
 import logging
 import os
 import threading
 from time import monotonic
+
+from pydantic.dataclasses import dataclass
 
 
 logger = logging.getLogger('hexrd.hedm.find_orientations')

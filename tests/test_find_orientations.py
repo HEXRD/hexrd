@@ -27,6 +27,21 @@ from hexrd.hedm.find_orientations import (
 LAUE_GROUPS = ('Ci', 'C2h', 'D2h', 'C4h', 'D4h', 'C3i', 'D3d', 'C6h', 'D6h', 'Th', 'Oh')
 
 
+def test_result_validation_preserves_array_storage():
+    from dataclasses import replace
+    from pydantic import ValidationError
+    from hexrd.hedm.find_orientations import FindOrientationsResult
+
+    quats = np.arange(24.).reshape(4, 6)[:, ::2]
+    scores = np.ones(3)
+    result = FindOrientationsResult(quats, quats, scores)
+    assert result.grain_orientations is result.test_orientations is quats
+    assert result.completeness is scores
+    assert replace(result).test_orientations is quats
+    with pytest.raises(ValidationError, match='completeness'):
+        replace(result, completeness='invalid')
+
+
 @pytest.fixture(params=['file', 'objects'])
 def multiruby_experiment(example_repo_path, tmp_path, request):
     include = example_repo_path / 'NIST_ruby/multiruby_dexelas/include'

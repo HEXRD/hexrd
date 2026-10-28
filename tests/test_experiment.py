@@ -334,7 +334,7 @@ def test_clustering_from_dict():
     assert cl.algorithm is ClusteringAlgorithm.SPH_DBSCAN
     assert Clustering.from_dict(
         {'radius': 1, 'completeness': 0.5}).algorithm is ClusteringAlgorithm.DBSCAN
-    with pytest.raises(ValueError, match="completeness.*radius|radius.*completeness"):
+    with pytest.raises(ValueError, match="(?s)completeness.*radius|radius.*completeness"):
         Clustering.from_dict({})
     with pytest.raises(ValueError):
         Clustering.from_dict({'radius': 1, 'completeness': 0.5,
@@ -363,15 +363,15 @@ def test_direct_search_from_dict():
               'clustering': {'radius': 1.0, 'completeness': 0.85}}
     direct = FindOrientations.from_dict(config).direct_search
     assert direct == DirectSearch(5.0)
-    with pytest.raises(ValueError, match='requires average_angular_spacing'):
+    with pytest.raises(ValueError, match='average_angular_spacing'):
         DirectSearch.from_dict({})
     assert DirectSearch.from_dict(
         {'average_angular_spacing': 3.0, 'point_group_number': 32}).point_group_number == 32
-    with pytest.raises(ValueError, match='mapping'):
+    with pytest.raises(ValueError, match='dictionary'):
         DirectSearch.from_dict(True)
     for spacing in (0, -1, np.nan, np.inf):
         with pytest.raises(ValueError, match='average_angular_spacing'):
-            DirectSearch(spacing)
+            DirectSearch(average_angular_spacing=spacing)
     for group in (0, 33, 1.5, True):
         with pytest.raises(ValueError, match='point_group_number'):
             DirectSearch(3.0, point_group_number=group)
@@ -831,9 +831,11 @@ def test_load_materials(ruby_materials_file):
 
 
 def test_material_bridge_parameters(ruby_materials_file):
+    from dataclasses import replace
     from hexrd.core.material.material_data import Material
 
     loose = Material('ruby', ruby_materials_file, dmin=1.6, beam_energy=80.725)
+    assert replace(loose.plane_data, strain_magnitude=None).strain_magnitude is None
     tight = Material('ruby', ruby_materials_file, dmin=1.0, beam_energy=80.725)
     # a smaller dmin admits more reflections
     assert len(tight.plane_data.unexcluded_hkls) > len(loose.plane_data.unexcluded_hkls)
