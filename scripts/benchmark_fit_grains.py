@@ -140,6 +140,14 @@ def run(args):
         Path(settings.get('working_dir', config.parent)).resolve()
     )
     settings['multiprocessing'] = args.workers
+    if getattr(args, 'image_mode', None) is not None:
+        settings.setdefault('fit_grains', {}).setdefault('image_cache', {})[
+            'mode'
+        ] = args.image_mode
+    if getattr(args, 'image_cache_mb', None) is not None:
+        settings.setdefault('fit_grains', {}).setdefault('image_cache', {})[
+            'max_size_mb'
+        ] = args.image_cache_mb
     # Keep spot files and other analysis output away from the input dataset.
     settings['analysis_name'] = str(output) + '-analysis'
     temporary_config = output.with_suffix('.yml')
@@ -199,6 +207,7 @@ def run(args):
         'grain_count': len(original_grains),
         'study': args.study,
         'workers': args.workers,
+        'image_cache': settings.get('fit_grains', {}).get('image_cache', {}),
         'setup_seconds': setup_seconds,
         'seconds': timings,
         'median_seconds': float(np.median(timings)),
@@ -324,6 +333,10 @@ def main():
         help='Output prefix for .yml, .json, .pkl, and optional profiles',
     )
     runner.add_argument('--workers', type=int, default=1)
+    runner.add_argument('--image-mode', choices=('auto', 'eager', 'lazy'))
+    runner.add_argument(
+        '--image-cache-mb', type=float, help='Total image cache MiB across workers'
+    )
     runner.add_argument('--limit', type=int)
     runner.add_argument(
         '--study',

@@ -522,6 +522,37 @@ def fit_grains(
     even if there is only one grain or one process, so that it will be
     cancelable.
     """
+    from hexrd.hedm._image_cache import ImagePlan
+
+    plan = ImagePlan()
+    try:
+        return _fit_grains(
+            experiment,
+            grains_table,
+            material,
+            show_progress,
+            ids_to_refine,
+            write_spots_files,
+            check_if_canceled_func,
+            return_pull_spots_data,
+            plan,
+        )
+    finally:
+        clear_sparse_frame_views()
+        plan.close()
+
+
+def _fit_grains(
+    experiment,
+    grains_table,
+    material,
+    show_progress,
+    ids_to_refine,
+    write_spots_files,
+    check_if_canceled_func,
+    return_pull_spots_data,
+    image_plan,
+):
     grains_table = np.atleast_2d(grains_table)
     clear_sparse_frame_views()
 
@@ -552,6 +583,15 @@ def fit_grains(
         if ids_to_refine is not None:
             grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
 
+        from hexrd.hedm.experiment import ImageCacheSettings
+
+        imsd, ncpus = image_plan.prepare(
+            imsd,
+            getattr(experiment.fit_grains, 'image_cache', ImageCacheSettings()),
+            min(ncpus, max(1, len(grains_table))),
+            force_process=check_if_canceled_func is not None,
+        )
+        context = image_plan.context
         spots_filename = SPOTS_OUT_FILE if write_spots_files else None
         params = dict(
             grains_table=grains_table,
@@ -572,7 +612,7 @@ def fit_grains(
         )
 
         if (len(grains_table) > 1 and ncpus != 1) or check_if_canceled_func:
-            if constants.mp_context.get_start_method() == 'fork':
+            if not image_plan.lazy and context.get_start_method() == 'fork':
                 # For frame cache, we need to load in all of the data up-front
                 # so it can use fork multiprocessing to share with the other
                 # processes. Otherwise, every process will load in the data on
@@ -638,12 +678,9 @@ def fit_grains(
                 "\tstarting fit on %d processes with chunksize %d", nproc, chunksize
             )
             start = timeit.default_timer()
-            freeze = (
-                constants.mp_context.get_start_method() == 'fork'
-                and gc.get_freeze_count() == 0
-            )
+            freeze = context.get_start_method() == 'fork' and gc.get_freeze_count() == 0
             progress_queue = (
-                constants.mp_context.Queue(maxsize=256)
+                context.Queue(maxsize=256)
                 if current_dashboard() is not None or show_progress
                 else None
             )
@@ -652,7 +689,7 @@ def fit_grains(
             if freeze:
                 gc.freeze()
             try:
-                pool = constants.mp_context.Pool(nproc, fit_grain_FF_init, (params,))
+                pool = context.Pool(nproc, fit_grain_FF_init, (params,))
             except BaseException:
                 if progress_queue is not None:
                     progress_queue.close()

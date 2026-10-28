@@ -7,7 +7,7 @@ with the ``find_orientations`` section of the config.
 import enum
 import os
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -59,6 +59,7 @@ class _AdapterImageSeries(ImageSeries):
     def __init__(self, panel, filename, fmt, args, max_workers=1):
         from hexrd.core import imageseries
 
+        self._source = (filename, fmt, dict(args))
         self._series = imageseries.open(filename, fmt, **args)
         self._max_workers = max_workers
         self.panel = panel if panel is not None else self._series.metadata.get('panel')
@@ -360,6 +361,26 @@ class FitGrainsTolerance:
 
 
 @dataclass(frozen=True)
+class ImageCacheSettings:
+    """Total retained image allowance across all fit-grains workers, in MiB."""
+
+    mode: str = 'auto'
+    max_size_mb: float | None = None
+
+    def __post_init__(self):
+        if self.mode not in ('auto', 'eager', 'lazy'):
+            raise ValueError('fit_grains:image_cache:mode must be auto, eager, or lazy')
+        if self.max_size_mb is not None and (
+            not np.isfinite(self.max_size_mb) or self.max_size_mb < 0
+        ):
+            raise ValueError('fit_grains:image_cache:max_size_mb must be finite and nonnegative')
+
+    @classmethod
+    def from_dict(cls, value):
+        return cls(**(value or {}))
+
+
+@dataclass(frozen=True)
 class FitGrains:
     do_fit: bool
     estimate: str | None
@@ -370,6 +391,7 @@ class FitGrains:
     tth_max: bool | float
     reset_exclusions: bool
     exclusion_parameters: dict
+    image_cache: ImageCacheSettings = field(default_factory=ImageCacheSettings)
 
     @classmethod
     def from_dict(cls, d: dict, path) -> 'FitGrains':
@@ -384,7 +406,8 @@ class FitGrains:
                    d.get('threshold'),
                    FitGrainsTolerance.from_dict(d.get('tolerance', {})),
                    _pair(d.get('refit')), d.get('tth_max', True),
-                   d.get('reset_exclusions', True), exclusions)
+                   d.get('reset_exclusions', True), exclusions,
+                   ImageCacheSettings.from_dict(d.get('image_cache')))
 
 
 class HedmExperiment(Experiment):

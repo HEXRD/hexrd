@@ -22,6 +22,8 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     dataname : str, optional
         The name of the HDF dataset containing the 2-d or 3d image data.
         The default values is 'images'.
+    rdcc_nbytes: int, optional
+        Maximum bytes in the HDF5 raw data chunk cache (h5py default if omitted).
     close_when_finished: bool, optional
         Whether to close the h5py file handle when this imageseries is
         deleted. The default is `True`.
@@ -30,12 +32,17 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
     format = 'hdf5'
 
     def __init__(self, fname, **kwargs):
+        self._file_options = {}
+        if 'rdcc_nbytes' in kwargs:
+            self._file_options['rdcc_nbytes'] = kwargs['rdcc_nbytes']
         if isinstance(fname, h5py.File):
             self.__h5name = fname.filename
             self.__h5file = fname
         else:
             self.__h5name = fname
-            self.__h5file = h5py.File(self.__h5name, 'r')
+            self.__h5file = h5py.File(
+                self.__h5name, 'r', **getattr(self, '_file_options', {})
+            )
 
         self._close_when_finished = kwargs.get('close_when_finished', True)
         self.__path = kwargs['path']
@@ -116,7 +123,9 @@ class HDF5ImageSeriesAdapter(ImageSeriesAdapter):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.__h5file = h5py.File(self.__h5name, 'r')
+        self.__h5file = h5py.File(
+            self.__h5name, 'r', **getattr(self, '_file_options', {})
+        )
         self._load_data()
 
     def _load_data(self):

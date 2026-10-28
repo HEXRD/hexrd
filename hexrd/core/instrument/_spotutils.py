@@ -213,7 +213,11 @@ def sparse_frame_view(series):
 
     if series in _frame_views:
         return _frame_views[series]
-    if isinstance(series, RoiImageSeries):
+    from hexrd.hedm._image_cache import BoundedSeries
+
+    if isinstance(series, BoundedSeries):
+        result = series.native_view()
+    elif isinstance(series, RoiImageSeries):
         if series._images is not None:
             result = _native_frames(series._images, native)
         else:
