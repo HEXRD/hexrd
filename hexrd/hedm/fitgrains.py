@@ -199,6 +199,20 @@ def _write_pending_spots(grain_id):
 
 
 def _fit_grain_FF_reduced(grain_id):
+    steps = _fit_grain_steps(grain_id)
+    response = None
+    try:
+        while True:
+            try:
+                request = steps.send(response)
+            except StopIteration as finished:
+                return finished.value
+            response = paramMP['instrument'].pull_spots(*request[0], **request[1])
+    finally:
+        steps.close()
+
+
+def _fit_grain_steps(grain_id):
     """
     Perform non-linear least-square fit for the specified grain.
 
@@ -254,23 +268,23 @@ def _fit_grain_FF_reduced(grain_id):
     passes = min(len(tth_tol), len(eta_tol), len(ome_tol))
     for pass_index, tols in enumerate(zip(tth_tol, eta_tol, ome_tol), 1):
         _grain_event(grain_id, 'Extracting', pass_index, passes)
-        complvec, results = instrument.pull_spots(
-            plane_data,
-            grain_params,
-            imgser_dict,
-            tth_tol=tols[0],
-            eta_tol=tols[1],
-            ome_tol=tols[2],
-            npdiv=npdiv,
-            threshold=threshold,
-            eta_ranges=eta_ranges,
-            ome_period=ome_period,
-            dirname=analysis_dirname,
-            filename=None,
-            return_spot_list=False,
-            check_only=False,
-            interp='nearest',
-            _packed=True,
+        complvec, results = yield (
+            (plane_data, grain_params, imgser_dict),
+            dict(
+                tth_tol=tols[0],
+                eta_tol=tols[1],
+                ome_tol=tols[2],
+                npdiv=npdiv,
+                threshold=threshold,
+                eta_ranges=eta_ranges,
+                ome_period=ome_period,
+                dirname=analysis_dirname,
+                filename=None,
+                return_spot_list=False,
+                check_only=False,
+                interp='nearest',
+                _packed=True,
+            ),
         )
         if spots_filename is not None:
             paramMP['pending_spot_data'] = results
@@ -568,9 +582,14 @@ def fit_grains(
     If it returns `True`, it indicates that fit_grains should be canceled.
     This is done by terminating the multiprocessing processes.
 
-    If `check_if_canceled_func` is set, multiprocessing will be performed,
+    In the default measurement mode, if `check_if_canceled_func` is set,
+    multiprocessing will be performed,
     even if there is only one grain or one process, so that it will be
     cancelable.
+
+    ``fit_grains.measurement_mode: staged`` prepares exact peak measurements
+    in shared frame order before each fit pass. This opt-in mode currently uses
+    one process and checks cancellation during planning, I/O and optimization.
     """
     from hexrd.hedm._image_cache import ImagePlan
 
@@ -623,6 +642,9 @@ def _fit_grains(
 
         # number of processes
         ncpus = experiment.max_workers
+        staged = getattr(experiment.fit_grains, 'measurement_mode', 'grain') == 'staged'
+        if staged:
+            ncpus = 1
 
         # threshold for fitting
         threshold = experiment.fit_grains.threshold
@@ -635,11 +657,16 @@ def _fit_grains(
 
         from hexrd.hedm.experiment import ImageCacheSettings
 
+        settings = getattr(experiment.fit_grains, 'image_cache', ImageCacheSettings())
+        if staged:
+            from dataclasses import replace
+
+            settings = replace(settings, mode='lazy')
         imsd, ncpus = image_plan.prepare(
             imsd,
-            getattr(experiment.fit_grains, 'image_cache', ImageCacheSettings()),
+            settings,
             min(ncpus, max(1, len(grains_table))),
-            force_process=check_if_canceled_func is not None,
+            force_process=check_if_canceled_func is not None and not staged,
         )
         context = image_plan.context
         spots_filename = SPOTS_OUT_FILE if write_spots_files else None
@@ -663,6 +690,24 @@ def _fit_grains(
             lazy_images=image_plan.lazy,
             image_cache_limit=image_plan.cache.max_bytes if image_plan.lazy else 0,
         )
+        if staged:
+            params['staged_workspace'] = min(
+                512 * 1024**2, max(16 * 1024**2, image_plan.cache.max_bytes)
+            )
+            image_plan.cache.close()
+            temporary_cache = min(128 * 1024**2, params['staged_workspace'] // 4)
+            image_plan.cache.max_bytes = temporary_cache
+            image_plan.cache.metadata_limit = temporary_cache // 2
+            params['image_cache_limit'] = temporary_cache
+            diagnostic('Measurement mode', 'Segment and measure before each fit pass')
+            diagnostic(
+                'Staged workspace', f"{params['staged_workspace'] / 1024**2:.0f} MiB"
+            )
+            diagnostic(
+                'Image cache total',
+                f'{temporary_cache / 1024**2:.0f} MiB (indexes and current-frame chunks)',
+            )
+            diagnostic('Image cache / worker', f'{temporary_cache / 1024**2:.0f} MiB')
 
         if (len(grains_table) > 1 and ncpus != 1) or check_if_canceled_func:
             if not image_plan.lazy and context.get_start_method() == 'fork':
@@ -716,7 +761,16 @@ def _fit_grains(
         disable=not show_progress,
     ) as bar:
         # DO FIT!
-        if (len(grains_table) == 1 or ncpus == 1) and not check_if_canceled_func:
+        if staged:
+            from hexrd.hedm._staged_spots import fit_staged, StagedCancelled
+
+            start = timeit.default_timer()
+            try:
+                fit_results = fit_staged(params, bar, check_if_canceled_func)
+            except StagedCancelled:
+                return None
+            elapsed = timeit.default_timer() - start
+        elif (len(grains_table) == 1 or ncpus == 1) and not check_if_canceled_func:
             logger.info("\tstarting serial fit")
             start = timeit.default_timer()
             fit_grain_FF_init(params)

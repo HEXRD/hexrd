@@ -44,6 +44,9 @@ class DirectFile(io.RawIOBase):
         return offset
 
     def readinto(self, target):
+        from hexrd.hedm._progress import check_cancelled
+
+        check_cancelled()
         self._checkClosed()
         target = memoryview(target).cast('B')
         wanted = min(len(target), max(0, self.size - self.position))

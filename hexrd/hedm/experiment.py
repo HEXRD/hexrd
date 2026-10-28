@@ -392,6 +392,11 @@ class FitGrains:
     reset_exclusions: bool
     exclusion_parameters: dict
     image_cache: ImageCacheSettings = field(default_factory=ImageCacheSettings)
+    measurement_mode: str = 'grain'
+
+    def __post_init__(self):
+        if self.measurement_mode not in ('grain', 'staged'):
+            raise ValueError('fit_grains:measurement_mode must be grain or staged')
 
     @classmethod
     def from_dict(cls, d: dict, path) -> 'FitGrains':
@@ -407,7 +412,8 @@ class FitGrains:
                    FitGrainsTolerance.from_dict(d.get('tolerance', {})),
                    _pair(d.get('refit')), d.get('tth_max', True),
                    d.get('reset_exclusions', True), exclusions,
-                   ImageCacheSettings.from_dict(d.get('image_cache')))
+                   ImageCacheSettings.from_dict(d.get('image_cache')),
+                   d.get('measurement_mode', 'grain'))
 
 
 class HedmExperiment(Experiment):

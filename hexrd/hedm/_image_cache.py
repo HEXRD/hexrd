@@ -57,6 +57,7 @@ class FrameCache:
         self.frames = OrderedDict()
         self.metadata = OrderedDict()
         self.metadata_bytes = 0
+        self.metadata_limit = None
         self.files = OrderedDict()
         self.bytes = self.peak_bytes = self.hits = self.misses = 0
 
@@ -109,7 +110,11 @@ class FrameCache:
         value = load()
         value.flags.writeable = False
         size = frame_bytes(value)
-        quota = min(128 * _MIB, self.max_bytes // 4) if metadata else self.max_bytes
+        quota = (
+            min(self.max_bytes, self.metadata_limit)
+            if metadata and self.metadata_limit is not None
+            else min(128 * _MIB, self.max_bytes // 4) if metadata else self.max_bytes
+        )
         if size <= quota:
             if metadata:
                 while self.metadata_bytes + size > quota:
@@ -171,11 +176,18 @@ class FrameCache:
             reporter.cache(self)
         return frame
 
-    def close(self):
+    def clear_payload(self):
         self.frames.clear()
+        self.bytes = self.metadata_bytes
+
+    def clear_frames(self):
+        self.clear_payload()
         self.metadata.clear()
         self.metadata_bytes = 0
         self.bytes = 0
+
+    def close(self):
+        self.clear_frames()
         for file in self.files.values():
             file.close()
         self.files.clear()

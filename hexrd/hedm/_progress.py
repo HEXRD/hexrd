@@ -11,6 +11,7 @@ from time import monotonic
 
 logger = logging.getLogger('hexrd.hedm')
 _dashboard = ContextVar('hedm_dashboard', default=None)
+_cancellation_check = ContextVar('hedm_cancellation_check', default=None)
 STAGES = (
     'Configuration',
     'Material',
@@ -91,6 +92,13 @@ def check_cancelled():
     dashboard = _dashboard.get()
     if dashboard:
         dashboard.check_cancelled()
+    callback = _cancellation_check.get()
+    if callback is not None:
+        token = _cancellation_check.set(None)
+        try:
+            callback()
+        finally:
+            _cancellation_check.reset(token)
 
 
 def current_dashboard():

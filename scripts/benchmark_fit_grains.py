@@ -170,6 +170,10 @@ def run(args):
         Path(settings.get('working_dir', config.parent)).resolve()
     )
     settings['multiprocessing'] = args.workers
+    if args.measurement_mode is not None:
+        settings.setdefault('fit_grains', {})[
+            'measurement_mode'
+        ] = args.measurement_mode
     if getattr(args, 'image_mode', None) is not None:
         settings.setdefault('fit_grains', {}).setdefault('image_cache', {})[
             'mode'
@@ -200,6 +204,12 @@ def run(args):
         experiment = legacy_config.open(str(temporary_config))[0]
     else:
         experiment = HedmExperiment(str(temporary_config))
+    if (
+        args.measurement_mode is not None
+        and getattr(experiment.fit_grains, 'measurement_mode', 'grain')
+        != args.measurement_mode
+    ):
+        raise ValueError('Selected source does not support this measurement mode')
     setup_seconds = time.perf_counter() - started
 
     timings = []
@@ -237,6 +247,9 @@ def run(args):
         'grain_count': len(original_grains),
         'study': args.study,
         'workers': args.workers,
+        'measurement_mode': settings.get('fit_grains', {}).get(
+            'measurement_mode', 'grain'
+        ),
         'address_space_limit_mb': allocation_limit,
         'direct_fch5_reads': os.environ.get('HEXRD_FIT_GRAINS_DIRECT_IO') == '1',
         'image_cache': settings.get('fit_grains', {}).get('image_cache', {}),
@@ -371,6 +384,7 @@ def main():
         help='Hard Linux address-space limit in MiB; requires --workers 1',
     )
     runner.add_argument('--image-mode', choices=('auto', 'eager', 'lazy'))
+    runner.add_argument('--measurement-mode', choices=('grain', 'staged'))
     runner.add_argument(
         '--direct-io',
         action='store_true',
@@ -431,6 +445,12 @@ def main():
             parser.error('--memory-limit-mb must be positive and requires --workers 1')
     if args.command == 'run' and args.direct_io and args.image_mode != 'lazy':
         parser.error('--direct-io requires --image-mode lazy')
+    if (
+        args.command == 'run'
+        and args.measurement_mode == 'staged'
+        and args.workers != 1
+    ):
+        parser.error('staged measurement currently requires --workers 1')
     args.func(args)
 
 

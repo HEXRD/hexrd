@@ -1,12 +1,14 @@
 """Numerical helpers for reflection extraction."""
 
 from functools import lru_cache
+from contextvars import ContextVar
 from weakref import WeakKeyDictionary
 
 import numpy as np
 from scipy import ndimage
 
 _frame_views = WeakKeyDictionary()
+_extraction_context = ContextVar('spot_extraction_context', default=None)
 
 
 def clear_sparse_frame_views():
@@ -121,6 +123,7 @@ def pull_spots_batched(
     import logging
 
     from hexrd.hedm._fit_progress import current_reporter
+
     reporter = current_reporter()
     threshold = _comparison_threshold(view.dtype, threshold)
     omega_eval = np.degrees(predicted[:, 2, None]) + ome_grid
@@ -204,6 +207,18 @@ def pull_spots_batched(
 
 
 def sparse_frame_view(series):
+    context = _extraction_context.get()
+    if context is None:
+        return _sparse_frame_view(series)
+    token = _extraction_context.set(None)
+    try:
+        result = _sparse_frame_view(series)
+    finally:
+        _extraction_context.reset(token)
+    return context.wrap(result)
+
+
+def _sparse_frame_view(series):
     """Borrow CSR buffers, including zero-copy ROI views, without densifying.
 
     Native views live outside the series' pickle state. Fork workers inherit
@@ -243,10 +258,28 @@ def sparse_frame_view(series):
             parent = sparse_frame_view(series._imser)
             (r0, r1), (c0, c1) = series.oplist[0][1]
             if parent is not None:
-                try:
-                    result = parent.view(r0, c0, r1 - r0, c1 - c0)
-                except ValueError:
-                    pass
+                from hexrd.hedm._image_cache import StreamingView
+
+                if isinstance(parent, StreamingView):
+                    from dataclasses import replace
+
+                    source = parent.view
+                    r0, r1, _ = slice(r0, r1).indices(source.shape[0])
+                    c0, c1, _ = slice(c0, c1).indices(source.shape[1])
+                    r, c = source.roi[:2] if source.roi else (0, 0)
+                    result = StreamingView(
+                        replace(
+                            source,
+                            roi=(r + r0, c + c0, max(0, r1 - r0), max(0, c1 - c0)),
+                            dense=True,
+                        ),
+                        parent.cache,
+                    )
+                else:
+                    try:
+                        result = parent.view(r0, c0, r1 - r0, c1 - c0)
+                    except ValueError:
+                        pass
     elif type(series) is FrameCacheImageSeriesAdapter:
         series._load_framelist_if_needed()
         frames = series._framelist
