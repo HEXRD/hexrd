@@ -87,82 +87,76 @@ class FindOrientationsResult:
 
 def find_orientations(experiment: HedmExperiment, material: Optional[Material] = None,
                       clean: bool = False) -> FindOrientationsResult:
-    """Find grain orientations in a rotation series.
+    """Find grain orientations, returning accepted grains, trials, and scores.
 
-    Args:
-        experiment: Experiment inputs and find-orientations parameters.
-        material: Material to analyze. Uses the experiment's active material
-            when omitted.
-        clean: Whether to regenerate eta-omega maps instead of using a cached
-            map file.
-
-    Returns:
-        The accepted grain orientations, trial orientations, and completeness
-        scores.
+    The material defaults to the experiment's active material. ``clean``
+    rebuilds eta-omega maps even when a saved map exists.
     """
+    plane_data = load_plane_data(experiment, material)
+    maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
+    orientations = generate_trial_orientations(experiment, plane_data, maps)
+    min_samples = select_min_samples(experiment, plane_data, maps, orientations)
+    completeness = score_orientations(experiment, plane_data, maps, orientations)
+    grains = cluster_grains(experiment, plane_data, orientations, completeness,
+                            min_samples=min_samples)
+    return FindOrientationsResult(grains, orientations, completeness)
+
+
+@stage('Material')
+def load_plane_data(experiment: HedmExperiment, material: Optional[Material] = None) -> PlaneData:
+    """Use the supplied material or load the active material's cached crystallography."""
+    if material is not None or experiment._materials_file is None:
+        return (material or experiment.get_active_material()).plane_data
+    from dataclasses import asdict
+
+    def load_material():
+        import numba
+
+        numba.set_num_threads(max(1, min(
+            experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
+        return experiment.get_active_material()
+
+    return load_plane_data_cached(
+        experiment._materials_file,
+        os.path.join(_cache_dir(experiment), 'plane-data.npz'),
+        dict(material=asdict(experiment.active_material), beam_energy=experiment.beam.energy),
+        load_material)
+
+
+@stage('Fibers')
+def generate_trial_orientations(experiment: HedmExperiment, plane_data: PlaneData,
+                                maps: EtaOmegaMaps) -> np.ndarray:
+    """Return (4, n) quaternions from a saved grid, uniform grid, or seeded fibers."""
     fo = experiment.find_orientations
     grid_file = experiment.quaternion_grid_file
-    fiber_cache = os.path.join(_cache_dir(experiment), 'fibers.npz')
+    if grid_file is not None:
+        activity('Loading quaternion grid')
+        return np.load(grid_file, mmap_mode='r')
+    if fo.direct_search is not None:
+        spacing = fo.direct_search.average_angular_spacing
+        eta_tol, ome_tol = np.degrees([fo.eta.tolerance, fo.omega.tolerance])
+        if spacing > max(eta_tol, ome_tol):
+            logger.warning(
+                'Direct-search grid spacing %g deg is coarser than the eta/omega '
+                'tolerances (%g/%g deg). Grains can be missed before clustering; '
+                'validate grid resolution or use seed_search.', spacing, eta_tol, ome_tol)
+        activity('Generating uniform orientation grid')
+        return generate_orientation_grid(experiment, plane_data)
+    report_hkls('Seed', plane_data.unexcluded_hkls[
+        maps.ring_ids[fo.seed_search.hkl_seeds]])
+    return _load_or_generate_fibers(
+        experiment, plane_data, maps, os.path.join(_cache_dir(experiment), 'fibers.npz'))
 
-    with stage('Material'):
-        if material is None and experiment._materials_file is not None:
-            from dataclasses import asdict
 
-            def load_material():
-                import numba
-
-                numba.set_num_threads(max(1, min(
-                    experiment.max_workers, numba.config.NUMBA_NUM_THREADS)))
-                return experiment.get_active_material()
-
-            plane_data = load_plane_data_cached(
-                experiment._materials_file,
-                os.path.join(_cache_dir(experiment), 'plane-data.npz'),
-                dict(material=asdict(experiment.active_material),
-                     beam_energy=experiment.beam.energy),
-                load_material)
-        else:
-            plane_data = (material or experiment.get_active_material()).plane_data
-
-    with stage('Eta/omega maps'):
-        maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
-
-    with stage('Fibers'):
-        if grid_file is not None:
-            activity('Loading quaternion grid')
-            fibers = np.load(grid_file, mmap_mode='r')
-        elif fo.direct_search is not None:
-            spacing = fo.direct_search.average_angular_spacing
-            eta_tol, ome_tol = np.degrees([fo.eta.tolerance, fo.omega.tolerance])
-            if spacing > max(eta_tol, ome_tol):
-                logger.warning(
-                    'Direct-search grid spacing %g deg is coarser than the eta/omega '
-                    'tolerances (%g/%g deg). Grains can be missed before clustering; '
-                    'validate grid resolution or use seed_search.', spacing, eta_tol, ome_tol)
-            activity('Generating uniform orientation grid')
-            fibers = generate_orientation_grid(experiment, plane_data)
-        else:
-            report_hkls('Seed', plane_data.unexcluded_hkls[
-                maps.ring_ids[fo.seed_search.hkl_seeds]])
-            fibers = _load_or_generate_fibers(experiment, plane_data, maps, fiber_cache)
-    with stage('Sampling'):
-        min_samples = (_cached_min_samples(experiment, plane_data, maps)
-                       if grid_file is None and fo.direct_search is None and fibers.shape[1]
-                       else 1)
-
-    with stage('Scoring'):
-        report_hkls('Scoring', plane_data.unexcluded_hkls[maps.ring_ids])
-        completeness = score_orientations(experiment, plane_data, maps, fibers)
-    with stage('Clustering'):
-        qbar = cluster_grains(experiment, plane_data, fibers, completeness,
-                              min_samples=min_samples)
-        diagnostic('Grains', f'{qbar.shape[1]:,}')
-
-    return FindOrientationsResult(
-        grain_orientations=qbar,
-        test_orientations=fibers,
-        completeness=completeness,
-    )
+@stage('Sampling')
+def select_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
+                       maps: EtaOmegaMaps, orientations: np.ndarray) -> int:
+    """Estimate seeded cluster support; orientation grids use a minimum of one."""
+    fo = experiment.find_orientations
+    if (experiment.quaternion_grid_file is None and fo.direct_search is None
+            and orientations.shape[1]):
+        return _cached_min_samples(experiment, plane_data, maps)
+    return 1
 
 
 def generate_orientation_grid(experiment: HedmExperiment,
@@ -200,20 +194,12 @@ def generate_orientation_grid(experiment: HedmExperiment,
     return grid
 
 
+@stage('Eta/omega maps')
 def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneData,
                                  clean: bool = False) -> EtaOmegaMaps:
-    """Load cached eta-omega maps or build and cache new maps.
+    """Load or build eta-omega maps, applying configured filters unless clean.
 
-    The configured map filter is applied after loading or building unless
-    ``clean`` is true.
-
-    Args:
-        experiment: Experiment inputs and orientation-map parameters.
-        plane_data: Crystallographic data for the material being analyzed.
-        clean: Whether to rebuild the maps even when a cache exists.
-
-    Returns:
-        The loaded or newly built eta-omega maps.
+    ``clean`` forces rebuilding and saving the unfiltered maps.
     """
     om = experiment.find_orientations.orientation_maps
     path = experiment.eta_ome_maps_file
@@ -241,18 +227,9 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
 
 def _resolve_active_rings(active_hkls: Optional[np.ndarray],
                           plane_data: PlaneData) -> np.ndarray:
-    """Resolve active HKLs to indices in the non-excluded HKL list.
+    """Resolve master HKL IDs or (n, 3) triples to non-excluded ring indices.
 
-    Args:
-        active_hkls: HKLs as an ``(n, 3)`` array, master HKL IDs as an
-            ``(n,)`` array, or ``None`` to select every non-excluded ring.
-        plane_data: Crystallographic reflection data.
-
-    Returns:
-        Indices of the selected rings in ``plane_data.unexcluded_hkls``.
-
-    Raises:
-        ValueError: If an HKL is excluded, unknown, out of range, or repeated.
+    None selects all rings. Unknown, excluded, and repeated HKLs raise ValueError.
     """
     if active_hkls is None:
         return np.arange(len(plane_data.unexcluded_hkls))
@@ -279,17 +256,10 @@ def _resolve_active_rings(active_hkls: Optional[np.ndarray],
 
 def build_eta_omega_maps(experiment: HedmExperiment,
                          plane_data: PlaneData) -> EtaOmegaMaps:
-    """Build per-ring eta-omega maps from detector image series.
+    """Bin streamed detector frames into per-ring eta-omega intensity maps.
 
-    Intensities are accumulated in float64: frame caches are often uint16,
-    and a bin's summed intensity can exceed the native dtype's range.
-
-    Args:
-        experiment: Experiment geometry, image series, and map parameters.
-        plane_data: Crystallographic data for the material being analyzed.
-
-    Returns:
-        Intensity maps and their eta, omega, two-theta, and ring metadata.
+    Accumulate in float64 to avoid integer overflow and preserve NaN gaps
+    outside detector coverage. Map angles are in radians.
     """
     fo = experiment.find_orientations
 
@@ -402,17 +372,9 @@ def _iter_panel_bins(experiment, active, two_theta_ranges, eta_edges):
 
 
 def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
-    """Yield stored pixels from consecutive sparse frames in bounded chunks.
+    """Pack CSR frames as pixel IDs, float64 weights, offsets, and map rows.
 
-    Args:
-        frames: Sequence of CSR image frames.
-        row_of_frame: Eta-omega map row for each frame.
-        max_pixels: Preferred maximum number of stored pixels per chunk. A
-            single frame may exceed this value.
-
-    Yields:
-        Tuples containing flat pixel IDs, float64 intensity values, per-frame
-        offsets into those arrays, and the corresponding map rows.
+    Batches are bounded by max_pixels, except that a single frame may exceed it.
     """
 
     from hexrd.core.experiment import _pixel_chunks as chunk_pixels
@@ -420,13 +382,11 @@ def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
     def pixels():
         for frame in frames:
             ids = np.empty(frame.nnz, dtype=np.int64)
-            _csr_pixel_ids(frame.indptr, frame.indices, frame.shape[1], ids)
+            native._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
             yield ids, frame.data
 
     yield from chunk_pixels(pixels(), row_of_frame, max_pixels)
 
-
-_csr_pixel_ids = native._csrPixelIds
 
 _bin_pixels = native._binPixels
 
@@ -487,15 +447,9 @@ def _save_eta_omega_maps(maps: EtaOmegaMaps, path: str,
 
 def _load_eta_omega_maps(path: str, plane_data: PlaneData,
                          two_theta_width: float, source_cache=None) -> EtaOmegaMaps:
-    """Load a current or legacy HEXRD eta-omega map archive.
+    """Load current or legacy maps, converting master HKL IDs to ring indices.
 
-    Args:
-        path: Path to the NPZ map archive.
-        plane_data: Crystallographic data used to interpret legacy ring IDs.
-        two_theta_width: Full ring width in degrees for legacy archives.
-
-    Returns:
-        The maps and normalized metadata from the archive.
+    ``two_theta_width`` is the full ring width in degrees for legacy archives.
     """
     from hexrd.core.experiment import _NpzReader
 
@@ -538,16 +492,9 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
 
 def _filter_maps(maps: EtaOmegaMaps, median: bool,
                  log_fwhm: Optional[float]) -> None:
-    """Filter eta-omega maps in place.
+    """Subtract each eta column's median in place, optionally applying LoG.
 
-    Median subtraction removes streak artifacts. When requested, a
-    Laplacian-of-Gaussian filter is then applied.
-
-    Args:
-        maps: Eta-omega maps to update.
-        median: Whether to subtract each eta column's median.
-        log_fwhm: Laplacian-of-Gaussian full width at half maximum in pixels,
-            or ``None`` to skip that filter.
+    ``log_fwhm`` is the LoG width in pixels; filtering requires ``median``.
     """
     if not median:
         return
@@ -561,34 +508,22 @@ def _filter_maps(maps: EtaOmegaMaps, median: bool,
 
 
 def _eta_bin_edges(step: float) -> np.ndarray:
-    """Construct eta-bin edges over a full circle.
-
-    Args:
-        step: Requested eta-bin width in degrees, as in make_powder_rings.
-
-    Returns:
-        Eta-bin edges with the branch cut at ``-pi`` and ``pi``.
-    """
+    """Return full-circle eta edges in radians for a step given in degrees."""
     n = int(360.0 / step)
     return rotations.mapAngle(np.radians(step * np.linspace(0.0, n, num=n + 1)) - np.pi)
 
 
 def _panel_pixel_angles(detector, beam_vector):
-    """Map detector pixels to two-theta and eta angles.
-
-    Args:
-        detector: Detector geometry and optional distortion specification.
-        beam_vector: Incident beam direction in laboratory coordinates.
-
-    Returns:
-        A tuple of flat two-theta and eta arrays in radians.
-    """
+    """Return flat two-theta and eta arrays in radians, including distortion."""
     rmat_b = np.eye(3)
     grid_i, grid_j = detector.pixel_coordinates
     xy = np.empty((grid_i.size, 2))
     xy[:, 0] = grid_j.ravel()
     xy[:, 1] = grid_i.ravel()
-    xy = _apply_distortion(detector, xy)
+    distortion = detector.distortion
+    if distortion.function_name:
+        xy = distortion_pkg.get_mapping(
+            distortion.function_name, distortion.parameters).apply(xy)
     ac = np.ascontiguousarray
     (ptth, peta), _ = transforms_c_api.detectorXYToGvec(
         ac(xy),
@@ -600,35 +535,10 @@ def _panel_pixel_angles(detector, beam_vector):
     return ptth, peta
 
 
-def _apply_distortion(detector, xy: np.ndarray) -> np.ndarray:
-    """Apply a detector's registered distortion model to coordinates.
-
-    Args:
-        detector: Detector containing the distortion specification.
-        xy: Detector coordinates with shape ``(n, 2)``.
-
-    Returns:
-        Distorted coordinates, or the input array when no model is configured.
-    """
-    spec = detector.distortion
-    if not spec.function_name:
-        return xy
-    mapping = distortion_pkg.get_mapping(spec.function_name, spec.parameters)
-    return mapping.apply(xy)
-
-
 def _panel_bin_data(detector, beam_vector, two_theta_ranges, eta_edges):
-    """Precompute eta bins, ring membership, and coverage for a panel.
+    """Return per-pixel eta bins, packed ring masks, and per-ring eta coverage.
 
-    Args:
-        detector: Detector geometry and distortion specification.
-        beam_vector: Incident beam direction in laboratory coordinates.
-        two_theta_ranges: Lower and upper two-theta bounds for each ring.
-        eta_edges: Eta-bin edges in radians.
-
-    Returns:
-        A tuple containing per-pixel eta bins, bit-packed ring masks, and the
-        eta-bin coverage of each ring.
+    Ring ranges and eta edges are in radians.
     """
 
     ptth, peta = _panel_pixel_angles(detector, beam_vector)
@@ -637,11 +547,8 @@ def _panel_bin_data(detector, beam_vector, two_theta_ranges, eta_edges):
     eta_bin = np.minimum(
         np.searchsorted(eta_edges, peta, side='right') - 1, n_eta - 1)
     eta_bin[(peta < eta_edges[0]) | (peta > eta_edges[-1]) | np.isnan(peta)] = -1
-    masks, coverage = _ring_masks(ptth, eta_bin, two_theta_ranges, n_eta)
+    masks, coverage = native._ringMasks(ptth, eta_bin, two_theta_ranges, n_eta)
     return eta_bin, masks, coverage
-
-
-_ring_masks = native._ringMasks
 
 
 def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
@@ -689,7 +596,6 @@ def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
 def _load_or_generate_fibers(experiment, plane_data, maps, cache_file):
     """Reuse seed search across scoring changes, validating the actual map data."""
     from dataclasses import asdict
-    from pathlib import Path
 
     settings = dict(seed=asdict(experiment.find_orientations.seed_search),
                     chi=experiment.oscillation_stage.chi,
@@ -716,20 +622,10 @@ def _load_or_generate_fibers(experiment, plane_data, maps, cache_file):
 
 def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneData,
                                 maps: EtaOmegaMaps) -> np.ndarray:
-    """Generate trial orientations from peaks in the seed-ring maps.
+    """Return (4, n) trial quaternions from peaks in the configured seed rings.
 
-    Use the configured worker count while preserving seed and peak order.
-
-    Args:
-        experiment: Experiment geometry and seed-search parameters.
-        plane_data: Crystallographic data for the material being analyzed.
-        maps: Eta-omega maps containing the seed rings.
-
-    Returns:
-        Trial orientation quaternions with shape ``(4, n_trials)``.
-
-    Raises:
-        ValueError: If no seed-ring indices are configured.
+    Parallel generation preserves seed and peak order. Empty hkl_seeds raises
+    ValueError.
     """
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
@@ -756,8 +652,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
         if not num_spots:
             continue
         prepared = _prepare_fiber(hkl, plane_data.B, fiber_ndiv)
-        for ispot in range(num_spots):
-            com = coms[ispot]
+        for com in coms[:num_spots]:
             if np.isnan(com[0]):
                 continue
             ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
@@ -779,16 +674,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
 
 
 def _find_peaks(ring_map: np.ndarray, seed_search) -> tuple[int, np.ndarray]:
-    """Find peak centers in a seed-ring map.
-
-    Args:
-        ring_map: Two-dimensional omega-by-eta intensity map. The array is
-            cleaned in place before peak detection.
-        seed_search: Peak-detection method and its keyword arguments.
-
-    Returns:
-        A tuple containing the peak count and their omega-eta centers.
-    """
+    """Clean the map in place; return peak count and (omega, eta) bin centers."""
     _clean_map(ring_map)
     method, kwargs = seed_search.method, seed_search.method_kwargs
 
@@ -815,20 +701,16 @@ def _find_peaks(ring_map: np.ndarray, seed_search) -> tuple[int, np.ndarray]:
     return len(blobs), blobs[:, :2]
 
 
-def _clean_map(m: np.ndarray) -> None:
-    """Fill missing map values, floor at the median, and zero-base in place.
-
-    Args:
-        m: Eta-omega map to clean.
-    """
-    nan = np.isnan(m)
+def _clean_map(ring_map: np.ndarray) -> None:
+    """Fill NaNs with the median, floor at the median, and zero-base in place."""
+    nan = np.isnan(ring_map)
     if np.all(nan):
-        m.fill(0.0)
+        ring_map.fill(0.0)
         return
-    med = np.median(m[~nan])
-    m[nan] = med
-    np.maximum(m, med, out=m)
-    m -= med
+    median = np.median(ring_map[~nan])
+    ring_map[nan] = median
+    np.maximum(ring_map, median, out=ring_map)
+    ring_map -= median
 
 
 def _prepare_fiber(hkl, b_matrix, divisions):
@@ -868,23 +750,16 @@ def _pack_hit_status(status):
     return packed.ravel()
 
 
+@stage('Scoring')
 def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
                        maps: EtaOmegaMaps, q_fibers: np.ndarray) -> np.ndarray:
-    """Score each trial orientation by reflection completeness.
+    """Return completeness scores for (4, n) trial quaternions.
 
-    This is the algorithm historically known as paintGrid, scored in parallel
-    over bounded batches of trials.
-
-    Args:
-        experiment: Experiment geometry and scoring parameters.
-        plane_data: Crystallographic data for the material being analyzed.
-        maps: Eta-omega intensity maps used to identify observed reflections.
-        q_fibers: Trial orientation quaternions with shape ``(4, n_trials)``.
-
-    Returns:
-        Completeness score for each trial orientation.
+    This is the historical paintGrid algorithm, evaluated in bounded parallel
+    batches against eta-omega maps.
     """
     fo = experiment.find_orientations
+    report_hkls('Scoring', plane_data.unexcluded_hkls[maps.ring_ids])
     if q_fibers.shape[1] == 0:
         return np.empty(0)
 
@@ -974,25 +849,11 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
 
 def normalize_ranges(starts: np.ndarray, stops: np.ndarray,
                      offset: float) -> np.ndarray:
-    """Normalize angle ranges into one full-circle interval.
+    """Return sorted, interleaved start/stop boundaries in [offset, offset + 2*pi].
 
-    The result is a flat, sorted ``[start, stop, start, stop, ...]`` array. An
-    angle mapped into the window lies inside a valid span exactly when its
-    ``_find_in_range`` insertion index is odd. A range spanning the
-    full circle collapses to ``[offset, offset + 2*pi]``.
-
-    Args:
-        starts: Start angle of each range in radians.
-        stops: Stop angle of each range in radians.
-        offset: Lower bound of the normalized full-circle interval.
-
-    Returns:
-        Interleaved, sorted range boundaries in
-        ``[offset, offset + 2*pi]``.
-
-    Raises:
-        ValueError: If a start is not less than its stop or normalized ranges
-            overlap.
+    Angles and offset are in radians. Wrapped spans split at the branch cut;
+    full-circle spans collapse to the window endpoints. Invalid or overlapping
+    ranges raise ValueError. Search indices are odd inside a valid span.
     """
     if not np.all(starts < stops):
         raise ValueError('Invalid angle ranges')
@@ -1044,22 +905,11 @@ def _cached_min_samples(experiment, plane_data, maps):
 
 def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
                          maps: EtaOmegaMaps, n_grains: int = 100) -> int:
-    """Estimate the DBSCAN minimum cluster size from seed reflections.
+    """Estimate DBSCAN's minimum cluster size from deterministic random grains.
 
-    Simulates random grain orientations over the instrument, counts how many
-    seed-ring reflections each would produce inside the eta/omega ranges and
-    on a panel, and takes half the completeness threshold times the worst
-    grain's count. The random draw is seeded, so runs are reproducible.
-    Panel distortion is ignored (sub-pixel effect on counts).
-
-    Args:
-        experiment: Experiment geometry and clustering parameters.
-        plane_data: Crystallographic data for the material being analyzed.
-        maps: Eta-omega maps identifying the active and seed rings.
-        n_grains: Number of deterministic random orientations to simulate.
-
-    Returns:
-        The estimated ``min_samples`` value, with a lower bound of two.
+    Count visible seed-ring reflections on the instrument within eta/omega
+    ranges, then use half the completeness threshold times the smallest count,
+    floored and bounded below by two. Panel distortion is ignored.
     """
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
@@ -1081,15 +931,7 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
                                  omega[np.r_[new_wedge[1:], True], 1], ome_lo)
 
     def in_spans(values, spans):
-        """Return whether each value lies inside the interleaved spans.
-
-        Args:
-            values: Values to test.
-            spans: Sorted, interleaved start and stop boundaries.
-
-        Returns:
-            A boolean mask with one entry per value.
-        """
+        """Test membership in sorted, interleaved start/stop spans."""
         idx = np.searchsorted(spans, values, side='right')
         return (idx % 2 == 1) & (values >= spans[0]) & (values < spans[-1])
 
@@ -1133,15 +975,7 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
 
 
 def _sample_rmats(chi: float, omes: np.ndarray) -> np.ndarray:
-    """Construct sample-frame rotation matrices for omega angles.
-
-    Args:
-        chi: Oscillation-stage chi angle in radians.
-        omes: Omega angles in radians.
-
-    Returns:
-        Rotation matrices ``R_x(chi) @ R_y(omega)`` with shape ``(n, 3, 3)``.
-    """
+    """Return R_x(chi) @ R_y(omega) matrices, shape (n, 3, 3); angles in radians."""
     cx, sx = np.cos(chi), np.sin(chi)
     rx = np.array([[1, 0, 0], [0, cx, -sx], [0, sx, cx]])
     co, so = np.cos(omes), np.sin(omes)
@@ -1153,15 +987,7 @@ def _sample_rmats(chi: float, omes: np.ndarray) -> np.ndarray:
 
 
 def _clip_to_panel(detector, xy: np.ndarray) -> np.ndarray:
-    """Identify coordinates inside a detector's buffered active area.
-
-    Args:
-        detector: Detector dimensions, pixel sizes, and edge buffer.
-        xy: Detector coordinates in millimeters with shape ``(n, 2)``.
-
-    Returns:
-        A boolean mask selecting coordinates inside the panel.
-    """
+    """Select xy coordinates inside the buffered detector area, in millimeters."""
     half_x = 0.5 * detector.pixels.columns * detector.pixels.size[1]
     half_y = 0.5 * detector.pixels.rows * detector.pixels.size[0]
     buf_x, buf_y = detector.buffer if detector.buffer is not None else (0.0, 0.0)
@@ -1201,24 +1027,14 @@ def _dbscan(points: np.ndarray, eps: float, min_samples: int) -> np.ndarray:
                   metric='minkowski', p=2, n_jobs=1)[1]
 
 
+@stage('Clustering')
 def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
                    q_fibers: np.ndarray, completeness: np.ndarray,
                    min_samples: int = 1) -> np.ndarray:
-    """Cluster high-completeness trials into grain orientations.
+    """Return averaged (4, n) grain quaternions from high-completeness trials.
 
-    Quaternion-metric algorithms fall back to orthographic DBSCAN above
-    25000 candidates to avoid quadratic memory use. Euclidean algorithms
-    merge duplicate grain centroids afterward.
-
-    Args:
-        experiment: Experiment clustering parameters.
-        plane_data: Crystallographic symmetry data.
-        q_fibers: Trial orientation quaternions with shape ``(4, n_trials)``.
-        completeness: Completeness score for each trial orientation.
-        min_samples: Minimum cluster size for DBSCAN algorithms.
-
-    Returns:
-        Averaged grain orientation quaternions with shape ``(4, n_grains)``.
+    Above 25,000 candidates, quaternion-metric algorithms use orthographic
+    DBSCAN to bound memory. Euclidean algorithms merge duplicate centroids.
     """
     Algo = ClusteringAlgorithm
 
@@ -1231,25 +1047,16 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
     diagnostic('Candidates',
                f'{n:,}/{q_fibers.shape[1]:,} (score > {fo.clustering.completeness:.1%})')
     diagnostic('Best trial', f'{np.max(completeness):.1%}' if len(completeness) else 'No trials')
-    if n == 0:
-        return np.zeros((4, 0))
-    if n == 1:
-        return keep.copy()
+    if n <= 1:
+        diagnostic('Grains', f'{n:,}')
+        return keep.copy() if n else np.zeros((4, 0))
 
     algorithm = fo.clustering.algorithm
     if n > 25000 and algorithm in (Algo.SPH_DBSCAN, Algo.FCLUSTERDATA):
         algorithm = Algo.ORT_DBSCAN
 
     def quat_distance(x, y):
-        """Return the symmetry-aware angular distance between quaternions.
-
-        Args:
-            x: First quaternion.
-            y: Second quaternion.
-
-        Returns:
-            Angular distance in radians.
-        """
+        """Return the symmetry-aware quaternion distance in radians."""
         return xfcapi.quat_distance(np.ascontiguousarray(x),
                                     np.ascontiguousarray(y), qsym)
 
@@ -1288,21 +1095,12 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
     # merge any centroids closer than the clustering radius
     if algorithm in (Algo.DBSCAN, Algo.ORT_DBSCAN) and n_grains > 1:
         qbar = _merge_duplicates(qbar, qsym, quat_distance, radius)
+    diagnostic('Grains', f'{qbar.shape[1]:,}')
     return qbar
 
 
 def _merge_duplicates(qbar, qsym, quat_distance, radius) -> np.ndarray:
-    """Merge grain centroids within the clustering radius.
-
-    Args:
-        qbar: Grain orientation quaternions with shape ``(4, n_grains)``.
-        qsym: Crystal-symmetry quaternions.
-        quat_distance: Callable returning quaternion distance in radians.
-        radius: Merge radius in degrees.
-
-    Returns:
-        Grain orientations after symmetry-aware duplicate merging.
-    """
+    """Merge symmetry-equivalent grain centroids within radius, in degrees."""
     # Preserve centroid order when no merge is needed.
     if qbar.shape[1] <= 32:
         cutoff = np.radians(radius)
@@ -1326,15 +1124,7 @@ def _merge_duplicates(qbar, qsym, quat_distance, radius) -> np.ndarray:
 
 def write_results(results: FindOrientationsResult,
                   experiment: HedmExperiment) -> str:
-    """Write find-orientations results in the standard file formats.
-
-    Args:
-        results: Accepted grains, scored trials, and completeness values.
-        experiment: Experiment output paths and analysis directory.
-
-    Returns:
-        The analysis directory containing the output files.
-    """
+    """Write standard orientation and grain files; return the analysis directory."""
     qbar = np.atleast_2d(results.grain_orientations)
     analysis_dir = experiment.analysis_dir
     os.makedirs(analysis_dir, exist_ok=True)
@@ -1348,15 +1138,9 @@ def write_results(results: FindOrientationsResult,
 
 
 def _write_grains_out(path: str, qbar: np.ndarray) -> None:
-    """Write grain orientations in the standard ``grains.out`` format.
+    """Write grains.out with completeness 1, zero centroids, and identity strain.
 
-    For find-orientations every grain is written with completeness 1.0, zero
-    centroid, and identity strain (inv(V_s)=[1,1,1,0,0,0], ln(V_s)=0); only the
-    orientation (exp_map_c) carries information.
-
-    Args:
-        path: Destination ``grains.out`` path.
-        qbar: Grain orientation quaternions with shape ``(4, n_grains)``.
+    Only the crystal orientation (exponential map) varies between grains.
     """
     header_items = (
         '# grain ID', 'completeness', 'chi^2',

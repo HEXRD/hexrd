@@ -278,7 +278,8 @@ def test_native_fiber_reduction_tails_and_views(n):
     'HEXRD_EXAMPLE_REPO_PATH' not in os.environ,
     reason='requires the NIST ruby example data',
 )
-def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
+@pytest.mark.parametrize('custom_workflow', [False, True])
+def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch, custom_workflow):
     import hexrd.hedm.find_orientations as fo
     from hexrd.hedm._progress import Dashboard
 
@@ -290,6 +291,12 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
         return score(*args, **kwargs)
 
     monkeypatch.setattr(fo, 'score_orientations', check_scoring)
+    workflow = find_orientations
+    if custom_workflow:
+        import runpy
+
+        workflow = runpy.run_path(str(Path(__file__).parents[1] /
+                                     'scripts/custom_find_orientations.py'))['find_orientations']
     include = example_repo_path / 'NIST_ruby/single_GE/include'
     with open(include / 'cstudy.yml') as stream:
         config = next(yaml.safe_load_all(stream))
@@ -317,7 +324,7 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
             dashboard = Dashboard()
             dashboard.start()
             try:
-                result = find_orientations(experiment, clean=clean)
+                result = workflow(experiment, clean=clean)
             finally:
                 dashboard.close()
             assert dashboard.hkls['Seed'] == ((0, 1, 2), (1, 0, 4), (1, 1, 0))
@@ -959,7 +966,8 @@ def test_dashboard_progress_preserves_scores(tmp_path, monkeypatch, workers):
     quats /= np.linalg.norm(quats, axis=0)
     maps = SimpleNamespace(ring_maps=args[10], ring_ids=np.arange(2),
                            eta_edges=args[5], omega_edges=args[6])
-    plane = SimpleNamespace(symm_hkls=[args[1][:2].T, args[1][2:].T],
+    plane = SimpleNamespace(unexcluded_hkls=args[1][[0, 2]],
+                            symm_hkls=[args[1][:2].T, args[1][2:].T],
                             B=args[2], wavelength=args[3])
     settings = SimpleNamespace(threshold=args[14],
         eta=SimpleNamespace(range=args[7].reshape(-1, 2), tolerance=2*np.pi/32),
@@ -1030,6 +1038,7 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.press('l')
                 assert not app.query_one(RichLog).display
                 app.query_one('#stages', DataTable).focus()
+                await pilot.pause()
                 app.query_one('#stages', DataTable).move_cursor(row=0)
                 await pilot.press('enter')
                 assert app.selected == 'Configuration'
@@ -1134,7 +1143,8 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
     quats /= np.linalg.norm(quats, axis=1, keepdims=True)
     maps = SimpleNamespace(ring_maps=args[10], ring_ids=np.arange(2),
                            eta_edges=args[5], omega_edges=args[6])
-    plane = SimpleNamespace(symm_hkls=[args[1][:2].T, args[1][2:].T],
+    plane = SimpleNamespace(unexcluded_hkls=args[1][[0, 2]],
+                            symm_hkls=[args[1][:2].T, args[1][2:].T],
                             B=args[2], wavelength=args[3])
     settings = SimpleNamespace(threshold=args[14],
         eta=SimpleNamespace(range=args[7].reshape(-1, 2), tolerance=2*np.pi/32),
