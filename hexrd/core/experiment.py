@@ -163,14 +163,17 @@ def _frame_csr(data, row, col, shape, dtype) -> csr_array:
     Frame caches are written row-major with unique pixels, so the flat indices
     are strictly increasing and the CSR arrays can be assembled directly; the
     result is identical to what the (data, (row, col)) constructor canonicalizes
-    to. Falls back to that constructor otherwise.
+    to. Native validation builds compact row offsets without temporary int64
+    pixel-ID/difference arrays. Falls back to the COO constructor otherwise.
     """
     from scipy.sparse import csr_array
 
-    flat = row.astype(np.int64) * shape[1] + col
-    if flat.size == 0 or np.all(np.diff(flat) > 0):
-        indptr = np.searchsorted(row, np.arange(shape[0] + 1))
-        return csr_array((data, col, indptr), shape=shape, dtype=dtype)
+    from hexrd.core.extensions import transforms as native
+
+    buffers = native._csrFrameIndices(row, col, *shape)
+    if buffers is not None:
+        indptr, indices = buffers
+        return csr_array((data, indices, indptr), shape=shape, dtype=dtype)
     return csr_array((data, (row, col)), shape=shape, dtype=dtype)
 
 
@@ -271,6 +274,10 @@ class ImageSeries:
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
+            if len(key) == 3:
+                from hexrd.core.imageseries._sparse import sample_pixels
+
+                return sample_pixels(self.images[key[0]], key[1], key[2])
             return self.images[key[0]][key[1:]].toarray()
         return self.images[key]
 
@@ -310,6 +317,10 @@ class RoiImageSeries:
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
+            if len(key) == 3:
+                from hexrd.core.imageseries._sparse import sample_pixels
+
+                return sample_pixels(self.images[key[0]], key[1], key[2])
             return self.images[key[0]][key[1:]].toarray()
         return self.images[key]
 

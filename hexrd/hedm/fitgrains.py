@@ -5,12 +5,15 @@ Created on Wed Mar 22 19:04:10 2017
 
 @author: bernier2
 """
+
 import os
+import gc
 import logging
 import multiprocessing
 import numpy as np
 import timeit
 import warnings
+from queue import Empty, Full
 
 from collections import defaultdict
 
@@ -18,6 +21,21 @@ from hexrd.core import constants
 from hexrd.core import instrument
 from hexrd.core import rotations
 from .fitting import fitGrain, objFuncFitGrain, gFlag_ref
+from hexrd.core.instrument._spotutils import (
+    _SpotData,
+    sparse_frame_view,
+    clear_sparse_frame_views,
+)
+from hexrd.hedm._progress import (
+    activity,
+    check_cancelled,
+    current_dashboard,
+    detach_dashboard,
+    diagnostic,
+    progress_bar,
+    report_grain,
+    stage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +67,8 @@ def fit_grain_FF_init(params):
     """
     global paramMP
     paramMP = params
+    if multiprocessing.current_process().name != 'MainProcess':
+        detach_dashboard()
 
 
 def fit_grain_FF_cleanup():
@@ -59,7 +79,88 @@ def fit_grain_FF_cleanup():
     del paramMP
 
 
+def _grain_event(grain_id, state, index, passes, completeness=None, chisq=None):
+    if state == 'Extracting':
+        paramMP['progress_pass'] = index
+    event = (int(grain_id), state, index, passes, completeness, chisq)
+    queue = paramMP.get('progress_queue')
+    if queue is None:
+        report_grain(event)
+        check_cancelled()
+    else:
+        try:
+            queue.put_nowait(event)
+        except Full:
+            # Progress must never stall a worker. Final counts come from results.
+            pass
+
+
+def _consume_fit_progress(queue, bar):
+    completed = 0
+    while queue is not None:
+        try:
+            event = queue.get_nowait()
+        except Empty:
+            break
+        report_grain(event)
+        grain, state, index, passes, *_ = event
+        activity(f'Grain {grain}: {state.lower()} · pass {index}/{passes}')
+        completed += state in ('Done', 'Insufficient reflections')
+    if completed:
+        bar.update(completed)
+    return completed
+
+
 def fit_grain_FF_reduced(grain_id):
+    try:
+        try:
+            result = _fit_grain_FF_reduced(grain_id)
+        finally:
+            _write_pending_spots(grain_id)
+    except BaseException:
+        _grain_event(grain_id, 'Failed', 0, len(paramMP['tth_tol']))
+        raise
+    passes = len(paramMP['tth_tol'])
+    state = 'Insufficient reflections' if np.isinf(result[2]) else 'Done'
+    _grain_event(
+        grain_id,
+        state,
+        paramMP.get('progress_pass', passes),
+        passes,
+        result[1],
+        result[2],
+    )
+    return result
+
+
+def _write_pending_spots(grain_id):
+    """Persist the last extraction once, rather than overwriting each pass.
+
+    Early exits and fitting errors still publish the last complete extraction.
+    The records precede the last fit/refit, just as in the reference workflow.
+    """
+    results = paramMP.pop('pending_spot_data', None)
+    if results is None:
+        return
+    from hexrd.core.instrument.hedm_instrument import PatchDataWriter
+
+    filename = paramMP['spots_filename'] % grain_id
+    for key in paramMP['instrument'].detectors:
+        directory = os.path.join(paramMP['analysis_dirname'], key)
+        os.makedirs(directory, exist_ok=True)
+        writer = PatchDataWriter(os.path.join(directory, filename))
+        try:
+            records = results.get(key, [])
+            if isinstance(records, _SpotData):
+                writer.dump_packed(records)
+            else:
+                for record in records:
+                    writer.dump_patch(*record[:7], record[8], record[7])
+        finally:
+            writer.close()
+
+
+def _fit_grain_FF_reduced(grain_id):
     """
     Perform non-linear least-square fit for the specified grain.
 
@@ -109,7 +210,9 @@ def fit_grain_FF_reduced(grain_id):
     grain = grains_table[grain_id]
     grain_params = grain[3:15]
 
-    for tols in zip(tth_tol, eta_tol, ome_tol):
+    passes = min(len(tth_tol), len(eta_tol), len(ome_tol))
+    for pass_index, tols in enumerate(zip(tth_tol, eta_tol, ome_tol), 1):
+        _grain_event(grain_id, 'Extracting', pass_index, passes)
         complvec, results = instrument.pull_spots(
             plane_data,
             grain_params,
@@ -122,11 +225,14 @@ def fit_grain_FF_reduced(grain_id):
             eta_ranges=eta_ranges,
             ome_period=ome_period,
             dirname=analysis_dirname,
-            filename=spots_filename,
+            filename=None,
             return_spot_list=False,
             check_only=False,
             interp='nearest',
+            _packed=True,
         )
+        if spots_filename is not None:
+            paramMP['pending_spot_data'] = results
 
         culled_results, num_refl_valid, completeness = determine_valid_reflections(
             results, instrument, analysis_dirname
@@ -144,6 +250,7 @@ def fit_grain_FF_reduced(grain_id):
                 result += ((complvec, results),)
             return result
         else:
+            _grain_event(grain_id, 'Fitting', pass_index, passes, completeness)
             grain_params = fitGrain(
                 grain_params,
                 instrument,
@@ -167,6 +274,7 @@ def fit_grain_FF_reduced(grain_id):
             )
 
     if refit is not None:
+        _grain_event(grain_id, 'Refitting', passes, passes, completeness, chisq)
         # first get calculated x, y, ome from previous solution
         # NOTE: this result is a dict
         xyo_det_fit_dict = objFuncFitGrain(
@@ -254,11 +362,16 @@ def determine_valid_reflections(results, instrument, analysis_dirname):
         nrefl = len(presults)
 
         # make data arrays
-        refl_ids = np.empty(nrefl)
-        max_int = np.empty(nrefl)
-        for i, spot_data in enumerate(presults):
-            refl_ids[i] = spot_data[0]
-            max_int[i] = spot_data[4]
+        if isinstance(presults, _SpotData):
+            refl_ids, max_int = presults.peak_id, presults.max_int.astype(
+                np.float64, copy=False
+            )
+        else:
+            refl_ids = np.empty(nrefl)
+            max_int = np.empty(nrefl)
+            for i, spot_data in enumerate(presults):
+                refl_ids[i] = spot_data[0]
+                max_int[i] = spot_data[4]
 
         valid_refl_ids = refl_ids >= 0
 
@@ -295,7 +408,11 @@ def determine_valid_reflections(results, instrument, analysis_dirname):
 
         # attach to proper dict entry
         # FIXME: want to avoid looping again here
-        culled_results[det_key] = [presults[i] for i in np.where(idx)[0]]
+        culled_results[det_key] = (
+            presults.take(idx)
+            if isinstance(presults, _SpotData)
+            else [presults[i] for i in np.where(idx)[0]]
+        )
         num_refl_tot += len(valid_refl_ids)
         num_refl_valid += sum(valid_refl_ids)
         # now we have culled data
@@ -345,8 +462,12 @@ def refine_valid_reflections(
         ims = next(iter(imgser_dict.values()))  # grab first for the omes
         ome_step = sum(np.array([-1, 1]) * ims.metadata['omega'][0, :])
 
-        x = presults[0]
-        xyo_det = np.atleast_2d(np.vstack([np.r_[x[7], x[6][-1]] for x in presults]))
+        if isinstance(presults, _SpotData):
+            xyo_det = presults.as_fit_data()['meas_xyo']
+        else:
+            xyo_det = np.atleast_2d(
+                np.vstack([np.r_[x[7], x[6][-1]] for x in presults])
+            )
 
         xpix_tol = tol_xy * panel.pixel_size_col
         ypix_tol = tol_xy * panel.pixel_size_row
@@ -364,7 +485,11 @@ def refine_valid_reflections(
         idx_new = (x_diff <= xpix_tol) & (y_diff <= ypix_tol) & (ome_diff <= fome_tol)
 
         # attach to proper dict entry
-        culled_results_r[det_key] = [presults[i] for i in np.where(idx_new)[0]]
+        culled_results_r[det_key] = (
+            presults.take(idx_new)
+            if isinstance(presults, _SpotData)
+            else [presults[i] for i in np.where(idx_new)[0]]
+        )
 
         num_refl_valid += sum(idx_new)
 
@@ -398,107 +523,205 @@ def fit_grains(
     cancelable.
     """
     grains_table = np.atleast_2d(grains_table)
+    clear_sparse_frame_views()
 
-    # grab imageseries dict
-    imsd = experiment.image_series
+    with stage('Load images'):
+        # grab imageseries dict
+        imsd = experiment.image_series
 
-    # grab instrument
-    instr = experiment.instrument
+        # grab instrument
+        instr = experiment.instrument
 
-    # grab eta ranges and ome_period
-    eta_ranges = experiment.find_orientations.eta.range
+        # grab eta ranges and ome_period
+        eta_ranges = experiment.find_orientations.eta.range
 
-    # handle omega period
-    # !!! we assume all detector ims have the same ome ranges, so any will do!
-    oims = next(iter(imsd.values()))
-    ome_period = np.radians(oims.omega[0, 0] + np.r_[0.0, 360.0])
+        # handle omega period
+        # !!! we assume all detector ims have the same ome ranges, so any will do!
+        oims = next(iter(imsd.values()))
+        ome_period = np.radians(oims.omega[0, 0] + np.r_[0.0, 360.0])
 
-    # number of processes
-    ncpus = experiment.max_workers
+        # number of processes
+        ncpus = experiment.max_workers
 
-    # threshold for fitting
-    threshold = experiment.fit_grains.threshold
+        # threshold for fitting
+        threshold = experiment.fit_grains.threshold
 
-    if material is None:
-        material = experiment.get_active_material()
+        if material is None:
+            material = experiment.get_active_material()
 
-    if ids_to_refine is not None:
-        grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
+        if ids_to_refine is not None:
+            grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
 
-    spots_filename = SPOTS_OUT_FILE if write_spots_files else None
-    params = dict(
-        grains_table=grains_table,
-        plane_data=material._material.planeData,
-        instrument=instr,
-        imgser_dict=imsd,
-        tth_tol=experiment.fit_grains.tolerance.tth,
-        eta_tol=experiment.fit_grains.tolerance.eta,
-        ome_tol=experiment.fit_grains.tolerance.omega,
-        npdiv=experiment.fit_grains.npdiv,
-        refit=experiment.fit_grains.refit,
-        threshold=threshold,
-        eta_ranges=eta_ranges,
-        ome_period=ome_period,
-        analysis_dirname=experiment.analysis_dir,
-        spots_filename=spots_filename,
-        return_pull_spots_data=return_pull_spots_data,
-    )
+        spots_filename = SPOTS_OUT_FILE if write_spots_files else None
+        params = dict(
+            grains_table=grains_table,
+            plane_data=material._material.planeData,
+            instrument=instr,
+            imgser_dict=imsd,
+            tth_tol=experiment.fit_grains.tolerance.tth,
+            eta_tol=experiment.fit_grains.tolerance.eta,
+            ome_tol=experiment.fit_grains.tolerance.omega,
+            npdiv=experiment.fit_grains.npdiv,
+            refit=experiment.fit_grains.refit,
+            threshold=threshold,
+            eta_ranges=eta_ranges,
+            ome_period=ome_period,
+            analysis_dirname=experiment.analysis_dir,
+            spots_filename=spots_filename,
+            return_pull_spots_data=return_pull_spots_data,
+        )
+
+        if (len(grains_table) > 1 and ncpus != 1) or check_if_canceled_func:
+            if constants.mp_context.get_start_method() == 'fork':
+                # For frame cache, we need to load in all of the data up-front
+                # so it can use fork multiprocessing to share with the other
+                # processes. Otherwise, every process will load in the data on
+                # its own. Accessing one frame in the imageseries is currently
+                # all we need to do to trigger frame caches to load in all the data.
+                with progress_bar(
+                    total=len(imsd),
+                    unit='panels',
+                    desc='Loading frames',
+                    disable=not show_progress,
+                ) as load_bar:
+                    for name, ims in imsd.items():
+                        activity(f'Loading detector {name}')
+                        if sparse_frame_view(ims) is None:
+                            ims[0]
+                        load_bar.update(1)
+                # Share compiled pixel-size kernels and LLVM's initialized pages
+                # rather than loading/compiling them independently in each worker.
+                from hexrd.hedm.xrdutil.utils import _expand_pixels, _compute_max
+
+                _expand_pixels(np.zeros((1, 2)), 1.0, 1.0, np.empty((4, 2)))
+                _compute_max(np.zeros(4), np.zeros(4), np.empty((1, 2)))
 
     # =====================================================================
     # EXECUTE MP FIT
     # =====================================================================
 
-    # DO FIT!
-    if (len(grains_table) == 1 or ncpus == 1) and not check_if_canceled_func:
-        logger.info("\tstarting serial fit")
-        start = timeit.default_timer()
-        fit_grain_FF_init(params)
-        fit_results = list(
-            map(fit_grain_FF_reduced, np.array(grains_table[:, 0], dtype=int))
-        )
-        fit_grain_FF_cleanup()
-        elapsed = timeit.default_timer() - start
-    else:
-        nproc = min(ncpus, len(grains_table))
-        chunksize = max(1, len(grains_table) // ncpus)
+    diagnostic('Grains', len(grains_table))
+    diagnostic('Workers', min(ncpus, len(grains_table)))
+    diagnostic('Tolerance passes', len(params['tth_tol']))
+    dashboard = current_dashboard()
+    if dashboard is not None:
+        with dashboard.lock:
+            dashboard.grains.clear()
+            dashboard.finished_grains.clear()
+            dashboard.diagnostics['Grains finished'] = '0'
+            dashboard.diagnostics['Insufficient reflections'] = '0'
+    with stage('Fit grains'), progress_bar(
+        total=len(grains_table),
+        unit='grains',
+        desc='Fitting grains',
+        disable=not show_progress,
+    ) as bar:
+        # DO FIT!
+        if (len(grains_table) == 1 or ncpus == 1) and not check_if_canceled_func:
+            logger.info("\tstarting serial fit")
+            start = timeit.default_timer()
+            fit_grain_FF_init(params)
+            try:
+                fit_results = []
+                for grain_id in np.array(grains_table[:, 0], dtype=int):
+                    check_cancelled()
+                    fit_results.append(fit_grain_FF_reduced(grain_id))
+                    bar.update(1)
+            finally:
+                fit_grain_FF_cleanup()
+            elapsed = timeit.default_timer() - start
+        else:
+            nproc = min(ncpus, len(grains_table))
+            chunksize = max(1, len(grains_table) // (64 * nproc))
 
-        if constants.mp_context.get_start_method() == 'fork':
-            # For frame cache, we need to load in all of the data up-front
-            # so it can use fork multiprocessing to share with the other
-            # processes. Otherwise, every process will load in the data on
-            # its own. Accessing one frame in the imageseries is currently
-            # all we need to do to trigger frame caches to load in all the data.
-            for ims in imsd.values():
-                ims[0]
-
-        logger.info(
-            "\tstarting fit on %d processes with chunksize %d", nproc, chunksize
-        )
-        start = timeit.default_timer()
-        pool = constants.mp_context.Pool(nproc, fit_grain_FF_init, (params,))
-        try:
-            async_result = pool.map_async(
-                fit_grain_FF_reduced,
-                np.array(grains_table[:, 0], dtype=int),
-                chunksize=chunksize,
+            logger.info(
+                "\tstarting fit on %d processes with chunksize %d", nproc, chunksize
             )
-            while not async_result.ready():
-                if check_if_canceled_func and check_if_canceled_func():
-                    logger.info('Fit grains canceled.')
-                    # Perform an early return if we need to cancel.
-                    return None
+            start = timeit.default_timer()
+            freeze = (
+                constants.mp_context.get_start_method() == 'fork'
+                and gc.get_freeze_count() == 0
+            )
+            progress_queue = (
+                constants.mp_context.Queue(maxsize=256)
+                if current_dashboard() is not None or show_progress
+                else None
+            )
+            if progress_queue is not None:
+                params['progress_queue'] = progress_queue
+            if freeze:
+                gc.freeze()
+            try:
+                pool = constants.mp_context.Pool(nproc, fit_grain_FF_init, (params,))
+            except BaseException:
+                if progress_queue is not None:
+                    progress_queue.close()
+                    progress_queue.join_thread()
+                raise
+            finally:
+                # Workers keep their frozen inherited heap. Restore the caller's
+                # collector immediately, including when pool construction fails.
+                if freeze:
+                    gc.unfreeze()
+            try:
+                async_result = pool.map_async(
+                    fit_grain_FF_reduced,
+                    np.array(grains_table[:, 0], dtype=int),
+                    chunksize=chunksize,
+                )
+                completed = 0
+                while not async_result.ready():
+                    check_cancelled()
+                    completed += _consume_fit_progress(progress_queue, bar)
+                    if check_if_canceled_func and check_if_canceled_func():
+                        logger.info('Fit grains canceled.')
+                        # Perform an early return if we need to cancel.
+                        return None
 
-                async_result.wait(0.25)
+                    async_result.wait(0.25)
 
-            fit_results = async_result.get()
-            pool.close()
-        finally:
-            pool.terminate()
-            pool.join()
-        elapsed = timeit.default_timer() - start
+                check_cancelled()
+                fit_results = async_result.get()
+                completed += _consume_fit_progress(progress_queue, bar)
+                bar.update(max(0, len(fit_results) - completed))
+                for result in fit_results:
+                    passes = len(params['tth_tol'])
+                    state = (
+                        'Insufficient reflections' if np.isinf(result[2]) else 'Done'
+                    )
+                    previous = (
+                        dashboard.grains.get(int(result[0])) if dashboard else None
+                    )
+                    index = (
+                        previous[2]
+                        if previous is not None
+                        else (0 if state == 'Insufficient reflections' else passes)
+                    )
+                    report_grain(
+                        (int(result[0]), state, index, passes, result[1], result[2])
+                    )
+                pool.close()
+            finally:
+                pool.terminate()
+                pool.join()
+                if progress_queue is not None:
+                    progress_queue.close()
+                    progress_queue.join_thread()
+            elapsed = timeit.default_timer() - start
     logger.info("fitting took %f seconds", elapsed)
+    diagnostic('Grains finished', len(fit_results))
+    diagnostic(
+        'Insufficient reflections', sum(np.isinf(result[2]) for result in fit_results)
+    )
     if return_pull_spots_data:
-        spots_data = {result[0]: result[4] for result in fit_results}
+        spots_data = {}
+        for result in fit_results:
+            signals, panels = result[4]
+            panels = {
+                key: list(value) if isinstance(value, _SpotData) else value
+                for key, value in panels.items()
+            }
+            spots_data[result[0]] = (signals, panels)
         fit_results = [result[:4] for result in fit_results]
         return fit_results, spots_data
     return fit_results

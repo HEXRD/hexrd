@@ -1,6 +1,7 @@
-"""Textual presentation, imported only for interactive find-orientations runs."""
+"""Shared Textual presentation, imported only for interactive HEDM runs."""
 
 from dataclasses import replace
+from contextvars import copy_context
 import multiprocessing as mp
 import threading
 from time import monotonic
@@ -30,11 +31,14 @@ def _memory_usage():
     return used, psutil.virtual_memory().total
 
 
-class OrientationDashboard(App):
+class WorkflowDashboard(App):
     TITLE = 'HEXRD'
     SUB_TITLE = 'FIND ORIENTATIONS'
     AUTO_FOCUS = '#events'
     ENABLE_COMMAND_PALETTE = False
+    SUMMARY_TITLE = 'INDEXING SUMMARY'
+    COMPLETION_CAPTION = 'BEST COMPLETENESS'
+    COMPLETION_KEY = 'Best trial'
     BINDINGS = [
         ('l', 'logs', 'Toggle log'),
         ('f', 'follow', 'Follow active stage'),
@@ -128,15 +132,7 @@ class OrientationDashboard(App):
         self.query_one('#workflow').border_title = 'WORKFLOW'
         self.query_one('#inspection').border_title = 'LIVE PROGRESS'
         self.query_one('#events').border_title = 'EVENT LOG'
-        reflections = self.query_one('#reflections', DataTable)
-        reflections.border_title = 'REFLECTIONS'
-        reflections.border_subtitle = 'Peaks: — not measured'
-        reflections.tooltip = (
-            'Miller indices (h k l). All listed rings are scored. Checked seed '
-            'rings also generate trial orientations. Peaks are counted during '
-            'seed peak finding and are unavailable when cached fibers are reused.')
-        for column in ('h', 'k', 'l', 'Seed', 'Peaks'):
-            reflections.add_column(column, key=column)
+        self.setup_data_table()
         table = self.query_one('#stages', DataTable)
         for column in ('Stage', 'State', 'Elapsed'):
             table.add_column(column, key=column, width=9 if column == 'State' else None)
@@ -148,7 +144,31 @@ class OrientationDashboard(App):
             'Shared pages are apportioned where supported; otherwise RSS is summed.')
         self.refresh_memory()
         self.set_interval(2, self.refresh_memory)
-        self.run_worker(self.run_workflow, thread=True, exit_on_error=False)
+        # Own the workflow thread explicitly. It is cooperatively cancelled
+        # through Dashboard, and must not outlive an asyncio executor wrapper
+        # that can still be shutting down after the terminal has closed.
+        self.workflow_thread = threading.Thread(
+            target=copy_context().run, args=(self.run_workflow,),
+            name='HEXRD workflow', daemon=True,
+        )
+        self.workflow_thread.start()
+
+    def on_unmount(self):
+        if not self.finished.is_set():
+            self.dashboard.cancelled.set()
+        else:
+            self.workflow_thread.join()
+
+    def setup_data_table(self):
+        reflections = self.query_one('#reflections', DataTable)
+        reflections.border_title = 'REFLECTIONS'
+        reflections.border_subtitle = 'Peaks: — not measured'
+        reflections.tooltip = (
+            'Miller indices (h k l). All listed rings are scored. Checked seed '
+            'rings also generate trial orientations. Peaks are counted during '
+            'seed peak finding and are unavailable when cached fibers are reused.')
+        for column in ('h', 'k', 'l', 'Seed', 'Peaks'):
+            reflections.add_column(column, key=column)
 
     def refresh_memory(self):
         used, total = _memory_usage()
@@ -185,6 +205,8 @@ class OrientationDashboard(App):
         self.query_one('#completed', Static).update(f'{completed} / {len(stages)}')
         table = self.query_one('#stages', DataTable)
         for name, item in stages.items():
+            if name not in table.rows:
+                table.add_row(name, 'Waiting', '—', key=name)
             color = dict(pending='dim', running='cyan', done='green', failed='red')[item.status]
             state = dict(pending='Waiting', running='● Running',
                          done='✓ Done', failed='✗ Failed')[item.status]
@@ -202,7 +224,7 @@ class OrientationDashboard(App):
         if summary:
             detail = '\n'.join(f'{key}: {value}' for key, value in diagnostics.items())
             detail = detail or self.dashboard.message or 'Workflow complete'
-        self.query_one('#stage-name', Static).update('INDEXING SUMMARY' if summary else name)
+        self.query_one('#stage-name', Static).update(self.SUMMARY_TITLE if summary else name)
         self.query_one('#detail', Static).update(detail)
         counts = self.query_one('#counts', Static)
         counts.display = not summary
@@ -216,9 +238,9 @@ class OrientationDashboard(App):
             progress=item.count if item.total else int(item.status == 'done'))
         rate = item.count / elapsed if elapsed and item.count else 0
         self.query_one('#throughput-caption', Label).update(
-            'BEST COMPLETENESS' if self.finished.is_set() else 'THROUGHPUT')
+            self.COMPLETION_CAPTION if self.finished.is_set() else 'THROUGHPUT')
         self.query_one('#throughput', Static).update(
-            diagnostics.get('Best trial', '—') if self.finished.is_set() else
+            diagnostics.get(self.COMPLETION_KEY, '—') if self.finished.is_set() else
             f'{rate:,.0f} {item.unit}/s' if rate else '—')
         log = self.query_one(RichLog)
         for event in events:
@@ -303,3 +325,45 @@ class OrientationDashboard(App):
         self.dashboard.cancelled.set()
         self.query_one('#cancel', Button).disabled = True
         self.query_one('#status', Static).update('Cancelling · waiting for current work to finish…')
+
+
+class OrientationDashboard(WorkflowDashboard):
+    """Find-orientations presentation of the shared workflow dashboard."""
+
+
+class FitGrainsDashboard(WorkflowDashboard):
+    """Grain fitting uses the same navigation, log, memory and cancellation UI."""
+
+    SUB_TITLE = 'FIT GRAINS'
+    SUMMARY_TITLE = 'FITTING SUMMARY'
+    COMPLETION_CAPTION = 'GRAINS FITTED'
+    COMPLETION_KEY = 'Grains finished'
+    # App.CSS is replaced by subclasses, unlike Textual's inherited DEFAULT_CSS.
+    CSS = WorkflowDashboard.CSS + '\n#reflections { width: 3fr; } #events { width: 2fr; }'
+
+    def setup_data_table(self):
+        table = self.query_one('#reflections', DataTable)
+        table.border_title = 'GRAINS · RECENT ACTIVITY'
+        table.border_subtitle = 'Waiting for fitting'
+        table.tooltip = (
+            'Latest 32 grain updates. Completeness and chi-square describe the '
+            'latest completed fit; extraction and fitting are shown per tolerance pass.'
+        )
+        for column in ('Grain', 'State', 'Pass', 'Completeness', 'Chi-square'):
+            table.add_column(column, key=column)
+
+    def refresh_reflections(self, hkls, peaks):
+        with self.dashboard.lock:
+            rows = tuple(reversed(tuple(self.dashboard.grains.values())))
+        if rows == self.reflection_rows:
+            return
+        table = self.query_one('#reflections', DataTable)
+        table.clear()
+        for grain, state, index, passes, completeness, chisq in rows:
+            table.add_row(
+                str(grain), state, f'{index}/{passes}' if index else '—',
+                f'{completeness:.1%}' if completeness is not None else '—',
+                f'{chisq:.5g}' if chisq is not None else '—', key=str(grain),
+            )
+        table.border_subtitle = 'Completed grains remain visible' if rows else 'Waiting for fitting'
+        self.reflection_rows = rows

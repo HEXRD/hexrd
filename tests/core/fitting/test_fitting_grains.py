@@ -93,6 +93,22 @@ def test_matchOmegas(mock_map, mock_os, case, env):
         assert np.isclose(res[0], 0.1)
 
 
+def test_match_omegas_two_branch_selection_keeps_sort_ties_and_nans(monkeypatch):
+    from hexrd.hedm.fitting import grains
+
+    differences = np.array([[np.nan, 1., 1., np.nan, 0.], [0., np.nan, 1., np.nan, -0.]])
+    first = np.column_stack((np.ones((5, 2)), np.arange(5)+.1))
+    second = np.column_stack((np.ones((5, 2)), np.arange(5)+.2))
+    monkeypatch.setattr(grains.xfcapi, 'oscill_angles_of_hkls', lambda *args, **kwargs: (first, second))
+    monkeypatch.setattr(grains.rotations, 'angularDifference', lambda *args: differences)
+    match, actual = grains.matchOmegas(np.zeros((5, 3)), np.ones((3, 5)), 0., np.eye(3), np.eye(3), .5)
+    expected_match = np.argsort(differences, axis=0) == 0
+    candidates = np.vstack((first[:, 2], second[:, 2]))
+    expected = candidates.T.flatten()[expected_match.T.flatten()]
+    np.testing.assert_array_equal(match, expected_match)
+    np.testing.assert_array_equal(actual, expected)
+
+
 # --- objFuncFitGrain Tests ---
 
 

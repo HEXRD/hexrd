@@ -1,0 +1,206 @@
+{
+  "date": "2026-10-28",
+  "reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+  "source_sha256": {
+    "hexrd/hedm/_progress.py": "318fdc34c8db89fc502da21a9c82bc49782730fd5e5a9b296bb947a6ef6c3d82",
+    "hexrd/hedm/_dashboard.py": "dfd1175b98f91e54e407b8171e0efc6c0cc6623e9205ca56f5d12b578dd7b0b5",
+    "hexrd/hedm/cli/fit_grains.py": "607b7409594f363455f8234ca17b29462a8d27ee5c38d2c1853b663467cef18d",
+    "hexrd/hedm/fitgrains.py": "8f14b0abba2cb622c991858810378ac9ee4a52d751e09821ce528c27ae2c042d",
+    "hexrd/hedm/centroids.py": "4c9d7ef8dc387461e59b7378289afde31aa21c334a725715c0d6836df3133884",
+    "scripts/explore_fit_grains_centroids.py": "bb07fb7700f875cb2142e3842e59631aa6f5be6a2a75cb6cd9399fe5b6336192",
+    "scripts/explore_fit_grains_centroid_replay.py": "9be232a36367d0da31e722e869cfb5d91d490c27dae6fcf48842700d9b2edb2f",
+    "tests/test_fit_grains_dashboard.py": "97ad74eb7efd4c340325b68c081ae76d180e7a1f344e5e233e65462d61282b8a",
+    "tests/test_centroids.py": "814b37c2c96dd4655a5f3c752ca02deb9d7e539d81e5346a4308e4a47cf92935"
+  },
+  "inconel": {
+    "reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+    "grain_count": 1690,
+    "identical_fits_and_spots": true,
+    "tui_cli_grains": 3,
+    "identical_cli_fits": true
+  },
+  "dashboard_reporting_run": {
+    "seconds": 27.77696865500002,
+    "grains": 1690,
+    "progress": {
+      "Configuration": {
+        "status": "pending",
+        "started": 0.0,
+        "elapsed": 0.0,
+        "count": 0,
+        "total": 0,
+        "unit": "",
+        "detail": ""
+      },
+      "Material": {
+        "status": "pending",
+        "started": 0.0,
+        "elapsed": 0.0,
+        "count": 0,
+        "total": 0,
+        "unit": "",
+        "detail": ""
+      },
+      "Load images": {
+        "status": "done",
+        "started": 1275.747293586,
+        "elapsed": 0.43444923999982166,
+        "count": 1,
+        "total": 1,
+        "unit": "panels",
+        "detail": "Loading detector idealized"
+      },
+      "Fit grains": {
+        "status": "done",
+        "started": 1276.18177624,
+        "elapsed": 26.562348680000014,
+        "count": 1690,
+        "total": 1690,
+        "unit": "grains",
+        "detail": "Grain 1689: done \u00b7 pass 3/3"
+      },
+      "Write results": {
+        "status": "pending",
+        "started": 0.0,
+        "elapsed": 0.0,
+        "count": 0,
+        "total": 0,
+        "unit": "",
+        "detail": ""
+      }
+    },
+    "diagnostics": {
+      "Grains": "1690",
+      "Workers": "10",
+      "Tolerance passes": "3",
+      "Grains finished": "1690",
+      "Insufficient reflections": "0"
+    }
+  },
+  "examples": [
+    {
+      "case": "ruby-0",
+      "identical": true,
+      "reference_seconds": 8.945045627000013,
+      "branch_seconds": 2.9022153009999556
+    },
+    {
+      "case": "ruby-1",
+      "identical": true,
+      "reference_seconds": 8.500957474000074,
+      "branch_seconds": 3.1002111120001246
+    },
+    {
+      "case": "ruby-2",
+      "identical": true,
+      "reference_seconds": 8.976952396000115,
+      "branch_seconds": 2.9399590949999492
+    },
+    {
+      "case": "ruby-3",
+      "identical": true,
+      "reference_seconds": 7.953567169999815,
+      "branch_seconds": 2.8778730399999404
+    },
+    {
+      "case": "ruby-4",
+      "identical": true,
+      "reference_seconds": 7.774938053000142,
+      "branch_seconds": 2.726119015999984
+    },
+    {
+      "case": "ruby-5",
+      "identical": true,
+      "reference_seconds": 8.363792154000066,
+      "branch_seconds": 2.7517772609999156
+    },
+    {
+      "case": "dexelas",
+      "identical": true,
+      "reference_seconds": 64.66240095500007,
+      "branch_seconds": 13.147696589999896
+    },
+    {
+      "case": "dexelas-roi",
+      "identical": true,
+      "reference_seconds": 59.57546771300008,
+      "branch_seconds": 11.984406895999882
+    },
+    {
+      "case": "zirconium",
+      "identical": true,
+      "reference_seconds": 7.60823672000015,
+      "branch_seconds": 2.154649483999947
+    }
+  ],
+  "tests": {
+    "passed": 492,
+    "warnings": 1,
+    "scientific_and_ui_log": "/tmp/hexrd-fit-dashboard/regressions-final.log",
+    "previous_ui_shutdown_tests": "passing"
+  },
+  "catalog_experiment": {
+    "experimental": true,
+    "enabled_for_fitting": false,
+    "reference_sha256": "d8c5612438e4223020f2aff5268a80d34bc7abe6580d9379c8ecf46e141d8934",
+    "config_sha256": "e5f4403804a58385da8f49708c2c7b817290a46c2c86f92fa466e5d397c93662",
+    "matching": "Nearest master measurement, diagnostic only; not HKL assignment",
+    "panels": {
+      "idealized": {
+        "peaks": 357527,
+        "preprocessing_seconds": 6.691704419999951,
+        "catalog_bytes": 34322592,
+        "measurements": 467819,
+        "matched": 465393,
+        "exactly_equal": 0,
+        "median_abs_difference_xy_mm_omega_deg": [
+          0.00244410003844564,
+          0.0026123062983742784,
+          0.00012263800044820528
+        ],
+        "max_abs_difference_xy_mm_omega_deg": [
+          0.28102620604897766,
+          0.288293045270656,
+          0.7312750951363682
+        ],
+        "match_radius_in_pixel_frame_units": 3.0
+      }
+    },
+    "passes_exact_measurement_gate": false,
+    "fit_equivalence_established": false
+  },
+  "request_replay_experiment": {
+    "experimental": true,
+    "enabled_for_fitting": false,
+    "grains": 10,
+    "extraction_requests": 30,
+    "replay_image_extractions": 0,
+    "recording_seconds": 1.625663189000079,
+    "replay_seconds": 0.3014792130002206,
+    "identical_fits_and_spots_to_master": true,
+    "reference_sha256": "d8c5612438e4223020f2aff5268a80d34bc7abe6580d9379c8ecf46e141d8934",
+    "scope": "Unchanged experiment and identical requests in the same process only",
+    "limitation": "Recording requires the full extraction/fit sequence. Not a first-run speedup."
+  },
+  "environment": {
+    "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+    "numpy": "2.3.5",
+    "scipy": "1.17.1",
+    "thread_environment": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": null
+    }
+  },
+  "artifacts": "/tmp/hexrd-fit-dashboard",
+  "limitations": [
+    "Single timings on a shared machine.",
+    "Catalog matching is an optimistic nearest-measurement audit, not HKL assignment or fit equivalence.",
+    "Request replay is scoped to an unchanged process; recording requires normal extraction and fitting."
+  ],
+  "interactive_terminal": {
+    "default_cli_opens_textual": true,
+    "completed_and_closed_with_q": true,
+    "transcript": "/tmp/hexrd-fit-dashboard/interactive-terminal.log"
+  }
+}

@@ -69,20 +69,25 @@ class _NpzReader:
             self._buf = mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ)
         self._index()
 
-    def _index(self):
+    def _index(self, metadata_only=None):
         from hexrd.core.extensions import transforms
 
-        self._members = transforms._npzIndex(self._buf, self._metadata_only)
-        if self._members is None:
+        if metadata_only is None:
+            metadata_only = self._metadata_only
+        members = transforms._npzIndex(self._buf, metadata_only)
+        if members is None:
             with zipfile.ZipFile(self._filename) as archive:
-                self._members = {i.filename: (i.header_offset, i.compress_size, i.compress_type, i.CRC)
-                                 for i in archive.infolist()}
-            self._metadata_only = False
+                members = {i.filename: (i.header_offset, i.compress_size, i.compress_type, i.CRC)
+                           for i in archive.infolist()}
+            metadata_only = False
+        # Native indexing releases the GIL. Publish the complete directory
+        # before telling concurrent frame-loader threads that it is ready.
+        self._members = members
+        self._metadata_only = metadata_only
 
     def _complete(self, name=None):
         if self._metadata_only and (name is None or name + '.npy' not in self._members):
-            self._metadata_only = False
-            self._index()
+            self._index(metadata_only=False)
 
     def __getitem__(self, name):
         self._complete(name)

@@ -4,13 +4,21 @@ import sys
 from collections import namedtuple
 from pathlib import Path
 
+from hexrd.hedm._progress import (
+    Dashboard,
+    FIT_STAGES,
+    check_cancelled,
+    diagnostic,
+    quiet_progress,
+    stage,
+)
+
 import numpy as np
 
 from hexrd.core import constants as cnst
 from hexrd.core import rotations
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.core.transforms import xfcapi
-
 
 descr = 'Extracts G vectors, grain position and strain'
 example = """
@@ -151,7 +159,17 @@ class GrainData(_BaseGrainData):
 
 
 def configure_parser(sub_parsers):
-    p = sub_parsers.add_parser('fit-grains', description=descr, help=descr)
+    p = sub_parsers.add_parser(
+        'fit-grains',
+        description=descr,
+        help=descr,
+        epilog='Interactive terminals show the Textual dashboard; redirected output uses plain logs.',
+    )
+    p.add_argument(
+        '--no-tui',
+        action='store_true',
+        help='use plain logs and exit on completion (for batch runs)',
+    )
     p.add_argument('yml', type=str, help='YAML configuration file')
     p.add_argument(
         '-g',
@@ -187,8 +205,9 @@ def configure_parser(sub_parsers):
     p.set_defaults(func=execute)
 
 
-def write_results(fit_results, experiment, grains_filename='grains.out',
-                  grains_npz='grains.npz'):
+def write_results(
+    fit_results, experiment, grains_filename='grains.out', grains_npz='grains.npz'
+):
     from hexrd.core import instrument
 
     instr = experiment.instrument
@@ -214,26 +233,70 @@ def write_results(fit_results, experiment, grains_filename='grains.out',
 
 
 def execute(args, parser):
+    if (
+        not args.quiet
+        and not getattr(args, 'no_tui', False)
+        and sys.stdin.isatty()
+        and Dashboard.supported(sys.stderr)
+    ):
+        from hexrd.hedm._dashboard import FitGrainsDashboard
+
+        dashboard = Dashboard(FIT_STAGES)
+        app = FitGrainsDashboard(
+            dashboard,
+            lambda: _execute(args, parser, dashboard),
+            args.yml,
+        )
+        app.run()
+        if dashboard.message:
+            print(dashboard.message, file=sys.stderr)
+        if app.failure is not None:
+            raise app.failure
+        return
+    return _execute(args, parser)
+
+
+def _execute(args, parser, dashboard=None):
+    log_level = (
+        logging.ERROR
+        if args.quiet
+        else (logging.DEBUG if getattr(args, 'debug', False) else logging.INFO)
+    )
+    logger = logging.getLogger('hexrd')
+    previous_level, previous_propagate = logger.level, logger.propagate
+    logger.setLevel(log_level)
+    logger.propagate = False
+    ch = dashboard or logging.StreamHandler()
+    ch.setLevel(logging.CRITICAL if args.quiet else log_level)
+    ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S'))
+    logger.addHandler(ch)
+    file_handlers = []
+    try:
+        if dashboard is not None:
+            dashboard.start()
+        with quiet_progress(args.quiet or getattr(args, 'no_tui', False)):
+            return _run(args, parser, dashboard, logger, file_handlers)
+    finally:
+        for handler in file_handlers:
+            logger.removeHandler(handler)
+            handler.close()
+        logger.removeHandler(ch)
+        ch.close()
+        logger.setLevel(previous_level)
+        logger.propagate = previous_propagate
+
+
+def _run(args, parser, dashboard, logger, file_handlers):
     from hexrd.core import instrument
     from hexrd.hedm.fitgrains import fit_grains
 
+    log_level = logger.level
     clobber = args.force or args.clean
-
-    base = HedmExperiment(args.yml)
-    experiments = [base] + [HedmExperiment(args.yml, study=i)
-                            for i in range(len(base.studies))]
-
-    # configure logging to the console:
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    if args.quiet:
-        log_level = logging.ERROR
-    logger = logging.getLogger('hexrd')
-    logger.setLevel(log_level)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.CRITICAL if args.quiet else log_level)
-    cf = logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
-    ch.setFormatter(cf)
-    logger.addHandler(ch)
+    with stage('Configuration'):
+        base = HedmExperiment(args.yml)
+        experiments = [base] + [
+            HedmExperiment(args.yml, study=i) for i in range(len(base.studies))
+        ]
 
     # handle initial state
     experiment = experiments[0]
@@ -266,7 +329,6 @@ def execute(args, parser):
                 )
         else:
             logger.info("Missing %s, running find-orientations", quats_f)
-            logger.removeHandler(ch)
             from hexrd.hedm.find_orientations import (
                 find_orientations,
                 write_results as write_find_orientations_results,
@@ -275,11 +337,12 @@ def execute(args, parser):
             results = find_orientations(experiment)
             write_find_orientations_results(results, experiment)
             qbar = results.grain_orientations
-            logger.addHandler(ch)
 
     logger.info('=== begin fit-grains ===')
 
     for experiment in experiments:
+        check_cancelled()
+        diagnostic('Analysis', experiment.analysis_name)
         analysis_dir = Path(experiment.analysis_dir)
 
         # Check whether an existing analysis exists.
@@ -300,19 +363,22 @@ def execute(args, parser):
             det_dir = analysis_dir / det_key
             det_dir.mkdir(exist_ok=True)
 
-        # Set HKLs to use.
-        material = experiment.get_active_material()
-        plane_data = material._material.planeData
-        exclusions = experiment.fit_grains.exclusion_parameters.copy()
-        tth_max = experiment.fit_grains.tth_max
-        if tth_max is not False:
-            exclusions['tthmax'] = (instrument.max_tth(instr)
-                                    if tth_max is True
-                                    else np.radians(tth_max))
-        if experiment.fit_grains.reset_exclusions:
-            plane_data.exclude(**exclusions)
-        using_nhkls = np.count_nonzero(~plane_data.exclusions)
-        logger.info(f'using {using_nhkls} HKLs')
+        with stage('Material'):
+            # Set HKLs to use.
+            material = experiment.get_active_material()
+            plane_data = material._material.planeData
+            exclusions = experiment.fit_grains.exclusion_parameters.copy()
+            tth_max = experiment.fit_grains.tth_max
+            if tth_max is not False:
+                exclusions['tthmax'] = (
+                    instrument.max_tth(instr)
+                    if tth_max is True
+                    else np.radians(tth_max)
+                )
+            if experiment.fit_grains.reset_exclusions:
+                plane_data.exclude(**exclusions)
+            using_nhkls = np.count_nonzero(~plane_data.exclusions)
+            logger.info(f'using {using_nhkls} HKLs')
 
         logger.info('*** begin analysis "%s" ***', experiment.analysis_name)
 
@@ -324,6 +390,7 @@ def execute(args, parser):
         fh.setFormatter(ff)
         logger.info("logging to %s", logfile)
         logger.addHandler(fh)
+        file_handlers.append(fh)
 
         if args.profile:
             import cProfile as profile
@@ -400,12 +467,13 @@ def execute(args, parser):
             grains_table,
             material,
             show_progress=not args.quiet,
+            check_if_canceled_func=(lambda: False) if dashboard is not None else None,
             ids_to_refine=gid_list,
         )
 
         if args.profile:
             pr.disable()
-            s = StringIO.StringIO()
+            s = StringIO()
             ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
             ps.print_stats(50)
             logger.info('%s', s.getvalue())
@@ -417,10 +485,12 @@ def execute(args, parser):
 
         logger.info('*** end analysis "%s" ***', experiment.analysis_name)
 
-        write_results(fit_results, experiment)
+        with stage('Write results'):
+            check_cancelled()
+            write_results(fit_results, experiment)
+        diagnostic('Results', analysis_dir)
+        logger.info(
+            'Fit %d grain(s); results written to %s', len(fit_results), analysis_dir
+        )
 
     logger.info('=== end fit-grains ===')
-    # stop logging to the console
-    ch.flush()
-    ch.close()
-    logger.removeHandler(ch)

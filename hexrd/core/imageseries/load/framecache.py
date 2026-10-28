@@ -253,7 +253,9 @@ class FrameCacheImageSeriesAdapter(ImageSeriesAdapter):
                 # be performant.
                 ind1 = key[1]
                 ind2 = key[2]
-                return mat[ind1.ravel(), ind2.ravel()].reshape(ind1.shape)
+                from .._sparse import sample_pixels
+
+                return sample_pixels(mat, ind1, ind2)
             elif len(key) == 2:
                 # Not sure if this will actually be used.
                 return mat[key[1]].toarray()

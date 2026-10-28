@@ -53,7 +53,13 @@ from io import IOBase
 
 from scipy import ndimage
 from scipy.linalg import logm
-from skimage.measure import regionprops
+from ._spotutils import (
+    _weighted_centroids,
+    sparse_frame_view,
+    pull_spots_batched,
+    clear_sparse_frame_views,
+    native_threshold_supported,
+)
 
 from hexrd.core import constants
 from hexrd.core.imageseries import ImageSeries
@@ -1716,6 +1722,7 @@ class HEDMInstrument(object):
         check_only: bool = False,
         interp: Literal['nearest', 'bilinear'] = 'nearest',
         quiet: Optional[Any] = None,
+        _packed: bool = False,
     ) -> tuple[list[np.bool_], defaultdict[str, list[list]]]:
         """Extract reflection info from a rotation series.
 
@@ -1772,6 +1779,9 @@ class HEDMInstrument(object):
         """
         if quiet is not None:
             logger.warning("'quiet' is deprecated and marked for removal.")
+
+        if not _packed:
+            clear_sparse_frame_views()
 
         if check_only:
             return self._pull_spots_check_only(
@@ -1855,29 +1865,54 @@ class HEDMInstrument(object):
             hkl_ids = hkl_ids[mask]
             xy_centers = xy_centers[mask]
 
-            patches = self._get_panel_patches(
-                panel,
-                ang_centers,
-                ang_pixel_size[mask],
-                tth_tol,
-                eta_tol,
-                rMat_c,
-                tVec_c,
-                npdiv,
-            )
             omega_image_series = _parse_imgser_dict(
                 imgser_dict, detector_id, roi=panel.roi, group=panel.group
             )
             assert isinstance(omega_image_series, OmegaImageSeries)
 
+            view = (
+                sparse_frame_view(omega_image_series)
+                if interp == 'nearest'
+                and not write_hdf5
+                and not return_spot_list
+                and ndiv_ome != 1
+                else None
+            )
+            if view is not None and not native_threshold_supported(
+                view.dtype, threshold
+            ):
+                view = None
+            if view is not None:
+                records, next_invalid_peak_id = pull_spots_batched(
+                    self, panel, omega_image_series, view, hkl_ids, hkls_p,
+                    ang_centers, xy_centers, ang_pixel_size[mask], tth_tol,
+                    eta_tol, npdiv, ome_grid, delta_omega, ome_period,
+                    threshold, rMat_c, tVec_c, next_invalid_peak_id,
+                )
+                if write_text:
+                    output_dir = Path(dirname) / detector_id
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    writer_text = PatchDataWriter(output_dir / str(filename))
+                    if records is not None:
+                        writer_text.dump_packed(records)
+                    writer_text.close()
+                if records is not None:
+                    patch_has_signal.extend(records.peak_id >= 0)
+                    output[detector_id] = records if _packed else list(records)
+                continue
+
+            patches = self._get_panel_patches(
+                panel, ang_centers, ang_pixel_size[mask], tth_tol, eta_tol,
+                rMat_c, tVec_c, npdiv,
+            )
             if write_text:
                 output_dir = Path(dirname) / detector_id
                 output_dir.mkdir(parents=True, exist_ok=True)
                 writer_text = PatchDataWriter(output_dir / str(filename))
 
             nrows, ncols = panel.shape
-            for patch_id, (vtx_angs, _, _, areas, xy_eval, ijs) in enumerate(patches):
-                prows, pcols = areas.shape
+            for patch_id, (vtx_angs, _, _, _, xy_eval, ijs) in enumerate(patches):
+                prows, pcols = ijs[0].shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
 
                 tth_edges = vtx_angs[0][0, :]
@@ -1944,9 +1979,7 @@ class HEDMInstrument(object):
                         continue
 
                     peak_id = patch_id
-                    coms = np.vstack(
-                        [x.centroid_weighted for x in regionprops(labels, patch_data)]
-                    )
+                    coms = _weighted_centroids(labels, patch_data, num_peaks)
                     closest_peak_idx = np.argmin(
                         np.sum(
                             (coms - np.array(patch_data.shape) / 2) ** 2,
@@ -2107,6 +2140,8 @@ class HEDMInstrument(object):
         rMat_c: NDArray[np.float64],
         tvec_c: NDArray[np.float64],
         npdiv: int,
+        packed: bool = False,
+        max_points: int = 32768,
     ):
         instrument_config = panel.config_dict(
             self.chi,
@@ -2125,6 +2160,9 @@ class HEDMInstrument(object):
             rmat_c=rMat_c,
             tvec_c=tvec_c,
             npdiv=npdiv,
+            full_output=False,
+            _packed=packed,
+            _max_points=max_points,
         )
         return patches
 
@@ -2208,24 +2246,33 @@ class HEDMInstrument(object):
 class PatchDataWriter(object):
     """Class for dumping Bragg reflection data."""
 
+    _HEADER_ITEMS = (
+        '# ID',
+        'PID',
+        'H',
+        'K',
+        'L',
+        'sum(int)',
+        'max(int)',
+        'pred tth',
+        'pred eta',
+        'pred ome',
+        'meas tth',
+        'meas eta',
+        'meas ome',
+        'pred X',
+        'pred Y',
+        'meas X',
+        'meas Y',
+    )
+    _HEADER = '  '.join(['{:<6}'] * 5 + ['{:<12}'] * 2 + ['{:<23}'] * 10).format(
+        *_HEADER_ITEMS
+    )
+    _ROW_FORMAT = '  '.join(['{:<6d}'] * 5 + ['{:<12e}'] * 2 + ['{:<23.16e}'] * 10)
+
     def __init__(self, filename):
         self._delim = '  '
-        # fmt: off
-        header_items = (
-            '# ID', 'PID',
-            'H', 'K', 'L',
-            'sum(int)', 'max(int)',
-            'pred tth', 'pred eta', 'pred ome',
-            'meas tth', 'meas eta', 'meas ome',
-            'pred X', 'pred Y',
-            'meas X', 'meas Y'
-        )
-        self._header = self._delim.join([
-            self._delim.join(np.tile('{:<6}', 5)).format(*header_items[:5]),
-            self._delim.join(np.tile('{:<12}', 2)).format(*header_items[5:7]),
-            self._delim.join(np.tile('{:<23}', 10)).format(*header_items[7:17])
-        ])
-        # fmt: on
+        self._header = self._HEADER
         if isinstance(filename, IOBase):
             self.fid = filename
         else:
@@ -2260,15 +2307,42 @@ class PatchDataWriter(object):
             + mxy.tolist()
         )
 
-        output_str = self._delim.join(
-            [
-                self._delim.join(np.tile('{:<6d}', 5)).format(*res[:5]),
-                self._delim.join(np.tile('{:<12e}', 2)).format(*res[5:7]),
-                self._delim.join(np.tile('{:<23.16e}', 10)).format(*res[7:]),
-            ]
-        )
+        output_str = self._ROW_FORMAT.format(*res)
         self.fid.write(output_str + '\n')
         return output_str
+
+    def dump_packed(self, records):
+        """Write columnar records with the same scalar formatting as dump_patch."""
+        rows = zip(
+            records.peak_id,
+            records.hkl_id,
+            records.hkls.astype(int).tolist(),
+            records.sum_int,
+            records.max_int,
+            records.pred_angs.tolist(),
+            records.meas_angs.tolist(),
+            records.pred_xy.tolist(),
+            records.meas_xy.tolist(),
+        )
+        lines = []
+        for peak, hkl_id, hkl, intensity, maximum, pangs, mangs, pxy, mxy in rows:
+            if peak < 0:
+                intensity = maximum = np.nan
+            lines.append(
+                self._ROW_FORMAT.format(
+                    int(peak),
+                    int(hkl_id),
+                    *hkl,
+                    intensity,
+                    maximum,
+                    *pangs,
+                    *mangs,
+                    *pxy,
+                    *mxy,
+                )
+                + '\n'
+            )
+        self.fid.write(''.join(lines))
 
 
 class GrainDataWriter(object):

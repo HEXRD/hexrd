@@ -1,4 +1,4 @@
-"""Terminal-only presentation for find-orientations; no scientific state lives here."""
+"""Shared terminal progress for HEDM workflows; no scientific state lives here."""
 
 from collections import deque
 from contextlib import contextmanager
@@ -10,10 +10,11 @@ import threading
 from time import monotonic
 
 
-logger = logging.getLogger('hexrd.hedm.find_orientations')
-_dashboard = ContextVar('find_orientations_dashboard', default=None)
+logger = logging.getLogger('hexrd.hedm')
+_dashboard = ContextVar('hedm_dashboard', default=None)
 STAGES = ('Configuration', 'Material', 'Eta/omega maps', 'Fibers',
           'Sampling', 'Scoring', 'Clustering', 'Write results')
+FIT_STAGES = ('Configuration', 'Material', 'Load images', 'Fit grains', 'Write results')
 
 
 @dataclass
@@ -36,7 +37,11 @@ def stage(name):
     if dashboard:
         dashboard.check_cancelled()
         with dashboard.lock:
+            # Indexing can be invoked by fit-grains when estimates are absent.
+            dashboard.stages.setdefault(name, _Stage())
             item = dashboard.active = dashboard.stages[name]
+            item.count = item.total = 0
+            item.detail = item.unit = ''
             item.status, item.started = 'running', started
     try:
         yield
@@ -79,6 +84,43 @@ def check_cancelled():
     dashboard = _dashboard.get()
     if dashboard:
         dashboard.check_cancelled()
+
+
+def current_dashboard():
+    return _dashboard.get() or None
+
+
+def detach_dashboard():
+    """Workers report through IPC, never through inherited UI objects/locks."""
+    _dashboard.set(False)
+    for log in [logging.getLogger(), *logging.Logger.manager.loggerDict.values()]:
+        if isinstance(log, logging.Logger):
+            for handler in list(log.handlers):
+                if isinstance(handler, Dashboard):
+                    log.removeHandler(handler)
+
+
+def report_grain(event):
+    """Publish a compact worker event in the parent process only."""
+    dashboard = current_dashboard()
+    if dashboard is None:
+        return
+    grain_id, state, pass_index, passes, completeness, chisq = event
+    with dashboard.lock:
+        dashboard.grains.pop(grain_id, None)
+        dashboard.grains[grain_id] = event
+        while len(dashboard.grains) > 32:
+            dashboard.grains.pop(next(iter(dashboard.grains)))
+        if (state in ('Done', 'Insufficient reflections')
+                and grain_id not in dashboard.finished_grains):
+            dashboard.finished_grains.add(grain_id)
+            dashboard.diagnostics['Grains finished'] = str(
+                len(dashboard.finished_grains)
+            )
+            if state == 'Insufficient reflections':
+                dashboard.diagnostics['Insufficient reflections'] = str(
+                    int(dashboard.diagnostics.get('Insufficient reflections', '0')) + 1
+                )
 
 
 def activity(message):
@@ -133,14 +175,16 @@ class Dashboard(logging.Handler):
     def supported(stream):
         return stream.isatty() and os.environ.get('TERM') != 'dumb'
 
-    def __init__(self):
+    def __init__(self, stages=STAGES):
         super().__init__()
-        self.stages = {name: _Stage() for name in STAGES}
+        self.stages = {name: _Stage() for name in stages}
         self.active = None
         self.message = ''
         self.diagnostics = {}
         self.hkls = {}
         self.peaks = {}
+        self.grains = {}
+        self.finished_grains = set()
         self.events = deque(maxlen=500)
         self.started = monotonic()
         self.cancelled = threading.Event()

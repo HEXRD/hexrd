@@ -9,6 +9,7 @@ from hexrd.core import matrixutil as mutil
 from hexrd.core.transforms import xfcapi
 from hexrd.core import constants
 from hexrd.core import rotations
+from hexrd.core.instrument._spotutils import _SpotData
 
 from hexrd.hedm.xrdutil import (
     apply_correction_to_wavelength,
@@ -28,6 +29,57 @@ vInv_ref = np.r_[1.0, 1.0, 1.0, 0.0, 0.0, 0.0]
 # for grain parameters
 gFlag_ref = np.ones(12, dtype=bool)
 gScl_ref = np.ones(12, dtype=bool)
+
+
+class _FitGrainData(dict):
+    """A fit-local snapshot of reflection and detector quantities."""
+
+    def __init__(self, reflections, instrument, bmat):
+        super().__init__()
+        self.transforms = {}
+        self.reciprocal = {}
+        panels = {}
+        parameters = None
+        for key, results in reflections.items():
+            if not isinstance(results, dict):
+                self[key] = results
+                continue
+            if parameters is None:
+                parameters = instrument.detector_parameters
+            self.transforms[key] = extract_detector_transformation(parameters[key])
+            measured = results['meas_xyo']
+            distortion = instrument.detectors[key].distortion
+            if distortion is not None:
+                measured = np.vstack(
+                    [distortion.apply(measured[:, :2]).T, measured[:, 2]]
+                ).T
+            self[key] = {'hkls': results['hkls'], 'meas_xyo': measured}
+            self.reciprocal[key] = np.dot(bmat, results['hkls'])
+            rd, td, chi, ts = self.transforms[key]
+            panels[key] = (
+                results['hkls'].T,
+                self.reciprocal[key],
+                measured,
+                rd,
+                td,
+                chi,
+                ts,
+            )
+        from hexrd.core.extensions import transforms as native
+
+        ordered = [panels[key] for key in instrument.detectors if key in panels]
+        compatible = all(
+            np.asarray(array).dtype.kind in 'biuf'
+            and np.asarray(array).dtype.itemsize <= 8
+            for array in [bmat] + [item[i] for item in ordered for i in (0, 1, 2)]
+        )
+        self.native = (
+            native._GrainObjective(
+                ordered, bmat, instrument.beam_vector, instrument.eta_vector
+            )
+            if ordered and compatible
+            else None
+        )
 
 
 def fitGrain(
@@ -94,6 +146,11 @@ def fitGrain(
     # Do that conversion here, if necessary.
     new_reflections_dict = {}
     for det_key, results in reflections_dict.items():
+        if isinstance(results, _SpotData):
+            new_reflections_dict[det_key] = (
+                results.as_fit_data() if len(results) else []
+            )
+            continue
         if not isinstance(results, (list, np.ndarray)) or len(results) == 0:
             # Maybe it's already a dict...
             new_reflections_dict[det_key] = results
@@ -113,11 +170,12 @@ def fitGrain(
             'meas_xyo': meas_xyo,
         }
 
+    prepared = _FitGrainData(new_reflections_dict, instrument, bMat)
     fitArgs = (
         gFull,
         gFlag,
         instrument,
-        new_reflections_dict,
+        prepared,
         bMat,
         wavelength,
         omePeriod,
@@ -219,10 +277,7 @@ def objFuncFitGrain(
     gFull[gFlag] = gFit
 
     # map parameters to functional arrays
-    rMat_c = xfcapi.make_rmat_of_expmap(gFull[:3])
     tVec_c = gFull[3:6].reshape(3, 1)
-    vInv_s = gFull[6:]
-    vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R
 
     # Apply an energy correction according to grain position
     corrected_wavelength = apply_correction_to_wavelength(
@@ -231,6 +286,21 @@ def objFuncFitGrain(
         tVec_s,
         tVec_c,
     )
+
+    if (
+        isinstance(reflections_dict, _FitGrainData)
+        and reflections_dict.native is not None
+        and omePeriod is None
+        and not simOnly
+        and return_value_flag is None
+    ):
+        result = reflections_dict.native.residual(gFull, corrected_wavelength)
+        if result is not None:
+            return result
+
+    rMat_c = xfcapi.make_rmat_of_expmap(gFull[:3])
+    vInv_s = gFull[6:]
+    vMat_s = mutil.vecMVToSymm(vInv_s)
 
     # loop over instrument panels
     # CAVEAT: keeping track of key ordering in the "detectors" attribute of
@@ -244,11 +314,16 @@ def objFuncFitGrain(
     for det_key, panel in instrument.detectors.items():
         det_keys_ordered.append(det_key)
 
-        rMat_d, tVec_d, chi, tVec_s = extract_detector_transformation(
-            instrument.detector_parameters[det_key]
-        )
-
         results = reflections_dict.get(det_key, [])
+        prepared = isinstance(reflections_dict, _FitGrainData)
+        if prepared:
+            if not isinstance(results, dict) and len(results) == 0:
+                continue
+            rMat_d, tVec_d, chi, tVec_s = reflections_dict.transforms[det_key]
+        else:
+            rMat_d, tVec_d, chi, tVec_s = extract_detector_transformation(
+                instrument.detector_parameters[det_key]
+            )
         if not isinstance(results, dict) and len(results) == 0:
             continue
 
@@ -264,7 +339,10 @@ def objFuncFitGrain(
           13:15  pred X    pred Y
           15:17  meas X    meas Y
         """
-        if isinstance(results, list):
+        if isinstance(results, _SpotData):
+            data = results.as_fit_data()
+            hkls, meas_xyo = data['hkls'], data['meas_xyo']
+        elif isinstance(results, list):
             # WARNING: hkls and derived vectors below must be columnwise;
             # strictly necessary??? change affected APIs instead?
             # <JVB 2017-03-26>
@@ -281,7 +359,7 @@ def objFuncFitGrain(
             meas_xyo = results['meas_xyo']
 
         # distortion handling
-        if panel.distortion is not None:
+        if panel.distortion is not None and not prepared:
             meas_omes = meas_xyo[:, 2]
             xy_unwarped = panel.distortion.apply(meas_xyo[:, :2])
             meas_xyo = np.vstack([xy_unwarped.T, meas_omes]).T
@@ -295,7 +373,9 @@ def objFuncFitGrain(
         #   3. rotate back into CRYSTAL frame and normalize to unit magnitude
         # IDEA: make a function for this sequence of operations with option for
         # choosing ouput frame (i.e. CRYSTAL vs SAMPLE vs LAB)
-        gVec_c = np.dot(bMat, hkls)
+        gVec_c = (
+            reflections_dict.reciprocal[det_key] if prepared else np.dot(bMat, hkls)
+        )
         gVec_s = np.dot(vMat_s, np.dot(rMat_c, gVec_c))
         gHat_c = mutil.unitVector(np.dot(rMat_c.T, gVec_s))
 
@@ -435,8 +515,13 @@ def matchOmegas(
             ]
         )
     # do angular difference
-    diff_omes = rotations.angularDifference(np.tile(meas_omes, (2, 1)), calc_omes)
-    match_omes = np.argsort(diff_omes, axis=0) == 0
-    calc_omes = calc_omes.T.flatten()[match_omes.T.flatten()]
+    diff_omes = rotations.angularDifference(meas_omes[None, :], calc_omes)
+    choose_second = (diff_omes[1] < diff_omes[0]) | (
+        np.isnan(diff_omes[0]) & ~np.isnan(diff_omes[1])
+    )
+    # Two alternatives need one comparison, not an argsort and two flattened
+    # temporary arrays. Keep the first branch for ties and sort NaNs last.
+    match_omes = np.vstack((~choose_second, choose_second))
+    calc_omes = np.where(choose_second, calc_omes[1], calc_omes[0])
 
     return match_omes, calc_omes

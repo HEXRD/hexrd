@@ -27,6 +27,7 @@
 # ============================================================
 
 
+from functools import lru_cache
 from typing import Callable, Literal, Optional, Union, Any, Sequence, overload
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.distortion.distortionabc import DistortionABC
@@ -749,6 +750,27 @@ def angularPixelSize(
     return _compute_max(gvec_space[0], gvec_space[1], result)
 
 
+@lru_cache(maxsize=128)
+def _reflection_patch_offsets(ntths, netas, tth_tol, eta_tol):
+    """Angular offsets shared by patches of the same dimensions."""
+    tth_edges = np.arange(ntths + 1) * tth_tol / float(ntths) - 0.5 * tth_tol
+    eta_edges = np.arange(netas + 1) * eta_tol / float(netas) - 0.5 * eta_tol
+    m_tth, m_eta = np.meshgrid(tth_edges, eta_edges)
+    offsets = np.radians(
+        np.vstack([m_tth.flatten(), m_eta.flatten(), np.zeros(m_tth.size)]).T
+    )
+    offsets.flags.writeable = False
+    return offsets
+
+
+@lru_cache(maxsize=128)
+def _reflection_patch_grid(ntths, netas, tth_tol, eta_tol):
+    offsets = _reflection_patch_offsets(ntths, netas, tth_tol, eta_tol)
+    conn = gutil.cellConnectivity(netas, ntths, origin='ll')
+    conn.flags.writeable = False
+    return offsets, conn
+
+
 def make_reflection_patches(
     instr_cfg: dict[str, Any],
     tth_eta: NDArray[np.float64],
@@ -761,6 +783,10 @@ def make_reflection_patches(
     npdiv: int = 1,
     quiet: bool = False,  # TODO: Remove this parameter - it isn't used
     compute_areas_func: Callable = gutil.compute_areas,
+    *,
+    full_output: bool = True,
+    _packed: bool = False,
+    _max_points: int = 32768,
 ):
     """Make angular patches on a detector.
 
@@ -790,6 +816,10 @@ def make_reflection_patches(
         subpixel_areas,
         (x_center, y_center),
         (i_row, j_col)
+
+    If full_output is False, omit vertex XY coordinates, connectivity, and
+    areas (return None for these fields). Spot extraction needs only angular
+    edges and sample points, so it can skip the vertex projection entirely.
     """
 
     # detector quantities
@@ -833,38 +863,114 @@ def make_reflection_patches(
     else:
         full_angs = np.hstack([tth_eta, omega.reshape(len(tth_eta), 1)])
 
-    for angs, pix in zip(full_angs, ang_pixel_size):
-        # calculate bin edges for patch based on local angular pixel size
-        # tth
-        ntths, tth_edges = gutil.make_tolerance_grid(
-            bin_width=np.degrees(pix[0]),
-            window_width=tth_tol,
-            num_subdivisions=npdiv,
+    if _packed:
+        from hexrd.core.extensions import transforms as native
+
+        if _max_points < 1:
+            raise ValueError('patch batch size must be positive')
+        reduced_projection = (
+            distortion is None
+            and row_edges[1] < row_edges[0]
+            and col_edges[1] > col_edges[0]
+            and np.all(np.abs(full_angs) <= [2 * np.pi, 2 * np.pi, 32 * np.pi])
+            and min(abs(row_edges[1] - row_edges[0]), abs(col_edges[1] - col_edges[0]))
+            > 2 * sqrt_epsf
+            and np.allclose(rmat_c.T @ rmat_c, np.eye(3), rtol=0.0, atol=1e-13)
         )
-
-        # eta
-        netas, eta_edges = gutil.make_tolerance_grid(
-            bin_width=np.degrees(pix[1]),
-            window_width=eta_tol,
-            num_subdivisions=npdiv,
+        counts = np.empty((len(full_angs), 2), dtype=np.int64)
+        counts[:, 0] = npdiv * np.ceil(
+            tth_tol / np.minimum(np.degrees(ang_pixel_size[:, 0]), tth_tol)
         )
-
-        # FOR ANGULAR MESH
-        conn = gutil.cellConnectivity(netas, ntths, origin='ll')
-
-        # meshgrid args are (cols, rows), a.k.a (fast, slow)
-        m_tth, m_eta = np.meshgrid(tth_edges, eta_edges)
-        npts_patch = m_tth.size
-
-        # calculate the patch XY coords from the (tth, eta) angles
-        # !!! will CHEAT and ignore the small perturbation the different
-        #     omega angle values causes and simply use the central value
-        gVec_angs_vtx = np.tile(angs, (npts_patch, 1)) + np.radians(
-            np.vstack([m_tth.flatten(), m_eta.flatten(), np.zeros(npts_patch)]).T
+        counts[:, 1] = npdiv * np.ceil(
+            eta_tol / np.minimum(np.degrees(ang_pixel_size[:, 1]), eta_tol)
         )
+        start = 0
+        while start < len(full_angs):
+            stop = start
+            total = 0
+            while (
+                stop < len(full_angs)
+                and stop - start < (256 if reduced_projection else 32)
+                and total < _max_points
+            ):
+                total += int(counts[stop, 0]) * int(counts[stop, 1])
+                stop += 1
+            shapes = np.ascontiguousarray(counts[start:stop, ::-1])
+            if reduced_projection:
+                edges, offsets, rows, cols, fallback = native._spotGridIndices(
+                    full_angs[start:stop],
+                    shapes,
+                    tth_tol,
+                    eta_tol,
+                    rmat_d,
+                    chi,
+                    tvec_d,
+                    tvec_s,
+                    tvec_c,
+                    bvec,
+                    row_edges,
+                    col_edges,
+                )
+                for patch, points in fallback:
+                    lo, hi = offsets[patch : patch + 2]
+                    exact, _, _ = _project_on_detector_plane(
+                        points,
+                        rmat_d,
+                        rmat_c,
+                        chi,
+                        tvec_d,
+                        tvec_c,
+                        tvec_s,
+                        distortion,
+                        beamVec=bvec,
+                    )
+                    rows[lo:hi] = gutil.cellIndices(row_edges, exact[:, 1])
+                    cols[lo:hi] = gutil.cellIndices(col_edges, exact[:, 0])
+                yield start, edges, shapes, offsets, rows, cols
+                start = stop
+                continue
+            grids = [
+                _reflection_patch_offsets(int(t), int(e), tth_tol, eta_tol)
+                for t, e in counts[start:stop]
+            ]
+            points, edges, offsets = native._spotPatchGrid(
+                full_angs[start:stop], shapes, grids
+            )
+            rows = np.empty(len(points), dtype=np.int64)
+            cols = np.empty(len(points), dtype=np.int64)
+            group = 0
+            while group < len(shapes):
+                end = group + 1
+                if (offsets[end] - offsets[group]) % native._simd_size == 0:
+                    while (
+                        end < len(shapes)
+                        and (offsets[end + 1] - offsets[end]) % native._simd_size == 0
+                    ):
+                        end += 1
+                first, last = offsets[group], offsets[end]
+                xy, _, _ = _project_on_detector_plane(
+                    points[first:last],
+                    rmat_d,
+                    rmat_c,
+                    chi,
+                    tvec_d,
+                    tvec_c,
+                    tvec_s,
+                    distortion,
+                    beamVec=bvec,
+                )
+                rows[first:last] = gutil.cellIndices(row_edges, xy[:, 1])
+                cols[first:last] = gutil.cellIndices(col_edges, xy[:, 0])
+                group = end
+            yield start, edges, shapes, offsets, rows, cols
+            start = stop
+        return
 
-        xy_eval_vtx, _, _ = _project_on_detector_plane(
-            gVec_angs_vtx,
+    def project_patches(patches):
+        # Bound temporary storage while amortizing transform dispatch and
+        # sparse-index grid construction over several reflections.
+        xy, _, _ = _project_on_detector_plane(
+            np.vstack([patch[1] for patch in patches]),
             rmat_d,
             rmat_c,
             chi,
@@ -874,14 +980,89 @@ def make_reflection_patches(
             distortion,
             beamVec=bvec,
         )
+        rows = gutil.cellIndices(row_edges, xy[:, 1])
+        cols = gutil.cellIndices(col_edges, xy[:, 0])
+        first = 0
+        for vertex_angles, sample_angles, shape in patches:
+            stop = first + len(sample_angles)
+            yield (
+                (
+                    vertex_angles[:, 0].reshape(shape[0] + 1, shape[1] + 1),
+                    vertex_angles[:, 1].reshape(shape[0] + 1, shape[1] + 1),
+                ),
+                None,
+                None,
+                None,
+                (xy[first:stop, 0].reshape(shape), xy[first:stop, 1].reshape(shape)),
+                (rows[first:stop].reshape(shape), cols[first:stop].reshape(shape)),
+            )
+            first = stop
 
-        areas = compute_areas_func(xy_eval_vtx, conn)
+    pending = []
+    pending_points = 0
+    for angs, pix in zip(full_angs, ang_pixel_size):
+        # calculate bin edges for patch based on local angular pixel size
+        # tth
+        ntths = int(npdiv * np.ceil(tth_tol / min(np.degrees(pix[0]), tth_tol)))
+
+        # eta
+        netas = int(npdiv * np.ceil(eta_tol / min(np.degrees(pix[1]), eta_tol)))
+
+        # FOR ANGULAR MESH
+        offsets, conn = _reflection_patch_grid(ntths, netas, tth_tol, eta_tol)
+        vertex_shape = (netas + 1, ntths + 1)
+
+        # calculate the patch XY coords from the (tth, eta) angles
+        # !!! will CHEAT and ignore the small perturbation the different
+        #     omega angle values causes and simply use the central value
+        gVec_angs_vtx = angs + offsets
+
+        vertex_xy = areas = connectivity = None
+        if full_output:
+            # Preserve the writable connectivity supplied to custom area
+            # functions without exposing the cached grid to mutation.
+            connectivity = conn.copy()
+            xy_eval_vtx, _, _ = _project_on_detector_plane(
+                gVec_angs_vtx,
+                rmat_d,
+                rmat_c,
+                chi,
+                tvec_d,
+                tvec_c,
+                tvec_s,
+                distortion,
+                beamVec=bvec,
+            )
+            areas = compute_areas_func(xy_eval_vtx, connectivity).reshape(netas, ntths)
+            vertex_xy = (
+                xy_eval_vtx[:, 0].reshape(vertex_shape),
+                xy_eval_vtx[:, 1].reshape(vertex_shape),
+            )
 
         # EVALUATION POINTS
         # !!! for lack of a better option will use centroids
-        tth_eta_cen = gutil.cellCentroids(np.atleast_2d(gVec_angs_vtx[:, :2]), conn)
+        tth_eta_cen = gutil.cellCentroids(
+            np.atleast_2d(gVec_angs_vtx[:, :2]), connectivity if full_output else conn
+        )
 
         gVec_angs = np.hstack([tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))])
+
+        if not full_output and len(gVec_angs) % 8 == 0:
+            # Preserve alignment for native SIMD groups of 2, 4, or 8 doubles.
+            # Other grids retain their original scalar tails, which can have
+            # different rounding from the SIMD trig kernels.
+            pending.append((gVec_angs_vtx, gVec_angs, (netas, ntths)))
+            pending_points += len(gVec_angs)
+            if len(pending) >= 32 or pending_points >= 65536:
+                yield from project_patches(pending)
+                pending = []
+                pending_points = 0
+            continue
+
+        if pending:
+            yield from project_patches(pending)
+            pending = []
+            pending_points = 0
 
         xy_eval, _, _ = _project_on_detector_plane(
             gVec_angs,
@@ -901,15 +1082,12 @@ def make_reflection_patches(
         yield (
             (
                 (
-                    gVec_angs_vtx[:, 0].reshape(m_tth.shape),
-                    gVec_angs_vtx[:, 1].reshape(m_tth.shape),
+                    gVec_angs_vtx[:, 0].reshape(vertex_shape),
+                    gVec_angs_vtx[:, 1].reshape(vertex_shape),
                 ),
-                (
-                    xy_eval_vtx[:, 0].reshape(m_tth.shape),
-                    xy_eval_vtx[:, 1].reshape(m_tth.shape),
-                ),
-                conn,
-                areas.reshape(netas, ntths),
+                vertex_xy,
+                connectivity,
+                areas,
                 (
                     xy_eval[:, 0].reshape(netas, ntths),
                     xy_eval[:, 1].reshape(netas, ntths),
@@ -920,6 +1098,9 @@ def make_reflection_patches(
                 ),
             )
         )
+
+    if pending:
+        yield from project_patches(pending)
 
 
 def extract_detector_transformation(
@@ -1012,8 +1193,7 @@ def apply_correction_to_wavelength(
     # treats as a per-reflection wavelength array (1 value vs N hkls) -> NaN ->
     # "Infeasible parameters for hkls".
     position = (
-        np.ravel(tvec_c)[ind] + np.ravel(tvec_s)[ind]
-        - energy_correction['intercept']
+        np.ravel(tvec_c)[ind] + np.ravel(tvec_s)[ind] - energy_correction['intercept']
     )
 
     # The slope is in eV/mm. Convert to keV.

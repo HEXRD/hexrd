@@ -738,7 +738,8 @@ struct OscillationGeometry {
 
   void predict(Index n, const double *reciprocal, const double *rmat,
                double *out0, double *out1, const double *lengths = nullptr,
-               const Index *opposites = nullptr, const double *visibility = nullptr) const {
+               const Index *opposites = nullptr, const double *visibility = nullptr,
+               bool omega_only = false) const {
     for (Index i = 0; i < n; ++i) {
       if (visibility) {
         double y = std::abs(rmat[3]*reciprocal[3*i]+rmat[4]*reciprocal[3*i+1]+
@@ -800,6 +801,11 @@ struct OscillationGeometry {
       double angle = std::asin(rhs);
       outputs[0][2] = angle-phase;
       outputs[1][2] = pi-angle-phase;
+      if (omega_only) {
+        double valid = consistent && std::isfinite(sintht) && std::abs(sintht) <= 1. ? 0. : NAN;
+        for (auto out : outputs) out[0] = out[1] = valid;
+        continue;
+      }
       double tth = consistent ? 2.*std::asin(sintht) : NAN;
       if (consistent) for (auto out : outputs) {
         double co = std::cos(out[2]), so = std::sin(out[2]);
@@ -1554,8 +1560,13 @@ static double quatDistance(CArray<double> q1, CArray<double> q2, CArray<double> 
   return maximum <= 1. ? 2.*std::acos(maximum) : (maximum-1. < 1e-12 ? 0. : NAN);
 }
 
+#include "spot_extraction.hpp"
+#include "grain_objective.hpp"
+
 PYBIND11_MODULE(transforms, m) {
   if (_import_array() < 0) throw py::error_already_set();
+  spot_extraction::bind(m);
+  grain_objective::bind(m);
   m.def("_reduceFiber", &reduceFiber);
   m.doc() = "HEXRD transforms plugin";
   m.def("oscillAnglesOfHKLs", &oscillAnglesOfHKLs);
