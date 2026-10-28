@@ -385,17 +385,9 @@ class Experiment:
             for overlay in self.studies[:study + 1]:
                 config = _merge_config(config, overlay)
         self.config = config
-
         instrument = _load_instrument(self._path(config['instrument']))
-        self._instrument_config = instrument
-        self.detectors = {name: Detector.from_dict(name, d)
-                          for name, d in instrument['detectors'].items()}
-        self.beam = Beam.from_dict(instrument.get('beam', {}))
-        self.oscillation_stage = OscillationStage.from_dict(
-            instrument.get('oscillation_stage', {}))
+        self._configure(config, instrument)
 
-        self.active_material = ActiveMaterial.from_dict(config['material'])
-        self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
         self.image_series_list = []
         for d in config['image_series']['data']:
             panel, parent = self._load_image_series(d)
@@ -412,10 +404,21 @@ class Experiment:
                 self.image_series_list.append(RoiImageSeries(
                     name, parent, det.pixels.roi,
                     (det.pixels.rows, det.pixels.columns)))
+        self._materials_file = self._path(config['material']['definitions'])
 
+    def _configure(self, config, instrument):
+        self.config = config
+        self._instrument_config = instrument
+        self.detectors = {name: Detector.from_dict(name, d)
+                          for name, d in instrument['detectors'].items()}
+        self.beam = Beam.from_dict(instrument.get('beam', {}))
+        self.oscillation_stage = OscillationStage.from_dict(
+            instrument.get('oscillation_stage', {}))
+
+        self.active_material = ActiveMaterial.from_dict(config['material'])
+        self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
         self.analysis_name = config['analysis_name']
         self.analysis_dir = self._path(self.analysis_name)
-        self._materials_file = self._path(config['material']['definitions'])
 
     def _load_image_series(self, spec):
         panel = spec['panel']

@@ -13,7 +13,7 @@ from typing import Any, Optional
 
 import numpy as np
 
-from hexrd.core.experiment import Experiment, ImageSeries, _pixel_chunks
+from hexrd.core.experiment import Beam, Experiment, ImageSeries, _pixel_chunks
 
 _FCH5_PARALLEL_MIN_PIXELS = 128 * 1024**2
 
@@ -59,7 +59,14 @@ class _AdapterImageSeries(ImageSeries):
     def __init__(self, panel, filename, fmt, args, max_workers=1):
         from hexrd.core import imageseries
 
-        self._series = imageseries.open(filename, fmt, **args)
+        self._initialize(panel, imageseries.open(filename, fmt, **args), max_workers)
+
+    def _initialize(self, panel, series, max_workers):
+        from hexrd.core.imageseries.omega import OmegaImageSeries
+
+        while isinstance(series, OmegaImageSeries):
+            series = series._adapter
+        self._series = series
         self._max_workers = max_workers
         self.panel = panel if panel is not None else self._series.metadata.get('panel')
         self.omega = np.radians(self._series.metadata['omega'])
@@ -73,6 +80,9 @@ class _AdapterImageSeries(ImageSeries):
         from hexrd.core.extensions import transforms as native
         from hexrd.hedm._progress import activity, check_cancelled
 
+        if isinstance(self._series, ImageSeries):
+            yield from self._series.pixel_chunks(row_of_frame, max_pixels, threshold)
+            return
         adapter = self._series._adapter
         if isinstance(adapter, FrameCacheImageSeriesAdapter) and adapter._style == 'fch5':
             import multiprocessing as mp
@@ -395,12 +405,74 @@ class HedmExperiment(Experiment):
         self._default_working_dir = working_dir
         self._default_file_placement = new_file_placement
         super().__init__(filename, study)
+        self._configure_hedm()
+
+    def _configure_hedm(self):
         if self.active_material.two_theta_width is None:
             self.active_material.two_theta_width = 0.25
         self.find_orientations = FindOrientations.from_dict(
             self.config['find_orientations'])
         self.fit_grains = FitGrains.from_dict(
             self.config.get('fit_grains', {}), self._path)
+
+    @classmethod
+    def from_objects(cls, instrument, image_series, plane_data, config):
+        """Build from an HEDMInstrument, panel-to-series mapping, and PlaneData.
+
+        ``config`` is a configuration dict. Relative paths use its working_dir
+        (the current directory by default). Inputs are shared, not copied;
+        series must include omega metadata in degrees. Material exclusions are
+        preserved. Direct sampling defaults to the supplied Laue group's RFZ;
+        use direct_search.point_group_number to specify a different point group.
+        """
+        from copy import deepcopy
+        from types import SimpleNamespace
+        from hexrd.core.imageseries.omega import OmegaImageSeries
+        from hexrd.core.material.material_data import Material
+
+        experiment = cls.__new__(cls)
+        experiment.experiment_dir = os.getcwd()
+        experiment.studies = []
+        experiment._default_working_dir = os.getcwd()
+        experiment._default_file_placement = False
+        experiment._configure(deepcopy(config), instrument.write_config())
+        experiment._instrument = instrument
+        experiment.beam = Beam(instrument.beam_energy, instrument.beam_vector,
+                               instrument.source_distance, instrument.energy_correction)
+        experiment._image_series = {
+            panel: series if isinstance(series, OmegaImageSeries) else OmegaImageSeries(series)
+            for panel, series in image_series.items()}
+        experiment.image_series_list = []
+        for panel, series in image_series.items():
+            if panel not in experiment.detectors:
+                raise ValueError(f'unknown detector panel: {panel}')
+            view = _AdapterImageSeries.__new__(_AdapterImageSeries)
+            view._initialize(panel, series, experiment.max_workers)
+            experiment.image_series_list.append(view)
+        groups = {'ci': 2, 'c2h': 5, 'd2h': 8, 'c4h': 11, 'd4h': 15,
+                  'c3i': 17, 's6': 17, 'd3d': 20, 'c6h': 23, 'd6h': 27,
+                  'th': 29, 'oh': 32}
+        material = Material.__new__(Material)
+        material.name = experiment.active_material.active
+        material.dmin = material.sfacmin = None
+        material.reset_exclusions = False
+        material._material = SimpleNamespace(
+            planeData=plane_data, pgnum=groups[plane_data.laueGroup.lower()])
+        material.plane_data = material._make_plane_data()
+        experiment._active_material = material
+        experiment._materials_file = None
+        experiment._configure_hedm()
+        return experiment
+
+    def get_active_material(self):
+        if hasattr(self, '_active_material'):
+            return self._active_material
+        return super().get_active_material()
+
+    def get_materials(self):
+        if self._materials_file is None:
+            return [self.get_active_material()]
+        return super().get_materials()
 
     def _load_image_series(self, spec):
         panel = spec.get('panel')

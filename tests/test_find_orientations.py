@@ -27,6 +27,55 @@ from hexrd.hedm.find_orientations import (
 LAUE_GROUPS = ('Ci', 'C2h', 'D2h', 'C4h', 'D4h', 'C3i', 'D3d', 'C6h', 'D6h', 'Th', 'Oh')
 
 
+@pytest.fixture(params=['file', 'objects'])
+def multiruby_experiment(example_repo_path, tmp_path, request):
+    include = example_repo_path / 'NIST_ruby/multiruby_dexelas/include'
+    config = next(yaml.safe_load_all((include / 'mruby_config_composite.yml').read_text()))
+    config.update(working_dir=str(include), analysis_name=str(tmp_path / 'analysis'),
+                  multiprocessing=1)
+    filename = tmp_path / 'config.yml'
+    filename.write_text(yaml.safe_dump(config))
+    experiment = HedmExperiment(str(filename))
+    if request.param == 'objects':
+        experiment = HedmExperiment.from_objects(
+            experiment.instrument, experiment.image_series,
+            experiment.get_active_material()._material.planeData, config)
+    return experiment
+
+
+def test_generate_eta_ome_maps(multiruby_experiment):
+    from hexrd.hedm.find_orientations import build_eta_omega_maps
+
+    experiment = multiruby_experiment
+    maps = build_eta_omega_maps(experiment, experiment.get_active_material().plane_data)
+    include = Path(experiment.config['working_dir'])
+    # This archive uses the same calibration as mruby_config_composite.yml.
+    with np.load(include / 'results_mruby_composite_hexrd08_py38_ruby_eta-ome_maps.npz') as ref:
+        for actual, key in ((maps.ring_maps, 'dataStore'), (maps.eta_edges, 'etaEdges'),
+                            (maps.omegas, 'omegas'), (maps.omega_edges, 'omeEdges')):
+            np.testing.assert_array_equal(actual, ref[key])
+        np.testing.assert_allclose(maps.eta_edges[:-1] + maps.eta_step / 2,
+                                   ref['etas'], rtol=0, atol=1e-14)
+
+
+def test_find_orientations(multiruby_experiment):
+    from hexrd.core.rotations import misorientation
+
+    experiment = multiruby_experiment
+    results = Path(experiment.config['working_dir']).parent / 'results'
+    name = 'results_mruby_composite_hexrd06_py27_ruby'
+    experiment.find_orientations = replace(
+        experiment.find_orientations,
+        orientation_maps=replace(experiment.find_orientations.orientation_maps,
+                                 file=str(results / f'{name}_eta-ome_maps.npz')))
+    actual = find_orientations(experiment).grain_orientations
+    expected = np.loadtxt(results / f'accepted_orientations_{name}.dat', ndmin=2).T
+    assert actual.shape == expected.shape
+    for quat in actual.T:
+        angles, _ = misorientation(quat[:, None], expected)
+        assert angles.min() <= np.radians(0.05)
+
+
 def test_grid_sampler_preserves_legacy_order():
     from hexrd.core import constants
     from hexrd.hedm.sampleOrientations.conversions import cu2ro, ro2qu

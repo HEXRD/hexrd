@@ -1,7 +1,6 @@
 """Find grain orientations from detector images using independently callable stages."""
 import os
 import logging
-import threading
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import nullcontext
 from contextvars import copy_context
@@ -26,13 +25,6 @@ from hexrd.hedm._progress import (
 )
 
 logger = logging.getLogger(__name__)
-
-def _prefetch_heavy_imports(blob=False):
-    from scipy import ndimage  # noqa: F401
-    from scipy.spatial.transform import Rotation  # noqa: F401
-    if blob:
-        from skimage.exposure import rescale_intensity  # noqa: F401
-        from skimage.feature import blob_dog, blob_log  # noqa: F401
 
 
 @dataclass
@@ -111,12 +103,9 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
     fo = experiment.find_orientations
     grid_file = experiment.quaternion_grid_file
     fiber_cache = os.path.join(_cache_dir(experiment), 'fibers.npz')
-    if grid_file is None and fo.direct_search is None and not os.path.exists(fiber_cache):
-        blob = experiment.find_orientations.seed_search.method is not SeedSearchMethod.LABEL
-        threading.Thread(target=_prefetch_heavy_imports, args=(blob,), daemon=True).start()
 
     with stage('Material'):
-        if material is None:
+        if material is None and experiment._materials_file is not None:
             from dataclasses import asdict
 
             def load_material():
@@ -133,7 +122,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
                      beam_energy=experiment.beam.energy),
                 load_material)
         else:
-            plane_data = material.plane_data
+            plane_data = (material or experiment.get_active_material()).plane_data
 
     with stage('Eta/omega maps'):
         maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)

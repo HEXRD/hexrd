@@ -219,8 +219,8 @@ def execute(args, parser):
 
     clobber = args.force or args.clean
 
-    base = HedmExperiment(args.yml)
-    experiments = [base] + [HedmExperiment(args.yml, study=i)
+    base = HedmExperiment(args.yml, working_dir=os.getcwd())
+    experiments = [base] + [HedmExperiment(args.yml, study=i, working_dir=os.getcwd())
                             for i in range(len(base.studies))]
 
     # configure logging to the console:

@@ -463,6 +463,79 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.find_orientations.clustering.radius == 1.0
 
 
+@pytest.mark.parametrize('style', ['npz', 'fch5'])
+def test_experiment_from_objects(synthetic_config, ruby_materials_file, monkeypatch, style):
+    from copy import deepcopy
+    from hexrd.core.material.material_data import Material
+    from hexrd.hedm.find_orientations import build_eta_omega_maps
+
+    source = HedmExperiment(str(synthetic_config))
+    instrument, series = source.instrument, source.image_series
+    if style == 'fch5':
+        from hexrd.core import imageseries
+        from hexrd.core.imageseries.omega import OmegaImageSeries
+
+        filename = synthetic_config.parent / 'frames.fch5'
+        frames = imageseries.open(str(synthetic_config.parent / 'p0_cache.npz'), 'frame-cache')
+        imageseries.write(frames, str(filename), 'frame-cache', style='fch5', threshold=0)
+        frames = imageseries.open(str(filename), 'frame-cache', style='fch5')
+        series = {'p0': OmegaImageSeries(frames)}
+
+        def no_bulk_load():
+            pytest.fail('in-memory series must retain streaming FCH5 access')
+
+        monkeypatch.setattr(frames._adapter, '_load_framelist', no_bulk_load)
+    pd = Material('ruby', ruby_materials_file, dmin=1.6, beam_energy=80.)._material.planeData
+    pd.exclusions = np.arange(pd.getNhklRef()) % 3 == 0
+    exclusions = pd.exclusions.copy()
+    config = deepcopy(source.config)
+    config.pop('instrument')
+    config.pop('image_series')
+    config['material'].pop('definitions')
+    config['working_dir'] = str(synthetic_config.parent)
+
+    experiment = HedmExperiment.from_objects(instrument, series, pd, config)
+    assert experiment.instrument is instrument
+    assert experiment.image_series['p0'] is series['p0']
+    assert experiment.get_active_material()._material.planeData is pd
+    assert experiment.get_materials() == [experiment.get_active_material()]
+    assert experiment.get_active_material().name == 'ruby'
+    np.testing.assert_array_equal(pd.exclusions, exclusions)
+    assert 'definitions' not in config['material']
+    assert experiment.analysis_dir == source.analysis_dir
+    np.testing.assert_array_equal(
+        build_eta_omega_maps(experiment, experiment.get_active_material().plane_data).ring_maps,
+        build_eta_omega_maps(source, experiment.get_active_material().plane_data).ring_maps)
+    assert source.image_series_list[0]._images is None
+
+
+@pytest.mark.parametrize('new_file_placement', [False, True])
+def test_cli_workflow_paths(synthetic_config, tmp_path, monkeypatch, new_file_placement):
+    from hexrd.hedm.cli import fit_grains
+    from types import SimpleNamespace
+
+    cwd = tmp_path / 'run'
+    cwd.mkdir()
+    documents = list(yaml.safe_load_all(synthetic_config.read_text()))
+    documents[0]['new_file_placement'] = new_file_placement
+    synthetic_config.write_text(yaml.safe_dump_all(documents))
+    monkeypatch.chdir(cwd)
+    # Input files are relative to cwd, just as in master's CLI.
+    for name in ('instrument.yml', 'p0_cache.npz'):
+        (cwd / name).symlink_to(synthetic_config.parent / name)
+    def check_paths(*args, **kwargs):
+        experiment = HedmExperiment(*args, **kwargs)
+        assert experiment.analysis_dir == str(cwd / 'analysis')
+        accepted = (cwd / 'analysis' / 'accepted-orientations-ruby.dat'
+                    if new_file_placement else cwd / 'accepted_orientations_analysis_ruby.dat')
+        assert experiment.accepted_orientations_file == str(accepted)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(fit_grains, 'HedmExperiment', check_paths)
+    with pytest.raises(KeyboardInterrupt):
+        fit_grains.execute(SimpleNamespace(yml=str(synthetic_config), force=False, clean=False), None)
+
+
 @pytest.mark.parametrize('workers', [1, 2])
 def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch, workers):
     from types import SimpleNamespace
