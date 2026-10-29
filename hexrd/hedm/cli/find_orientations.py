@@ -1,16 +1,17 @@
 """The ``hexrd find-orientations`` command."""
 
-import logging
 import os
 import sys
-from contextlib import nullcontext
+from contextlib import ExitStack
 from dataclasses import replace
 
 import numpy as np
 
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.find_orientations import find_orientations, write_results
-from hexrd.hedm._progress import Dashboard, run_cli, quiet_progress, stage
+from hexrd.hedm._progress import (
+    cli_logging, cli_profile, log_file, run_cli, quiet_progress, stage,
+)
 
 descr = 'Process rotation image series to find grain orientations'
 example = """
@@ -71,23 +72,7 @@ def execute(args, parser):
 
 
 def _execute(args, parser, dashboard=None):
-    log_level = logging.ERROR if args.quiet else (
-        logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
-    )
-    logger = logging.getLogger('hexrd')
-    previous_level, previous_propagate = logger.level, logger.propagate
-    logger.setLevel(log_level)
-    logger.propagate = False  # avoid double-printing via the root logger
-    ch = dashboard or logging.StreamHandler()
-    ch.setLevel(logging.CRITICAL if args.quiet else log_level)
-    ch.setFormatter(
-        logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
-    )
-    logger.addHandler(ch)
-    fh = None
-    try:
-        if isinstance(ch, Dashboard):
-            ch.start()
+    with cli_logging(args, dashboard) as logger, ExitStack() as stack:
         logger.info('=== begin find-orientations ===')
 
         with stage('Configuration'):
@@ -120,42 +105,18 @@ def _execute(args, parser, dashboard=None):
                 sys.exit()
 
             os.makedirs(experiment.analysis_dir, exist_ok=True)
-            logfile = experiment.find_orientations_logfile
-            fh = logging.FileHandler(logfile, mode='w')
-            fh.setLevel(log_level)
-            fh.setFormatter(
-                logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
-            )
-            logger.info('logging to %s', logfile)
-            logger.addHandler(fh)
-
-        if getattr(args, 'profile', False):
-            import cProfile
-            import io
-            import pstats
+            stack.enter_context(log_file(logger, experiment.find_orientations_logfile))
 
         with (
             quiet_progress(args.quiet or getattr(args, 'no_tui', False)),
-            (cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()) as profile,
+            cli_profile(getattr(args, 'profile', False), logger),
         ):
             results = find_orientations(experiment, clean=args.clean)
             with stage('Write results'):
                 output_dir = write_results(results, experiment)
-        if profile is not None:
-            summary = io.StringIO()
-            pstats.Stats(profile, stream=summary).sort_stats('cumulative').print_stats(50)
-            logger.info('%s', summary.getvalue())
         logger.info(
             'found %d grain(s); results written to %s',
             results.num_grains, output_dir,
         )
 
         logger.info('=== end find-orientations ===')
-    finally:
-        if fh is not None:
-            logger.removeHandler(fh)
-            fh.close()
-        logger.removeHandler(ch)
-        ch.close()
-        logger.setLevel(previous_level)
-        logger.propagate = previous_propagate

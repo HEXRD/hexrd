@@ -1,11 +1,12 @@
-import logging
-import os
 import sys
 from collections import namedtuple
 from pathlib import Path
 
 from hexrd.hedm._progress import (
     run_cli,
+    cli_logging,
+    cli_profile,
+    log_file,
     FIT_STAGES,
     check_cancelled,
     diagnostic,
@@ -26,17 +27,9 @@ examples:
     hexrd fit-grains configuration.yml
 """
 
-_flds = [
-    "id",
-    "completeness",
-    "chisq",
-    "expmap",
-    "centroid",
-    "inv_Vs",
-    "ln_Vs",
-]
-_BaseGrainData = namedtuple("_BaseGrainData", _flds)
-del _flds
+_BaseGrainData = namedtuple(
+    "_BaseGrainData", "id completeness chisq expmap centroid inv_Vs ln_Vs"
+)
 
 
 class GrainData(_BaseGrainData):
@@ -143,19 +136,10 @@ class GrainData(_BaseGrainData):
         GrainData instance
            new instance for subset of grains meeting selection criteria
         """
-        has_chisq = max_chisq is not None
-        sel_comp = self.completeness >= min_completeness
-        sel = sel_comp & (self.chisq <= max_chisq) if has_chisq else sel_comp
-
-        return __class__(
-            self.id[sel],
-            self.completeness[sel],
-            self.chisq[sel],
-            self.expmap[sel],
-            self.centroid[sel],
-            self.inv_Vs[sel],
-            self.ln_Vs[sel],
-        )
+        selected = self.completeness >= min_completeness
+        if max_chisq is not None:
+            selected &= self.chisq <= max_chisq
+        return __class__(*(column[selected] for column in self))
 
 
 def configure_parser(sub_parsers):
@@ -242,40 +226,59 @@ def execute(args, parser):
 
 
 def _execute(args, parser, dashboard=None):
-    log_level = (
-        logging.ERROR
-        if args.quiet
-        else (logging.DEBUG if getattr(args, 'debug', False) else logging.INFO)
+    with (
+        cli_logging(args, dashboard) as logger,
+        quiet_progress(args.quiet or getattr(args, 'no_tui', False)),
+    ):
+        return _run(args, dashboard, logger)
+
+
+def _needs_orientations(experiment, args):
+    return args.clean or (
+        experiment.fit_grains.estimate is None
+        and (args.force or not (Path(experiment.analysis_dir) / 'grains.out').exists())
     )
-    logger = logging.getLogger('hexrd')
-    previous_level, previous_propagate = logger.level, logger.propagate
-    logger.setLevel(log_level)
-    logger.propagate = False
-    ch = dashboard or logging.StreamHandler()
-    ch.setLevel(logging.CRITICAL if args.quiet else log_level)
-    ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S'))
-    logger.addHandler(ch)
-    file_handlers = []
+
+
+def _load_grains(experiment, args, qbar, logger):
+    """Resolve the initial estimate, preserving clean/force precedence."""
+    from hexrd.core import instrument
+
+    grains_filename = Path(experiment.analysis_dir) / 'grains.out'
+    fit_estimate = experiment.fit_grains.estimate
+    if _needs_orientations(experiment, args):
+        if args.clean:
+            logger.info("'clean' specified; ignoring estimate and using default")
+        elif args.force:
+            logger.info(
+                "'force' option specified, but no initial estimate; " + "using default"
+            )
+        try:
+            gw = instrument.GrainDataWriter(grains_filename)
+            for i_g, q in enumerate(qbar.T):
+                phi = 2 * np.arccos(q[0])
+                n = xfcapi.unit_vector(q[1:])
+                grain_params = np.hstack([phi * n, cnst.zeros_3, cnst.identity_6x1])
+                gw.dump_grain(int(i_g), 1.0, 0.0, grain_params)
+            gw.close()
+        except IOError:
+            raise (
+                RuntimeError,
+                "indexing results '%s' not found!" % str(grains_filename),
+            )
+    elif fit_estimate is not None:
+        grains_filename = fit_estimate
+        logger.info("using initial estimate '%s'", fit_estimate)
     try:
-        if dashboard is not None:
-            dashboard.start()
-        with quiet_progress(args.quiet or getattr(args, 'no_tui', False)):
-            return _run(args, parser, dashboard, logger, file_handlers)
-    finally:
-        for handler in file_handlers:
-            logger.removeHandler(handler)
-            handler.close()
-        logger.removeHandler(ch)
-        ch.close()
-        logger.setLevel(previous_level)
-        logger.propagate = previous_propagate
+        return np.loadtxt(grains_filename, ndmin=2)
+    except IOError:
+        raise RuntimeError("problem loading '%s'" % grains_filename)
 
 
-def _run(args, parser, dashboard, logger, file_handlers):
+def _run(args, dashboard, logger):
     from hexrd.core import instrument
     from hexrd.hedm.fitgrains import fit_grains
 
-    log_level = logger.level
     clobber = args.force or args.clean
     with stage('Configuration'):
         base = HedmExperiment(args.yml)
@@ -283,30 +286,11 @@ def _run(args, parser, dashboard, logger, file_handlers):
             HedmExperiment(args.yml, study=i) for i in range(len(base.studies))
         ]
 
-    # handle initial state
     experiment = experiments[0]
-    analysis_dir = Path(experiment.analysis_dir)
-
-    # use path to grains.out to determine if analysis exists
-    grains_filename = analysis_dir / 'grains.out'
-
     quats_f = Path(experiment.accepted_orientations_file)
-
-    # some conditionals for arg handling
-    have_orientations = quats_f.exists()
-    existing_analysis = grains_filename.exists()
-
-    def needs_orientations(experiment, existing):
-        return args.clean or (
-            experiment.fit_grains.estimate is None and (args.force or not existing)
-        )
-
-    # if no estimate is supplied, or the clean option is selected, will need
-    # the indexing results from find_orientations:
-    #   'accepted_orientations_*.dat'
-    # result stored in the variable qbar
-    if needs_orientations(experiment, existing_analysis):
-        if have_orientations:
+    qbar = None
+    if _needs_orientations(experiment, args):
+        if quats_f.exists():
             try:
                 qbar = np.loadtxt(quats_f, ndmin=2).T
             except IOError:
@@ -332,7 +316,6 @@ def _run(args, parser, dashboard, logger, file_handlers):
         diagnostic('Analysis', experiment.analysis_name)
         analysis_dir = Path(experiment.analysis_dir)
 
-        # Check whether an existing analysis exists.
         grains_filename = analysis_dir / 'grains.out'
 
         if grains_filename.exists() and not clobber:
@@ -342,7 +325,6 @@ def _run(args, parser, dashboard, logger, file_handlers):
             )
             sys.exit()
 
-        # Set up analysis directory and output directories.
         analysis_dir.mkdir(parents=True, exist_ok=True)
 
         instr = experiment.instrument
@@ -351,7 +333,6 @@ def _run(args, parser, dashboard, logger, file_handlers):
             det_dir.mkdir(exist_ok=True)
 
         with stage('Material'):
-            # Set HKLs to use.
             material = experiment.get_active_material()
             plane_data = material._material.planeData
             exclusions = experiment.fit_grains.exclusion_parameters.copy()
@@ -369,85 +350,26 @@ def _run(args, parser, dashboard, logger, file_handlers):
 
         logger.info('*** begin analysis "%s" ***', experiment.analysis_name)
 
-        # configure logging to file for this particular analysis
-        logfile = analysis_dir / 'fit-grains.log'
-        fh = logging.FileHandler(logfile, mode='w')
-        fh.setLevel(log_level)
-        ff = logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
-        fh.setFormatter(ff)
-        logger.info("logging to %s", logfile)
-        logger.addHandler(fh)
-        file_handlers.append(fh)
-
-        if args.profile:
-            import cProfile as profile
-            import pstats
-            from io import StringIO
-
-            pr = profile.Profile()
-            pr.enable()
-
-        # some conditionals for arg handling
-        existing_analysis = grains_filename.exists()
-        fit_estimate = experiment.fit_grains.estimate
-        if needs_orientations(experiment, existing_analysis):
-            # need accepted orientations from indexing in this case
-            if args.clean:
-                logger.info("'clean' specified; ignoring estimate and using default")
-            elif args.force:
-                logger.info(
-                    "'force' option specified, but no initial estimate; "
-                    + "using default"
-                )
-            try:
-                # Write the accepted orientations (in `qbar`) to the
-                # grains.out file
-                gw = instrument.GrainDataWriter(grains_filename)
-                for i_g, q in enumerate(qbar.T):
-                    phi = 2 * np.arccos(q[0])
-                    n = xfcapi.unit_vector(q[1:])
-                    grain_params = np.hstack([phi * n, cnst.zeros_3, cnst.identity_6x1])
-                    gw.dump_grain(int(i_g), 1.0, 0.0, grain_params)
-                gw.close()
-            except IOError:
-                raise (
-                    RuntimeError,
-                    "indexing results '%s' not found!" % str(grains_filename),
-                )
-        elif fit_estimate is not None:
-            grains_filename = fit_estimate
-            logger.info("using initial estimate '%s'", fit_estimate)
-        # get grain parameters by loading grains table
-        try:
-            grains_table = np.loadtxt(grains_filename, ndmin=2)
-        except IOError:
-            raise RuntimeError("problem loading '%s'" % grains_filename)
-
-        # process the data
-        gid_list = None
-        if args.grains is not None:
-            gid_list = [int(i) for i in args.grains.split(',')]
-
-        fit_results = fit_grains(
-            experiment,
-            grains_table,
-            material,
-            show_progress=not args.quiet,
-            check_if_canceled_func=(lambda: False) if dashboard is not None else None,
-            ids_to_refine=gid_list,
-        )
-
-        if args.profile:
-            pr.disable()
-            s = StringIO()
-            ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-            ps.print_stats(50)
-            logger.info('%s', s.getvalue())
-
-        # stop logging for this particular analysis
-        fh.flush()
-        fh.close()
-        logger.removeHandler(fh)
+        with (
+            log_file(logger, analysis_dir / 'fit-grains.log'),
+            cli_profile(args.profile, logger),
+        ):
+            grains_table = _load_grains(experiment, args, qbar, logger)
+            gid_list = (
+                [int(i) for i in args.grains.split(',')]
+                if args.grains is not None
+                else None
+            )
+            fit_results = fit_grains(
+                experiment,
+                grains_table,
+                material,
+                show_progress=not args.quiet,
+                check_if_canceled_func=(
+                    (lambda: False) if dashboard is not None else None
+                ),
+                ids_to_refine=gid_list,
+            )
 
         logger.info('*** end analysis "%s" ***', experiment.analysis_name)
 

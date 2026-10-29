@@ -226,3 +226,26 @@ def test_dashboard_cancel_terminates_fit_pool(tmp_path, monkeypatch):
         dashboard.close()
     assert events == ['terminate', 'join']
     assert dashboard.stages['Fit grains'].status == 'failed'
+
+
+def test_pool_startup_failure_restores_gc_and_closes_progress_queue(monkeypatch):
+    from hexrd.hedm import fitgrains
+
+    events = []
+    queue = SimpleNamespace(
+        close=lambda: events.append('close'),
+        join_thread=lambda: events.append('join'),
+    )
+    context = SimpleNamespace(
+        get_start_method=lambda: 'fork',
+        Queue=lambda **kw: queue,
+        Pool=lambda *args: (_ for _ in ()).throw(RuntimeError('pool startup')),
+    )
+    monkeypatch.setattr(fitgrains.gc, 'get_freeze_count', lambda: 0)
+    monkeypatch.setattr(fitgrains.gc, 'freeze', lambda: events.append('freeze'))
+    monkeypatch.setattr(fitgrains.gc, 'unfreeze', lambda: events.append('unfreeze'))
+    with pytest.raises(RuntimeError, match='pool startup'):
+        fitgrains._fit_parallel(
+            {'grains_table': np.zeros((2, 21))}, context, 2, None, True, None
+        )
+    assert events == ['freeze', 'unfreeze', 'close', 'join']

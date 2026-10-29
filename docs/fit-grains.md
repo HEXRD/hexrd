@@ -4,6 +4,10 @@ Run `hexrd fit-grains configuration.yml`. An interactive terminal displays the
 shared Textual workflow dashboard; `--no-tui` uses plain logs. The dashboard
 shows stages, memory, grain progress, frame/spot work and activity age. Cancel
 run, `q` and Ctrl+C cancel the workflow; after completion, `q` closes the UI.
+Both commands share console logging, analysis-log ownership and optional
+profiling. Worker-pool ownership is separate from fit setup; serial, staged
+and worker results share completion-event formatting. These internal helpers
+do not change command options or the dashboard presentation.
 
 ## Configuration
 
@@ -133,5 +137,5 @@ stayed below 1.09 GiB. These are not speed comparisons with master. Full
 
 [Validation evidence](fit-grains-validation.json) records reference commits,
 configuration fingerprints, guarded timings and the cleanup checks. Earlier
-validation records remain in git history at `c6faf32d`; experiment reports and
-raw measurements are also available at `42f7623e`.
+validation records remain in git history at `42687db7` and `c6faf32d`;
+experiment reports and raw measurements are also available at `42f7623e`.

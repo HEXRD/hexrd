@@ -10,6 +10,7 @@ import warnings
 from queue import Empty, Full
 
 from collections import defaultdict
+from contextlib import ExitStack
 
 from hexrd.core import constants
 from hexrd.core import instrument
@@ -120,16 +121,17 @@ def fit_grain_FF_reduced(grain_id):
         _grain_event(grain_id, 'Failed', 0, len(paramMP['tth_tol']))
         raise
     passes = len(paramMP['tth_tol'])
-    state = 'Insufficient reflections' if np.isinf(result[2]) else 'Done'
-    _grain_event(
-        grain_id,
-        state,
-        paramMP.get('progress_pass', passes),
-        passes,
-        result[1],
-        result[2],
-    )
+    _grain_event(*_result_event(result, passes, paramMP.get('progress_pass', passes)))
     return result
+
+
+def _result_event(result, passes, index=None):
+    """Format completion consistently for serial, staged and IPC results."""
+    grain, completeness, chisq = result[:3]
+    state = 'Insufficient reflections' if np.isinf(chisq) else 'Done'
+    if index is None:
+        index = 0 if state == 'Insufficient reflections' else passes
+    return int(grain), state, index, passes, completeness, chisq
 
 
 def _fit_grain_with_metrics(grain_id):
@@ -449,6 +451,79 @@ def refine_valid_reflections(
     return culled_results_r, num_refl_valid
 
 
+def _fit_parallel(params, context, ncpus, bar, show_progress, check_if_canceled_func):
+    """Own worker resources and reconcile results with sampled progress."""
+    dashboard = current_dashboard()
+    nproc = min(ncpus, len(params['grains_table']))
+    chunksize = max(1, len(params['grains_table']) // (64 * nproc))
+
+    logger.info("\tstarting fit on %d processes with chunksize %d", nproc, chunksize)
+    freeze = context.get_start_method() == 'fork' and gc.get_freeze_count() == 0
+    progress_queue = (
+        context.Queue(maxsize=256)
+        if dashboard is not None or show_progress
+        else None
+    )
+    if progress_queue is not None:
+        params['progress_queue'] = progress_queue
+    with ExitStack() as cleanup:
+        if progress_queue is not None:
+            cleanup.callback(progress_queue.join_thread)
+            cleanup.callback(progress_queue.close)
+        if freeze:
+            gc.freeze()
+        try:
+            pool = context.Pool(nproc, fit_grain_FF_init, (params,))
+        finally:
+            # Workers keep their frozen heap; always restore the caller's GC.
+            if freeze:
+                gc.unfreeze()
+        cleanup.callback(pool.join)
+        cleanup.callback(pool.terminate)
+        async_result = pool.map_async(
+            (
+                _fit_grain_with_metrics
+                if dashboard is not None
+                else fit_grain_FF_reduced
+            ),
+            np.array(params['grains_table'][:, 0], dtype=int),
+            chunksize=chunksize,
+        )
+        completed = 0
+        while not async_result.ready():
+            check_cancelled()
+            completed += _consume_fit_progress(progress_queue, bar)
+            if check_if_canceled_func and check_if_canceled_func():
+                logger.info('Fit grains canceled.')
+                # Perform an early return if we need to cancel.
+                return None
+
+            async_result.wait(0.25)
+
+        check_cancelled()
+        fit_results = async_result.get()
+        if dashboard is not None:
+            records = []
+            for result, snapshot in fit_results:
+                records.append(result)
+                if snapshot is not None:
+                    report_fit_metrics(snapshot)
+            fit_results = records
+        completed += _consume_fit_progress(progress_queue, bar)
+        bar.update(max(0, len(fit_results) - completed))
+        for result in fit_results:
+            previous = dashboard.grains.get(int(result[0])) if dashboard else None
+            report_grain(
+                _result_event(
+                    result,
+                    len(params['tth_tol']),
+                    previous[2] if previous is not None else None,
+                )
+            )
+        pool.close()
+    return fit_results
+
+
 def fit_grains(
     experiment,
     grains_table,
@@ -647,93 +722,11 @@ def fit_grains(
                 finally:
                     fit_grain_FF_cleanup()
             else:
-                nproc = min(ncpus, len(grains_table))
-                chunksize = max(1, len(grains_table) // (64 * nproc))
-
-                logger.info(
-                    "\tstarting fit on %d processes with chunksize %d", nproc, chunksize
+                fit_results = _fit_parallel(
+                    params, context, ncpus, bar, show_progress, check_if_canceled_func
                 )
-                freeze = (
-                    context.get_start_method() == 'fork' and gc.get_freeze_count() == 0
-                )
-                progress_queue = (
-                    context.Queue(maxsize=256)
-                    if current_dashboard() is not None or show_progress
-                    else None
-                )
-                if progress_queue is not None:
-                    params['progress_queue'] = progress_queue
-                if freeze:
-                    gc.freeze()
-                try:
-                    pool = context.Pool(nproc, fit_grain_FF_init, (params,))
-                except BaseException:
-                    if progress_queue is not None:
-                        progress_queue.close()
-                        progress_queue.join_thread()
-                    raise
-                finally:
-                    # Workers keep their frozen inherited heap. Restore the caller's
-                    # collector immediately, including when pool construction fails.
-                    if freeze:
-                        gc.unfreeze()
-                try:
-                    async_result = pool.map_async(
-                        (
-                            _fit_grain_with_metrics
-                            if dashboard is not None
-                            else fit_grain_FF_reduced
-                        ),
-                        np.array(grains_table[:, 0], dtype=int),
-                        chunksize=chunksize,
-                    )
-                    completed = 0
-                    while not async_result.ready():
-                        check_cancelled()
-                        completed += _consume_fit_progress(progress_queue, bar)
-                        if check_if_canceled_func and check_if_canceled_func():
-                            logger.info('Fit grains canceled.')
-                            # Perform an early return if we need to cancel.
-                            return None
-
-                        async_result.wait(0.25)
-
-                    check_cancelled()
-                    fit_results = async_result.get()
-                    if dashboard is not None:
-                        records = []
-                        for result, snapshot in fit_results:
-                            records.append(result)
-                            if snapshot is not None:
-                                report_fit_metrics(snapshot)
-                        fit_results = records
-                    completed += _consume_fit_progress(progress_queue, bar)
-                    bar.update(max(0, len(fit_results) - completed))
-                    for result in fit_results:
-                        passes = len(params['tth_tol'])
-                        state = (
-                            'Insufficient reflections'
-                            if np.isinf(result[2])
-                            else 'Done'
-                        )
-                        previous = (
-                            dashboard.grains.get(int(result[0])) if dashboard else None
-                        )
-                        index = (
-                            previous[2]
-                            if previous is not None
-                            else (0 if state == 'Insufficient reflections' else passes)
-                        )
-                        report_grain(
-                            (int(result[0]), state, index, passes, result[1], result[2])
-                        )
-                    pool.close()
-                finally:
-                    pool.terminate()
-                    pool.join()
-                    if progress_queue is not None:
-                        progress_queue.close()
-                        progress_queue.join_thread()
+                if fit_results is None:
+                    return None
         logger.info("fitting took %f seconds", timeit.default_timer() - start)
         diagnostic('Grains finished', len(fit_results))
         diagnostic(

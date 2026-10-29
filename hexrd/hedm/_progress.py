@@ -202,6 +202,69 @@ def quiet_progress(quiet):
         _dashboard.reset(token)
 
 
+@contextmanager
+def cli_logging(args, dashboard):
+    """Own a command's console logger and restore caller state on every exit."""
+    logger = logging.getLogger('hexrd')
+    previous = logger.level, logger.propagate
+    level = (
+        logging.ERROR
+        if args.quiet
+        else (logging.DEBUG if getattr(args, 'debug', False) else logging.INFO)
+    )
+    handler = dashboard or logging.StreamHandler()
+    handler.setLevel(logging.CRITICAL if args.quiet else level)
+    handler.setFormatter(
+        logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
+    )
+    logger.setLevel(level)
+    logger.propagate = False
+    logger.addHandler(handler)
+    try:
+        if dashboard is not None:
+            dashboard.start()
+        yield logger
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+        logger.setLevel(previous[0])
+        logger.propagate = previous[1]
+
+
+@contextmanager
+def log_file(logger, filename):
+    """Attach an analysis log for exactly the lifetime of its workflow."""
+    handler = logging.FileHandler(filename, mode='w')
+    try:
+        handler.setLevel(logger.level)
+        handler.setFormatter(
+            logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
+        )
+        logger.info('logging to %s', filename)
+        logger.addHandler(handler)
+        yield
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+
+@contextmanager
+def cli_profile(enabled, logger):
+    """Print the same cumulative profile for either CLI workflow."""
+    if not enabled:
+        yield
+        return
+    import cProfile
+    import io
+    import pstats
+
+    with cProfile.Profile() as profile:
+        yield
+    summary = io.StringIO()
+    pstats.Stats(profile, stream=summary).sort_stats('cumulative').print_stats(50)
+    logger.info('%s', summary.getvalue())
+
+
 def run_cli(args, workflow, *, stages=STAGES, view='OrientationDashboard'):
     """Run either HEDM command with the shared interactive-terminal policy."""
     if (

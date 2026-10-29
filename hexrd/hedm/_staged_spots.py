@@ -387,9 +387,6 @@ def fit_staged(params, bar, cancel_callback=None):
     from hexrd.hedm import fitgrains as fitting
     from hexrd.hedm._progress import activity, diagnostic, _cancellation_check
 
-    def cancel():
-        check_cancelled()
-
     def requested_cancel():
         if cancel_callback is not None and cancel_callback():
             raise StagedCancelled()
@@ -413,7 +410,7 @@ def fit_staged(params, bar, cancel_callback=None):
     cancelled = False
 
     def advance(grain, response=None):
-        cancel()
+        check_cancelled()
         params['progress_pass'] = pass_indices.get(grain, 0)
         if grain in last_spots:
             params['pending_spot_data'] = last_spots.pop(grain)
@@ -423,14 +420,10 @@ def fit_staged(params, bar, cancel_callback=None):
             pending.pop(grain, None)
             results[grain] = done.value
             fitting._write_pending_spots(grain)
-            state = 'Insufficient reflections' if np.isinf(done.value[2]) else 'Done'
             fitting._grain_event(
-                grain,
-                state,
-                params.get('progress_pass', 0),
-                len(params['tth_tol']),
-                done.value[1],
-                done.value[2],
+                *fitting._result_event(
+                    done.value, len(params['tth_tol']), params.get('progress_pass', 0)
+                )
             )
             bar.update(1)
         finally:
@@ -442,11 +435,11 @@ def fit_staged(params, bar, cancel_callback=None):
         nonlocal groups_done, frames_done, windows_done
         if not group.plans:
             return
-        cancel()
+        check_cancelled()
         activity(f'Segment peaks: {len(group.plans)} grains · shared frame reads')
-        group.measure(cache, cancel)
+        group.measure(cache, check_cancelled)
         for plan in group.plans:
-            cancel()
+            check_cancelled()
             responses[plan.grain] = plan.result()
         groups_done += 1
         frames_done += group.frame_visits
@@ -473,7 +466,7 @@ def fit_staged(params, bar, cancel_callback=None):
             responses = {}
             group = MeasurementGroup(budget)
             for grain, request in pending.items():
-                cancel()
+                check_cancelled()
                 activity(f'Planning peak windows: grain {grain}')
                 plan = MeasurementPlan(
                     params['instrument'], request, max_bytes=budget
@@ -504,7 +497,7 @@ def fit_staged(params, bar, cancel_callback=None):
                 step.close()
                 if not cancelled and grain in last_spots:
                     try:
-                        cancel()
+                        check_cancelled()
                     except (KeyboardInterrupt, StagedCancelled):
                         cancelled = True
                     if not cancelled:
