@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from dataclasses import dataclass
 import logging
 import os
+import sys
 import threading
 from time import monotonic
 
@@ -199,6 +200,29 @@ def quiet_progress(quiet):
         yield
     finally:
         _dashboard.reset(token)
+
+
+def run_cli(args, workflow, *, stages=STAGES, view='OrientationDashboard'):
+    """Run either HEDM command with the shared interactive-terminal policy."""
+    if (
+        not args.quiet
+        and not getattr(args, 'no_tui', False)
+        and sys.stdin.isatty()
+        and Dashboard.supported(sys.stderr)
+    ):
+        from hexrd.hedm import _dashboard
+
+        dashboard = Dashboard(stages)
+        app = getattr(_dashboard, view)(
+            dashboard, lambda: workflow(dashboard), args.yml
+        )
+        app.run()
+        if dashboard.message:
+            print(dashboard.message, file=sys.stderr)
+        if app.failure is not None:
+            raise app.failure
+        return
+    return workflow(None)
 
 
 class Dashboard(logging.Handler):

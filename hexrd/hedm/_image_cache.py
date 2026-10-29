@@ -439,14 +439,49 @@ class BoundedSeries(ImageSeriesABC):
         return StreamingView(self.view, self.cache)
 
 
+class FrameSampler:
+    """Borrow one frame across sampling tiles; release it before the next read."""
+
+    def __init__(self, reader, cache, normalize_zeros=False):
+        from hexrd.core.extensions import transforms as native
+        from hexrd.core.imageseries._sparse import sample_pixels
+
+        self.native, self.sample_pixels = native, sample_pixels
+        self.reader, self.cache, self.normalize_zeros = reader, cache, normalize_zeros
+        self.index = self.frame = self.sparse = None
+
+    def __call__(self, index, rows, cols):
+        if self.index != index:
+            self.index, self.frame, self.sparse = index, None, None
+        if self.frame is None:
+            direct = getattr(self.reader, 'sample_pixels', None)
+            values = direct(index, rows, cols, self.cache) if direct else None
+            if values is not None:
+                return values
+            self.frame = self.cache.frame(self.reader, index)
+            if sparse.issparse(self.frame) and self.frame.has_sorted_indices:
+                self.sparse = self.native._SparseFrames([self.frame])
+        if self.sparse is not None:
+            return self.sparse.gather(
+                np.zeros((1, 1), dtype='i8'),
+                np.array([0, len(rows)], dtype='i8'),
+                rows,
+                cols,
+            )
+        if sparse.issparse(self.frame):
+            return self.sample_pixels(self.frame, rows, cols)
+        values = self.frame[rows, cols]
+        if self.normalize_zeros:
+            values[values == 0] = 0  # Match CSR conversion of dense source frames.
+        return values
+
+
 class StreamingView:
     def __init__(self, view, cache):
         self.view, self.cache, self.dtype = view, cache, view.dtype
 
     def gather(self, frame_ids, offsets, rows, cols):
-        from hexrd.core.extensions import transforms as native
-        from hexrd.core.imageseries._sparse import sample_pixels
-
+        sample = FrameSampler(self.view.reader, self.cache, not self.view.dense)
         frame_ids = np.asarray(frame_ids)
         _, depth = frame_ids.shape
         sizes = np.diff(offsets)
@@ -494,10 +529,7 @@ class StreamingView:
             if self.view.roi is not None:
                 rr += self.view.roi[0]
                 cc += self.view.roi[1]
-            direct = getattr(self.view.reader, 'sample_pixels', None)
-            sampled = direct(actual, rr, cc, self.cache) if direct else None
-            if sampled is None:
-                sampled = self._sample_frame(actual, rr, cc, native, sample_pixels)
+            sampled = sample(actual, rr, cc)
             cursor = 0
             for p, k in occurrences:
                 size = int(sizes[p])
@@ -508,29 +540,6 @@ class StreamingView:
             if reporter is not None:
                 reporter.sampled_frame()
         return output
-
-    def _sample_frame(self, actual, rr, cc, native, sample_pixels):
-        frame = self.cache.frame(self.view.reader, actual)
-        if sparse.issparse(frame) and frame.has_sorted_indices:
-            # This temporary native view borrows just one frame. It is
-            # discarded before the next read, avoiding ROI copies and a
-            # separate Numba sampler/LLVM heap in each spawned worker.
-            sampled = native._SparseFrames([frame]).gather(
-                np.zeros((1, 1), dtype=np.int64),
-                np.array([0, len(rr)], dtype=np.int64),
-                rr,
-                cc,
-            )
-        else:
-            sampled = (
-                sample_pixels(frame, rr, cc)
-                if sparse.issparse(frame)
-                else frame[rr, cc]
-            )
-        if not self.view.dense and not sparse.issparse(frame):
-            sampled = sampled.copy()
-            sampled[sampled == 0] = 0  # CSR conversion removes negative zero.
-        return sampled
 
     def extract(self, frame_ids, offsets, rows, cols, shapes, threshold):
         from hexrd.core.extensions import transforms as native

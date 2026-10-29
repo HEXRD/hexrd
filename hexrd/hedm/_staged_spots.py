@@ -9,11 +9,10 @@ from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 
 import numpy as np
-from scipy import sparse
 
 from hexrd.core.instrument._spotutils import _extraction_context
 from hexrd.hedm._fit_progress import current_reporter, set_reporter
-from hexrd.hedm._image_cache import StreamingView
+from hexrd.hedm._image_cache import FrameSampler, StreamingView
 from hexrd.hedm._progress import check_cancelled
 
 
@@ -301,41 +300,12 @@ class MeasurementGroup:
 
     def _measure_windows(self, reader, items, events, cache, cancel, reporter):
         from hexrd.core.extensions import transforms as native
-        from hexrd.core.imageseries._sparse import sample_pixels
 
         dtype = items[0].view.dtype
         requests = [window.request() for window in items]
-
-        borrowed_id = borrowed_frame = borrowed_sparse = None
-
-        def sample(frame_id, rows, cols):
-            nonlocal borrowed_id, borrowed_frame, borrowed_sparse
-            cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
-            cache.metadata_limit = cache.max_bytes // 2
-            if borrowed_id != frame_id:
-                borrowed_id, borrowed_frame, borrowed_sparse = frame_id, None, None
-            if borrowed_frame is None:
-                direct = getattr(reader, 'sample_pixels', None)
-                values = direct(frame_id, rows, cols, cache) if direct else None
-                if values is not None:
-                    return values
-                borrowed_frame = cache.frame(reader, frame_id)
-                if (
-                    sparse.issparse(borrowed_frame)
-                    and borrowed_frame.has_sorted_indices
-                ):
-                    borrowed_sparse = native._SparseFrames([borrowed_frame])
-            frame = borrowed_frame
-            if sparse.issparse(frame):
-                if borrowed_sparse is not None:
-                    return borrowed_sparse.gather(
-                        np.zeros((1, 1), dtype='i8'),
-                        np.array([0, len(rows)], dtype='i8'),
-                        rows,
-                        cols,
-                    )
-                return sample_pixels(frame, rows, cols)
-            return frame[rows, cols]
+        cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
+        cache.metadata_limit = cache.max_bytes // 2
+        sample = FrameSampler(reader, cache)
 
         def tick(completed):
             if reporter is not None:

@@ -10,7 +10,7 @@ import numpy as np
 
 from hexrd.hedm.experiment import HedmExperiment
 from hexrd.hedm.find_orientations import find_orientations, write_results
-from hexrd.hedm._progress import Dashboard, quiet_progress, stage
+from hexrd.hedm._progress import Dashboard, run_cli, quiet_progress, stage
 
 descr = 'Process rotation image series to find grain orientations'
 example = """
@@ -67,20 +67,7 @@ def configure_parser(sub_parsers):
 
 
 def execute(args, parser):
-    if (not args.quiet and not getattr(args, 'no_tui', False)
-            and sys.stdin.isatty() and Dashboard.supported(sys.stderr)):
-        from hexrd.hedm._dashboard import OrientationDashboard
-
-        dashboard = Dashboard()
-        app = OrientationDashboard(dashboard, lambda: _execute(args, parser, dashboard), args.yml)
-        app.run()
-
-        if dashboard.message:
-            print(dashboard.message, file=sys.stderr)
-        if app.failure is not None:
-            raise app.failure
-        return
-    return _execute(args, parser)
+    return run_cli(args, lambda dashboard: _execute(args, parser, dashboard))
 
 
 def _execute(args, parser, dashboard=None):

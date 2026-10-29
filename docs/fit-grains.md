@@ -63,8 +63,8 @@ those windows directly; there are no separate batch and patch models.
 Compatible NumPy buffers are borrowed.
 Fallbacks remain for supported formats, noncanonical sparse data, numerical
 ranges and user-provided geometry that require the reference implementation.
-The native I/O API changed in this simplification. Rebuild the extension with
-this checkout; earlier extension APIs are not supported.
+Use the Python code and native extension from the same branch; earlier native
+I/O APIs are not supported.
 
 Exact source pixels can be reused across fitting passes. A byte-bounded cache
 keys entries by source frame and integer detector coordinates. Under pressure,
@@ -130,5 +130,6 @@ stayed below 1.09 GiB. These are not speed comparisons with master. Full
 920-grain throughput and remote HDD scaling remain unmeasured.
 
 [Validation evidence](fit-grains-validation.json) records reference commits,
-configuration fingerprints, historical timings and the cleanup checks. Earlier
-experiment reports and raw measurements remain in git history at `42f7623e`.
+configuration fingerprints, guarded timings and the cleanup checks. Earlier
+validation records remain in git history at `203808c8`; experiment reports and
+raw measurements are also available at `42f7623e`.

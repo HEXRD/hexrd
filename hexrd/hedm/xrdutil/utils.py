@@ -856,6 +856,19 @@ def make_reflection_patches(
     tvec_s = np.r_[instr_cfg['oscillation_stage']['translation']]
     bvec = np.r_[instr_cfg['beam']['vector']]
 
+    def project(angles):
+        return _project_on_detector_plane(
+            angles,
+            rmat_d,
+            rmat_c,
+            chi,
+            tvec_d,
+            tvec_c,
+            tvec_s,
+            distortion,
+            beamVec=bvec,
+        )[0]
+
     # data to loop
     # ??? WOULD IT BE CHEAPER TO CARRY ZEROS OR USE CONDITIONAL?
     if omega is None:
@@ -913,17 +926,7 @@ def make_reflection_patches(
                 )
                 for patch, points in fallback:
                     lo, hi = offsets[patch : patch + 2]
-                    exact, _, _ = _project_on_detector_plane(
-                        points,
-                        rmat_d,
-                        rmat_c,
-                        chi,
-                        tvec_d,
-                        tvec_c,
-                        tvec_s,
-                        distortion,
-                        beamVec=bvec,
-                    )
+                    exact = project(points)
                     rows[lo:hi] = gutil.cellIndices(row_edges, exact[:, 1])
                     cols[lo:hi] = gutil.cellIndices(col_edges, exact[:, 0])
                 yield start, edges, shapes, offsets, rows, cols
@@ -948,17 +951,7 @@ def make_reflection_patches(
                     ):
                         end += 1
                 first, last = offsets[group], offsets[end]
-                xy, _, _ = _project_on_detector_plane(
-                    points[first:last],
-                    rmat_d,
-                    rmat_c,
-                    chi,
-                    tvec_d,
-                    tvec_c,
-                    tvec_s,
-                    distortion,
-                    beamVec=bvec,
-                )
+                xy = project(points[first:last])
                 rows[first:last] = gutil.cellIndices(row_edges, xy[:, 1])
                 cols[first:last] = gutil.cellIndices(col_edges, xy[:, 0])
                 group = end
@@ -969,17 +962,7 @@ def make_reflection_patches(
     def project_patches(patches):
         # Bound temporary storage while amortizing transform dispatch and
         # sparse-index grid construction over several reflections.
-        xy, _, _ = _project_on_detector_plane(
-            np.vstack([patch[1] for patch in patches]),
-            rmat_d,
-            rmat_c,
-            chi,
-            tvec_d,
-            tvec_c,
-            tvec_s,
-            distortion,
-            beamVec=bvec,
-        )
+        xy = project(np.vstack([patch[1] for patch in patches]))
         rows = gutil.cellIndices(row_edges, xy[:, 1])
         cols = gutil.cellIndices(col_edges, xy[:, 0])
         first = 0
@@ -1022,17 +1005,7 @@ def make_reflection_patches(
             # Preserve the writable connectivity supplied to custom area
             # functions without exposing the cached grid to mutation.
             connectivity = conn.copy()
-            xy_eval_vtx, _, _ = _project_on_detector_plane(
-                gVec_angs_vtx,
-                rmat_d,
-                rmat_c,
-                chi,
-                tvec_d,
-                tvec_c,
-                tvec_s,
-                distortion,
-                beamVec=bvec,
-            )
+            xy_eval_vtx = project(gVec_angs_vtx)
             areas = compute_areas_func(xy_eval_vtx, connectivity).reshape(netas, ntths)
             vertex_xy = (
                 xy_eval_vtx[:, 0].reshape(vertex_shape),
@@ -1064,17 +1037,7 @@ def make_reflection_patches(
             pending = []
             pending_points = 0
 
-        xy_eval, _, _ = _project_on_detector_plane(
-            gVec_angs,
-            rmat_d,
-            rmat_c,
-            chi,
-            tvec_d,
-            tvec_c,
-            tvec_s,
-            distortion,
-            beamVec=bvec,
-        )
+        xy_eval = project(gVec_angs)
 
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
         col_indices = gutil.cellIndices(col_edges, xy_eval[:, 0])

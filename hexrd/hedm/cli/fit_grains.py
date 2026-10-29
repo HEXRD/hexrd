@@ -5,7 +5,7 @@ from collections import namedtuple
 from pathlib import Path
 
 from hexrd.hedm._progress import (
-    Dashboard,
+    run_cli,
     FIT_STAGES,
     check_cancelled,
     diagnostic,
@@ -233,27 +233,12 @@ def write_results(
 
 
 def execute(args, parser):
-    if (
-        not args.quiet
-        and not getattr(args, 'no_tui', False)
-        and sys.stdin.isatty()
-        and Dashboard.supported(sys.stderr)
-    ):
-        from hexrd.hedm._dashboard import FitGrainsDashboard
-
-        dashboard = Dashboard(FIT_STAGES)
-        app = FitGrainsDashboard(
-            dashboard,
-            lambda: _execute(args, parser, dashboard),
-            args.yml,
-        )
-        app.run()
-        if dashboard.message:
-            print(dashboard.message, file=sys.stderr)
-        if app.failure is not None:
-            raise app.failure
-        return
-    return _execute(args, parser)
+    return run_cli(
+        args,
+        lambda dashboard: _execute(args, parser, dashboard),
+        stages=FIT_STAGES,
+        view='FitGrainsDashboard',
+    )
 
 
 def _execute(args, parser, dashboard=None):
@@ -310,15 +295,17 @@ def _run(args, parser, dashboard, logger, file_handlers):
     # some conditionals for arg handling
     have_orientations = quats_f.exists()
     existing_analysis = grains_filename.exists()
-    fit_estimate = experiment.fit_grains.estimate
-    force_without_estimate = args.force and fit_estimate is None
-    new_without_estimate = not existing_analysis and fit_estimate is None
+
+    def needs_orientations(experiment, existing):
+        return args.clean or (
+            experiment.fit_grains.estimate is None and (args.force or not existing)
+        )
 
     # if no estimate is supplied, or the clean option is selected, will need
     # the indexing results from find_orientations:
     #   'accepted_orientations_*.dat'
     # result stored in the variable qbar
-    if args.clean or force_without_estimate or new_without_estimate:
+    if needs_orientations(experiment, existing_analysis):
         if have_orientations:
             try:
                 qbar = np.loadtxt(quats_f, ndmin=2).T
@@ -403,25 +390,11 @@ def _run(args, parser, dashboard, logger, file_handlers):
         # some conditionals for arg handling
         existing_analysis = grains_filename.exists()
         fit_estimate = experiment.fit_grains.estimate
-        new_with_estimate = not existing_analysis and fit_estimate is not None
-        new_without_estimate = not existing_analysis and fit_estimate is None
-        force_with_estimate = args.force and fit_estimate is not None
-        force_without_estimate = args.force and fit_estimate is None
-        #
-        # ------- handle args
-        # - 'clean' indicates ignoring any estimate specified and starting with
-        #   the 'accepted_orientations' file.  Will run find-orientations if
-        #   it doesn't exist
-        # - 'force' means ignore existing analysis directory.  If the config
-        #   option "fit_grains:estimate" is None, will use results from
-        #   find-orientations.  If 'accepted_orientations' does not exists,
-        #   then it runs find-orientations.
-        #
-        if args.clean or force_without_estimate or new_without_estimate:
+        if needs_orientations(experiment, existing_analysis):
             # need accepted orientations from indexing in this case
             if args.clean:
                 logger.info("'clean' specified; ignoring estimate and using default")
-            elif force_without_estimate:
+            elif args.force:
                 logger.info(
                     "'force' option specified, but no initial estimate; "
                     + "using default"
@@ -441,16 +414,9 @@ def _run(args, parser, dashboard, logger, file_handlers):
                     RuntimeError,
                     "indexing results '%s' not found!" % str(grains_filename),
                 )
-        elif force_with_estimate or new_with_estimate:
+        elif fit_estimate is not None:
             grains_filename = fit_estimate
             logger.info("using initial estimate '%s'", fit_estimate)
-        elif existing_analysis and not clobber:
-            raise (
-                RuntimeError,
-                "fit results '%s' exist, " % grains_filename
-                + "but --clean or --force options not specified",
-            )
-
         # get grain parameters by loading grains table
         try:
             grains_table = np.loadtxt(grains_filename, ndmin=2)

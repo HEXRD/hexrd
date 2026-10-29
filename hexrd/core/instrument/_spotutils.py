@@ -152,37 +152,83 @@ def pull_spots_batched(
         omega_start = series.omega[frame_ids[ids, 0], 0]
         batches.append((ids, edges, omega_start, stats))
 
-    def finish():
-        return _finish_spot_batches(
-            instrument,
-            panel,
-            batches,
-            hkl_ids,
-            hkls,
-            predicted,
-            predicted_xy,
-            delta_omega,
-            ome_period,
-            rmat_c,
-            tvec_c,
-            invalid_id,
-        )
-
     defer = getattr(view, 'defer_result', None)
+    deferred = defer is not None
+
+    def finish():
+        from hexrd.core.extensions import transforms as native
+        from hexrd.core.rotations import mapAngle
+        from hexrd.hedm._fit_progress import current_reporter
+
+        next_invalid = invalid_id
+        reporter = current_reporter()
+        if reporter is not None and deferred:
+            reporter.panel(sum(len(ids) for ids, _, _, _ in batches))
+        chunks = []
+        for ids, edges, omega_start, stats in batches:
+            centers, sums, maxima, valid = stats
+            if reporter is not None:
+                reporter.reflections(len(ids))
+            angles = np.full((len(ids), 3), np.nan)
+            angles[valid, :2] = (
+                edges[valid, :2] + (0.5 + centers[valid, :0:-1]) * edges[valid, 2:]
+            )
+            angles[valid, 2] = np.radians(
+                omega_start[valid] + (0.5 + centers[valid, 0]) * delta_omega
+            )
+            xy = np.full((len(ids), 2), np.nan)
+            peak_ids = ids.copy()
+            bad = ~valid
+            peak_ids[bad] = next_invalid - np.arange(np.count_nonzero(bad))
+            next_invalid -= np.count_nonzero(bad)
+            chunks.append(
+                _SpotData(
+                    peak_ids,
+                    hkl_ids[ids],
+                    hkls[ids],
+                    sums,
+                    maxima,
+                    predicted[ids],
+                    angles,
+                    xy,
+                    predicted_xy[ids],
+                )
+            )
+        result = _SpotData.concatenate(chunks) if chunks else None
+        if result is not None:
+            valid = result.peak_id >= 0
+            result.meas_angs[valid, 2] = mapAngle(
+                result.meas_angs[valid, 2], ome_period
+            )
+            measured = native._spotMeasuredXY(
+                result.meas_angs[valid],
+                panel.rmat,
+                rmat_c,
+                instrument.chi,
+                panel.tvec,
+                instrument.tvec,
+                tvec_c,
+                instrument.beam_vector,
+            )
+            if panel.distortion is not None and len(measured):
+                # Keep per-spot distortion calls: user-provided mappings may have
+                # convergence criteria depending on the supplied point batch.
+                measured = np.array(
+                    [
+                        panel.distortion.apply_inverse(p[None, :]).ravel()
+                        for p in measured
+                    ]
+                )
+            result.meas_xy[valid] = measured
+        return result, next_invalid
+
     if defer is not None:
         size = 2048 + sum(a.nbytes for a in (hkl_ids, hkls, predicted, predicted_xy))
         size += sum(
             256 + ids.nbytes + edges.nbytes + omega.nbytes
             for ids, edges, omega, _ in batches
         )
-
-        def deferred_finish():
-            active_reporter = current_reporter()
-            if active_reporter is not None:
-                active_reporter.panel(sum(len(ids) for ids, _, _, _ in batches))
-            return finish()
-
-        return defer(deferred_finish, size), invalid_id
+        return defer(finish, size), invalid_id
     return finish()
 
 
@@ -192,79 +238,6 @@ class _DeferredSpotData:
     def __init__(self, finish):
         self.finish = finish
         self.packed = True
-
-
-def _finish_spot_batches(
-    instrument,
-    panel,
-    batches,
-    hkl_ids,
-    hkls,
-    predicted,
-    predicted_xy,
-    delta_omega,
-    ome_period,
-    rmat_c,
-    tvec_c,
-    invalid_id,
-):
-    from hexrd.core.extensions import transforms as native
-    from hexrd.core.rotations import mapAngle
-    from hexrd.hedm._fit_progress import current_reporter
-
-    reporter = current_reporter()
-    chunks = []
-    for ids, edges, omega_start, stats in batches:
-        centers, sums, maxima, valid = stats
-        if reporter is not None:
-            reporter.reflections(len(ids))
-        angles = np.full((len(ids), 3), np.nan)
-        angles[valid, :2] = (
-            edges[valid, :2] + (0.5 + centers[valid, :0:-1]) * edges[valid, 2:]
-        )
-        angles[valid, 2] = np.radians(
-            omega_start[valid] + (0.5 + centers[valid, 0]) * delta_omega
-        )
-        xy = np.full((len(ids), 2), np.nan)
-        peak_ids = ids.copy()
-        bad = ~valid
-        peak_ids[bad] = invalid_id - np.arange(np.count_nonzero(bad))
-        invalid_id -= np.count_nonzero(bad)
-        chunks.append(
-            _SpotData(
-                peak_ids,
-                hkl_ids[ids],
-                hkls[ids],
-                sums,
-                maxima,
-                predicted[ids],
-                angles,
-                xy,
-                predicted_xy[ids],
-            )
-        )
-    result = _SpotData.concatenate(chunks) if chunks else None
-    if result is not None:
-        valid = result.peak_id >= 0
-        result.meas_angs[valid, 2] = mapAngle(result.meas_angs[valid, 2], ome_period)
-        measured = native._spotMeasuredXY(
-            result.meas_angs[valid],
-            panel.rmat,
-            rmat_c,
-            instrument.chi,
-            panel.tvec,
-            instrument.tvec,
-            tvec_c,
-            instrument.beam_vector,
-        )
-        if panel.distortion is not None and len(measured):
-            # Keep per-spot distortion calls: user-provided mappings may have
-            # convergence criteria depending on the supplied point batch.
-            measured = np.array(
-                [panel.distortion.apply_inverse(p[None, :]).ravel() for p in measured]
-            )
-        result.meas_xy[valid] = measured
-    return result, invalid_id
 
 
 def sparse_frame_view(series):

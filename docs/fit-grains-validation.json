@@ -1,319 +1,160 @@
 {
+  "branch_start_commit": "925967d2",
+  "cleanup_start_commit": "203808c8",
   "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
-  "last_performance_measurement": {
-    "before_commit": "e968097b03ca8823060d9dc8cf5a7939be4c6d53",
-    "after_commit": "42f7623e",
-    "note": "Historical measurements before code simplification; no new performance claim.",
-    "settings": {
-      "dataset_job_address_space_limit_mib": 4096,
-      "dataset_runs_sequential": true,
-      "fitting_processes": 1,
-      "blas_threads": 1,
-      "direct_fch5_reads": true,
-      "image_scratch": false,
-      "staged_workspace_mib": 512,
-      "read_workers": 4
-    },
-    "measurements": {
-      "4": {
-        "before_median_seconds": 13.37930850799603,
-        "after_median_seconds": 12.060832369999844,
-        "speedup": 1.10931883451724,
-        "time_reduction_percent": 9.85459104413513,
-        "before_seconds": [
-          13.409394861999317,
-          13.37930850799603,
-          13.13531012799649
-        ],
-        "after_seconds": [
-          12.060832369999844,
-          12.140627614993718,
-          12.00783347900142
-        ],
-        "after_peak_rss_bytes": 861384704
-      },
-      "13": {
-        "before_median_seconds": 26.95550853399618,
-        "after_median_seconds": 22.148358470003586,
-        "speedup": 1.2170431759312146,
-        "time_reduction_percent": 17.833646350725807,
-        "before_seconds": [
-          26.795012778995442,
-          27.932600727996032,
-          26.95550853399618
-        ],
-        "after_seconds": [
-          22.36347330299759,
-          22.148358470003586,
-          21.50160096500622
-        ],
-        "after_peak_rss_bytes": 1052454912
-      },
-      "52": {
-        "before_median_seconds": 92.28341844749957,
-        "after_median_seconds": 62.3165626259979,
-        "speedup": 1.4808810781389243,
-        "time_reduction_percent": 32.47263303163172,
-        "before_seconds": [
-          93.09078352800134,
-          91.4760533669978
-        ],
-        "after_seconds": [
-          62.2383681479987,
-          62.39475710399711
-        ],
-        "after_peak_rss_bytes": 1168089088
-      }
-    },
-    "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
-    "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
-    "dataset": {
-      "path": "sven_dataset/data/images_median_and_25_counts_removed_eiger.fch5",
-      "file_bytes": 44303807671,
-      "image_file_hashed": false
-    }
-  },
-  "scientific_contract": {
-    "exact_numerical_comparison": true,
-    "spot_files_byte_identical": true,
-    "examples_master": "Unmodified master, nine studies in staged and grain modes.",
-    "sven_master": "First four grains, master scientific algorithms with bounded pixel input; eager master decodes 322 GiB.",
-    "larger_sven_reference": "Starting branch e968097b."
-  },
+  "previous_validation_record_commit": "203808c8",
   "cleanup": {
-    "before_commit": "42f7623e",
-    "runtime_and_experiment_python_lines_removed_net": 896,
+    "python_runtime_lines_removed_net": 352,
+    "python_runtime_net_since_branch_start": 3466,
+    "net_negative_branch_target_met": false,
     "changes": [
-      "Remove unused detector-centroid experiments and request-replay prototypes.",
-      "Use the native measurement coordinator without the older Python coordinator/replay paths.",
-      "Use current native chunk/row APIs; retain HDF5, format, numerical and oversized-grain fallbacks.",
-      "Keep live grain work/phase/age and cancellation, remove unused Fit Activity telemetry.",
-      "Consolidate dated reports; detailed historical data remains in git history."
+      "Share reflection conversion, fitting and chi-square calculation.",
+      "Share frame sampling and the CLI dashboard launcher.",
+      "Remove forwarding wrappers, repeated projection argument lists and placeholder documentation."
     ],
-    "cpp_kernels_changed": false,
-    "tests": {
-      "passed": 529,
-      "address_space_limit_mib": 1536,
-      "blas_and_numba_threads": 1,
-      "scope": "Fit-grains/native sampling, geometry/objectives, memory, dashboard/cancellation, experiment/configuration and shared progress. Includes a solver activity-heartbeat regression check."
-    },
-    "examples": {
-      "reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
-      "comparison": "Exact fits and extracted spots, no numerical tolerance.",
-      "studies": {
-        "staged": [
-          "ruby-0",
-          "ruby-1",
-          "ruby-2",
-          "ruby-3",
-          "ruby-4",
-          "ruby-5",
-          "dexelas",
-          "dexelas-roi",
-          "zirconium"
-        ],
-        "grain": [
-          "ruby-0",
-          "ruby-1",
-          "ruby-2",
-          "ruby-3",
-          "ruby-4",
-          "ruby-5",
-          "dexelas",
-          "dexelas-roi",
-          "zirconium"
-        ]
-      }
-    },
-    "sven": [
-      {
-        "grains": 4,
-        "mode": "staged",
-        "reference": "master scientific algorithms, bounded input",
-        "fits_and_spots_exact": true,
-        "spot_files_byte_identical": 4,
-        "memory": {
-          "rss": 860188672,
-          "pss": 853332992,
-          "uss": 850964480
-        }
-      },
-      {
-        "grains": 4,
-        "mode": "grain",
-        "reference": "master scientific algorithms, bounded input",
-        "fits_and_spots_exact": true,
-        "spot_files_byte_identical": 4,
-        "memory": {
-          "rss": 1294663680,
-          "pss": 1286985728,
-          "uss": 1284583424
-        }
-      },
-      {
-        "grains": 52,
-        "mode": "staged",
-        "reference": "42f7623e",
-        "fits_and_spots_exact": true,
-        "spot_files_byte_identical": 52,
-        "memory": {
-          "rss": 1161527296,
-          "pss": 1154064384,
-          "uss": 1151680512
-        }
-      }
-    ],
-    "dataset_policy": {
-      "address_space_limit_mib": 4096,
-      "fitting_processes": 1,
-      "blas_threads": 1,
-      "direct_fch5_reads": true,
-      "sequential": true,
-      "image_scratch": false
-    },
-    "cancellation": {
-      "runs": [
-        {
-          "method": "button",
-          "seconds_from_cancel_request_to_cleanup": 0.004445539001608267,
-          "seconds_including_simulated_ui_dispatch": 3.2096954389999155,
-          "cancelled_during_real_fch5_reads": true
-        },
-        {
-          "method": "ctrl+c",
-          "seconds_from_cancel_request_to_cleanup": 0.004624305001925677,
-          "seconds_including_simulated_ui_dispatch": 0.06996315899596084,
-          "cancelled_during_real_fch5_reads": true
-        }
-      ],
-      "address_limit_mib": 4096,
-      "peak_rss_mib": 1032.60546875
-    },
-    "source_sha256": {
-      "hexrd/core/instrument/_spotutils.py": "3ede0828b7f9fd8acc44e94785e6bb006367d296e62f6e1c073fdf18684d1140",
-      "hexrd/hedm/_chunk_io.py": "b2649675e6c52332d73135a20f4de20ac8479987f2a5225e6b5473a66ef999e1",
-      "hexrd/hedm/_fch5_pixels.py": "8a693d330561a5fba547bc02c4fd39caa9a273d3613f8ec8ce3825108fb1673c",
-      "hexrd/hedm/_fit_progress.py": "9bddd515d874431ed9f215e566b2a2c62d518ae4565b2e4c292d6e6e4c8c54a3",
-      "hexrd/hedm/_image_cache.py": "42e29e51d55d0a01978b1ab9b7bf44de4cfd52e03bc0f3a92b0d22d5d2c659b3",
-      "hexrd/hedm/_pixel_cache.py": "79996b78581eda78c7147ba27208458c0fa2c824030ed55e3775b3331c9b604a",
-      "hexrd/hedm/_progress.py": "b810cce5a2855322b30880bcb76e7c1d2bf5b0a864b42ea8cad71be86eb1b89d",
-      "hexrd/hedm/_row_index.py": "2caf7cdfd6a0e6cde34be50d31c5035a9a1dc34d78b4dd0c9f0743283c492748",
-      "hexrd/hedm/_staged_spots.py": "2aa2f7aa20b648d4f885df7fae6521c9bb1f9a0a9590d2ea9c8d6e594c2efdbb",
-      "hexrd/hedm/fitgrains.py": "f3c833194f60723371306a0b6cd9ebbc333a9ec8cacb167d123eb04d8fb16af9",
-      "hexrd/hedm/fitting/grains.py": "3b3db338781789a578e62e5e5eb5c33eb31a8039e6639dbf713f9d5b66f07842"
-    },
-    "native_extension_sha256": "77d7e8914e55669d81ffd1a5b38fa8475efb285743a586a95bc3b13c3ae8845f"
+    "native_binary_changed": false
   },
-  "simplification": {
-    "before_commit": "5b9514697d72d2964142354fd83b379ce2874071",
-    "runtime_python_lines_removed_net": 445,
-    "changes": [
-      "Replace the Python chunk and row executors with bounded read-ahead on the existing native decoder pool.",
-      "Remove the separate read limiter, cancellation token, raw chunk API, and Python row-index module.",
-      "Use one window model instead of converting batches into patches; remove duplicate pixel-cache fallback paths.",
-      "Keep numerical measurement kernels and scientific settings unchanged; native I/O implementation changed."
+  "test_suite": {
+    "passed": 535,
+    "address_space_limit_mib": 1536,
+    "blas_and_numba_threads": 1
+  },
+  "dataset_policy": {
+    "address_space_limit_mib": 4096,
+    "fitting_processes": 1,
+    "blas_threads": 1,
+    "runs_sequentially": true,
+    "direct_fch5_reads": true,
+    "image_scratch": false
+  },
+  "examples": {
+    "runs": 18,
+    "fits_and_extracted_spots_exact_master": true,
+    "modes": [
+      "staged",
+      "grain"
     ],
-    "native_extension_rebuild_required": true,
-    "tests": {
-      "passed": 530,
-      "address_space_limit_mib": 1536,
-      "blas_and_numba_threads": 1
+    "studies": [
+      "ruby-0",
+      "ruby-1",
+      "ruby-2",
+      "ruby-3",
+      "ruby-4",
+      "ruby-5",
+      "dexelas",
+      "dexelas-roi",
+      "zirconium"
+    ]
+  },
+  "sven": [
+    {
+      "mode": "staged",
+      "grains": 4,
+      "exact_starting_commit": true,
+      "master_reference": "master scientific algorithms with bounded input",
+      "spot_files_byte_identical": 4,
+      "peak_rss_bytes": 870580224
     },
-    "examples": {
-      "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
-      "runs": 18,
-      "all_fits_and_extracted_spots_exact": true,
-      "modes": [
-        "staged",
-        "grain"
-      ],
-      "studies": [
-        "ruby-0",
-        "ruby-1",
-        "ruby-2",
-        "ruby-3",
-        "ruby-4",
-        "ruby-5",
-        "dexelas",
-        "dexelas-roi",
-        "zirconium"
-      ]
+    {
+      "mode": "grain",
+      "grains": 4,
+      "exact_starting_commit": true,
+      "master_reference": "master scientific algorithms with bounded input",
+      "spot_files_byte_identical": 4,
+      "peak_rss_bytes": 1295839232
     },
-    "sven": {
-      "runs": [
-        {
-          "grains": 4,
-          "mode": "staged",
-          "reference": "master scientific algorithms, bounded input",
-          "fits_and_spots_exact": true,
-          "spot_files_byte_identical": 4,
-          "memory": {
-            "rss": 866988032,
-            "pss": 859525120,
-            "uss": 857133056
-          }
-        },
-        {
-          "grains": 4,
-          "mode": "grain",
-          "reference": "master scientific algorithms, bounded input",
-          "fits_and_spots_exact": true,
-          "spot_files_byte_identical": 4,
-          "memory": {
-            "rss": 1294684160,
-            "pss": 1287049216,
-            "uss": 1284661248
-          }
-        },
-        {
-          "grains": 52,
-          "mode": "staged",
-          "reference": "5b951469",
-          "fits_and_spots_exact": true,
-          "spot_files_byte_identical": 52,
-          "memory": {
-            "rss": 1173155840,
-            "pss": 1165691904,
-            "uss": 1163276288
-          }
-        }
-      ],
-      "comparison": "Exact fit results; each listed spot file is byte-identical.",
-      "address_space_limit_mib": 4096,
-      "fitting_processes": 1,
-      "runs_sequentially": true,
-      "direct_fch5_reads": true,
-      "image_scratch": false
+    {
+      "mode": "staged",
+      "grains": 52,
+      "exact_starting_commit": true,
+      "master_reference": "starting commit 203808c8",
+      "spot_files_byte_identical": 52,
+      "peak_rss_bytes": 1167937536
+    }
+  ],
+  "timing_comparison": {
+    "reference_commit": "203808c8",
+    "first_runs_excluded": true,
+    "samples": {
+      "staged-4": {
+        "before_seconds": [
+          13.015369164990261,
+          12.502832234997186
+        ],
+        "after_seconds": [
+          13.185989097997663,
+          12.565060585999163
+        ],
+        "median_time_change_percent": 0.9124792157549688
+      },
+      "grain-4": {
+        "before_seconds": [
+          113.06458632000431
+        ],
+        "after_seconds": [
+          114.63721611900837
+        ],
+        "median_time_change_percent": 1.3909127961190926
+      },
+      "staged-52": {
+        "before_seconds": [
+          61.659310652001295
+        ],
+        "after_seconds": [
+          61.94171370800177
+        ],
+        "median_time_change_percent": 0.45800553560244595
+      }
     },
-    "cancellation": {
-      "runs": [
-        {
-          "method": "button",
-          "seconds_from_cancel_request_to_cleanup": 0.003830105997622013,
-          "seconds_including_simulated_ui_dispatch": 3.18515988800209,
-          "cancelled_during_real_fch5_reads": true
-        },
-        {
-          "method": "ctrl+c",
-          "seconds_from_cancel_request_to_cleanup": 0.0018549350061221048,
-          "seconds_including_simulated_ui_dispatch": 0.19149351099622436,
-          "cancelled_during_real_fch5_reads": true
-        }
-      ],
-      "address_limit_mib": 4096,
-      "peak_rss_mib": 994.828125
-    },
-    "source_sha256": {
-      "docs/fit-grains.md": "eac4597d9d93ae2953abf0d70dacc69dd19a970262f0cc949fc449caabda9ef3",
-      "hexrd/core/transforms/cpp_sublibrary/src/chunk_executor.hpp": "0c23d94401109fad0b297312dbbd50a18e44fed4be5ede92f0a8daafbb3a4019",
-      "hexrd/core/transforms/cpp_sublibrary/src/native_frame.hpp": "740669c0e07997961f1fd16ab6ea2b4965e60c0078ef5148ebc20781fe1ac728",
-      "hexrd/core/transforms/cpp_sublibrary/src/spot_extraction.hpp": "a0d41a13952c4905249ca82296d85ab076d638a5a8500c22351b4b56a8cfb166",
-      "hexrd/hedm/_chunk_io.py": "23397bdd9ed4c0b92f9f6573e8ea4e174bc4e0f72566ebd73e3c83e7f2296af7",
-      "hexrd/hedm/_fch5_pixels.py": "4d9a74e185582e85be2d610008f7f3e83736d9a280676ba44860ce5712ddf00a",
-      "hexrd/hedm/_image_cache.py": "ae6dd66d381bd8d261f248c45af5e84e121eb1a7c96789ea0a3847e33fa6dd72",
-      "hexrd/hedm/_pixel_cache.py": "98198ebfe17c8fe23d3acd4e7b95b17cf0bfdb195aa390d2f325abc9fa8ae560",
-      "hexrd/hedm/_staged_spots.py": "40c92a8d042f751f416c7160d9a7cb9b9f693f0cd3ce6add2f603ecb539b9c98"
-    },
-    "native_extension_sha256": "30dcfedb450178adb7ae2d043b9cf67e70c94af1aa9753338a8f7fe02e809889"
-  }
+    "interleaved_grain_mode": [
+      {
+        "case": "baseline-1",
+        "seconds": 40.125998539995635,
+        "cpu_seconds": 32.165276
+      },
+      {
+        "case": "candidate",
+        "seconds": 40.26699389900023,
+        "cpu_seconds": 32.0146584
+      },
+      {
+        "case": "baseline-2",
+        "seconds": 39.6751978520042,
+        "cpu_seconds": 31.7737967
+      }
+    ],
+    "interpretation": "Small timing differences do not establish zero runtime cost or a speedup; full 920-grain and remote-HDD scaling remain unmeasured."
+  },
+  "cancellation": {
+    "runs": [
+      {
+        "method": "button",
+        "seconds_from_cancel_request_to_cleanup": 0.004243746006977744,
+        "seconds_including_simulated_ui_dispatch": 3.2999268990097335,
+        "cancelled_during_real_fch5_reads": true
+      },
+      {
+        "method": "ctrl+c",
+        "seconds_from_cancel_request_to_cleanup": 0.0018844149890355766,
+        "seconds_including_simulated_ui_dispatch": 0.0869700260082027,
+        "cancelled_during_real_fch5_reads": true
+      }
+    ],
+    "address_limit_mib": 4096,
+    "peak_rss_mib": 1032.63671875
+  },
+  "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+  "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+  "source_sha256": {
+    "hexrd/core/instrument/_spotutils.py": "3468085d9ea074dd1e7f9fc41232851bf3439953d1da6d2e708aed03df5a6285",
+    "hexrd/hedm/_image_cache.py": "ce3e3f8287995fdae8b505cedeac66a4d6a738295954d06ad3ea54d14914f357",
+    "hexrd/hedm/_progress.py": "93150a6a14376d344c732dfe9f47d6ef2d249f85d3adde88e0e8a6b351744ca4",
+    "hexrd/hedm/_staged_spots.py": "5466acf1ecfde583275ead6ca6002393779f8aefc8c1371341e6ed07c79f5f04",
+    "hexrd/hedm/cli/find_orientations.py": "15b4de8f04bdf3f89c1b7582665e3b23068d1995fadc55606cd2c5b783dffb55",
+    "hexrd/hedm/cli/fit_grains.py": "46dc48925aeeee62f4dffa4e1753f9ddec3dea7255c86410b2dd1fe67cc6cb55",
+    "hexrd/hedm/fitgrains.py": "9205afedb0831bf54a7df7c1135290d0736a9f579274e3d2e34d2e05177d5822",
+    "hexrd/hedm/fitting/grains.py": "23de54a89e11391216c74b2f1409838a0f6033d631deda01ff814e9bbc1622fe",
+    "hexrd/hedm/xrdutil/utils.py": "3d7e80f91fb53a5c4423f359f0cbc8b5899d7bebe1a5c9df0b6a6633967a8051"
+  },
+  "native_extension_sha256": "30dcfedb450178adb7ae2d043b9cf67e70c94af1aa9753338a8f7fe02e809889"
 }

@@ -92,12 +92,10 @@ def test_chunk_sampling_matches_whole_frame_across_boundaries(
     try:
         for frame in [0, 4, 3, 1, 2, 0]:
             actual = reader.sample_pixels(frame, rows, cols, partial)
-            reference = StreamingView(View(reader), whole)
             # Disable only the new access path for the independent CSR reference.
-            from hexrd.core.extensions import transforms as native
             from hexrd.core.imageseries._sparse import sample_pixels
 
-            expected = reference._sample_frame(frame, rows, cols, native, sample_pixels)
+            expected = sample_pixels(whole.frame(reader, frame), rows, cols)
             np.testing.assert_array_equal(actual, expected, strict=True)
             np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
             assert partial.bytes <= partial.max_bytes
@@ -256,7 +254,6 @@ def test_parallel_pixel_queries_preserve_csr_and_fallback(
     tmp_path, direct, malformed, monkeypatch
 ):
     import hdf5plugin
-    from hexrd.core.extensions import transforms as native
     from hexrd.core.imageseries._sparse import sample_pixels
 
     if direct:
@@ -278,9 +275,7 @@ def test_parallel_pixel_queries_preserve_csr_and_fallback(
             if malformed and frame != 4:
                 assert actual is None
             else:
-                expected = StreamingView(View(reader), reference)._sample_frame(
-                    frame, rows, cols, native, sample_pixels
-                )
+                expected = sample_pixels(reference.frame(reader, frame), rows, cols)
                 assert actual.tobytes() == expected.tobytes()
             assert cache.chunk_pool is not None
             assert cache.bytes + cache.reserved_bytes <= cache.max_bytes

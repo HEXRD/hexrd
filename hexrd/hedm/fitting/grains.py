@@ -31,6 +31,25 @@ gFlag_ref = np.ones(12, dtype=bool)
 gScl_ref = np.ones(12, dtype=bool)
 
 
+def _fit_data(results):
+    """Normalize the supported spot representations at the fitting boundary."""
+    if isinstance(results, _SpotData):
+        return results.as_fit_data() if len(results) else []
+    if isinstance(results, list) and len(results):
+        return {
+            'hkls': np.atleast_2d(np.vstack([x[2] for x in results])).T,
+            'meas_xyo': np.atleast_2d(
+                np.vstack([np.r_[x[7], x[6][-1]] for x in results])
+            ),
+        }
+    if isinstance(results, np.ndarray) and len(results):
+        return {
+            'hkls': np.atleast_2d(results[:, 2:5]).T,
+            'meas_xyo': np.atleast_2d(results[:, [15, 16, 12]]),
+        }
+    return results
+
+
 class _FitGrainData(dict):
     """A fit-local snapshot of reflection and detector quantities."""
 
@@ -95,45 +114,7 @@ def fitGrain(
     xtol=sqrt_epsf,
     ftol=sqrt_epsf,
 ):
-    """
-    Perform least-squares optimization of grain parameters.
-
-    Parameters
-    ----------
-    gFull : TYPE
-        DESCRIPTION.
-    instrument : TYPE
-        DESCRIPTION.
-    reflections_dict : TYPE
-        DESCRIPTION.
-    bMat : TYPE
-        DESCRIPTION.
-    wavelength : TYPE
-        DESCRIPTION.
-    gFlag : TYPE, optional
-        DESCRIPTION. The default is gFlag_ref.
-    gScl : TYPE, optional
-        DESCRIPTION. The default is gScl_ref.
-    omePeriod : TYPE, optional
-        DESCRIPTION. The default is None.
-    factor : TYPE, optional
-        DESCRIPTION. The default is 0.1.
-    xtol : TYPE, optional
-        DESCRIPTION. The default is sqrt_epsf.
-    ftol : TYPE, optional
-        DESCRIPTION. The default is sqrt_epsf.
-
-    Raises
-    ------
-    RuntimeError
-        DESCRIPTION.
-
-    Returns
-    -------
-    retval : TYPE
-        DESCRIPTION.
-
-    """
+    """Fit grain parameters to reflection positions with MINPACK least squares."""
     # FIXME: will currently fail if omePeriod is specifed
     if omePeriod is not None:
         # xyo_det[:, 2] = rotations.mapAngle(xyo_det[:, 2], omePeriod)
@@ -141,36 +122,11 @@ def fitGrain(
 
     gFit = gFull[gFlag]
 
-    # objFuncFitGrain can run *significantly* faster if we convert the
-    # results to use a dictionary instead of lists or numpy arrays.
-    # Do that conversion here, if necessary.
-    new_reflections_dict = {}
-    for det_key, results in reflections_dict.items():
-        if isinstance(results, _SpotData):
-            new_reflections_dict[det_key] = (
-                results.as_fit_data() if len(results) else []
-            )
-            continue
-        if not isinstance(results, (list, np.ndarray)) or len(results) == 0:
-            # Maybe it's already a dict...
-            new_reflections_dict[det_key] = results
-            continue
-
-        if isinstance(results, list):
-            hkls = np.atleast_2d(np.vstack([x[2] for x in results])).T
-            meas_xyo = np.atleast_2d(
-                np.vstack([np.r_[x[7], x[6][-1]] for x in results])
-            )
-        else:
-            hkls = np.atleast_2d(results[:, 2:5]).T
-            meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
-
-        new_reflections_dict[det_key] = {
-            'hkls': hkls,
-            'meas_xyo': meas_xyo,
-        }
-
-    prepared = _FitGrainData(new_reflections_dict, instrument, bMat)
+    prepared = _FitGrainData(
+        {key: _fit_data(value) for key, value in reflections_dict.items()},
+        instrument,
+        bMat,
+    )
     fitArgs = (
         gFull,
         gFlag,
@@ -236,48 +192,6 @@ def objFuncFitGrain(
     gFull[10] = vInv_MV[4]
     gFull[11] = vInv_MV[5]
 
-    OLD CALL
-    objFuncFitGrain(gFit, gFull, gFlag,
-                    detectorParams,
-                    xyo_det, hkls_idx, bMat, wavelength,
-                    bVec, eVec,
-                    dFunc, dParams,
-                    omePeriod,
-                    simOnly=False, return_value_flag=return_value_flag)
-
-    Parameters
-    ----------
-    gFit : TYPE
-        DESCRIPTION.
-    gFull : TYPE
-        DESCRIPTION.
-    gFlag : TYPE
-        DESCRIPTION.
-    instrument : TYPE
-        DESCRIPTION.
-    reflections_dict : TYPE
-        DESCRIPTION.
-    bMat : TYPE
-        DESCRIPTION.
-    wavelength : TYPE
-        DESCRIPTION.
-    omePeriod : TYPE
-        DESCRIPTION.
-    simOnly : TYPE, optional
-        DESCRIPTION. The default is False.
-    return_value_flag : TYPE, optional
-        DESCRIPTION. The default is return_value_flag.
-
-    Raises
-    ------
-    RuntimeError
-        DESCRIPTION.
-
-    Returns
-    -------
-    retval : TYPE
-        DESCRIPTION.
-
     """
     bVec = instrument.beam_vector
     eVec = instrument.eta_vector
@@ -313,61 +227,24 @@ def objFuncFitGrain(
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)
 
-    # loop over instrument panels
-    # CAVEAT: keeping track of key ordering in the "detectors" attribute of
-    # instrument here because I am not sure if instatiating them using
-    # dict.fromkeys() preserves the same order if using iteration...
-    # <JVB 2017-10-31>
     calc_omes_dict = dict.fromkeys(instrument.detectors, [])
     calc_xy_dict = dict.fromkeys(instrument.detectors)
     meas_xyo_all = []
-    det_keys_ordered = []
+    det_keys_ordered = list(instrument.detectors)
     for det_key, panel in instrument.detectors.items():
-        det_keys_ordered.append(det_key)
-
         results = reflections_dict.get(det_key, [])
-        prepared = isinstance(reflections_dict, _FitGrainData)
-        if prepared:
-            if not isinstance(results, dict) and len(results) == 0:
-                continue
-            rMat_d, tVec_d, chi, tVec_s = reflections_dict.transforms[det_key]
-        else:
-            rMat_d, tVec_d, chi, tVec_s = extract_detector_transformation(
-                instrument.detector_parameters[det_key]
-            )
         if not isinstance(results, dict) and len(results) == 0:
             continue
-
-        """
-        extract data from results list fields:
-          refl_id, gvec_id, hkl, sum_int, max_int, pred_ang, meas_ang, meas_xy
-
-        or array from spots tables:
-          0:5    ID    PID    H    K    L
-          5:7    sum(int)    max(int)
-          7:10   pred tth    pred eta    pred ome
-          10:13  meas tth    meas eta    meas ome
-          13:15  pred X    pred Y
-          15:17  meas X    meas Y
-        """
-        if isinstance(results, _SpotData):
-            data = results.as_fit_data()
-            hkls, meas_xyo = data['hkls'], data['meas_xyo']
-        elif isinstance(results, list):
-            # WARNING: hkls and derived vectors below must be columnwise;
-            # strictly necessary??? change affected APIs instead?
-            # <JVB 2017-03-26>
-            hkls = np.atleast_2d(np.vstack([x[2] for x in results])).T
-
-            meas_xyo = np.atleast_2d(
-                np.vstack([np.r_[x[7], x[6][-1]] for x in results])
+        prepared = isinstance(reflections_dict, _FitGrainData)
+        rMat_d, tVec_d, chi, tVec_s = (
+            reflections_dict.transforms[det_key]
+            if prepared
+            else extract_detector_transformation(
+                instrument.detector_parameters[det_key]
             )
-        elif isinstance(results, np.ndarray):
-            hkls = np.atleast_2d(results[:, 2:5]).T
-            meas_xyo = np.atleast_2d(results[:, [15, 16, 12]])
-        elif isinstance(results, dict):
-            hkls = results['hkls']
-            meas_xyo = results['meas_xyo']
+        )
+        data = _fit_data(results)
+        hkls, meas_xyo = data['hkls'], data['meas_xyo']
 
         # distortion handling
         if panel.distortion is not None and not prepared:
@@ -425,11 +302,7 @@ def objFuncFitGrain(
 
     # stack results to concatenated arrays
     calc_omes_all = np.hstack([calc_omes_dict[k] for k in det_keys_ordered])
-    tmp = []
-    for k in det_keys_ordered:
-        if calc_xy_dict[k] is not None:
-            tmp.append(calc_xy_dict[k])
-    calc_xy_all = np.vstack(tmp)
+    calc_xy_all = np.vstack([xy for xy in calc_xy_dict.values() if xy is not None])
     meas_xyo_all = np.vstack(meas_xyo_all)
 
     npts = len(meas_xyo_all)

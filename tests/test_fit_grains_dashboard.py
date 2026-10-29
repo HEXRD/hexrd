@@ -25,8 +25,15 @@ from hexrd.hedm._progress import (
         (False, False, False, False),
     ],
 )
-def test_cli_dashboard_selection(monkeypatch, quiet, no_tui, terminal, expected):
-    from hexrd.hedm.cli import fit_grains as cli
+@pytest.mark.parametrize('command', ['fit_grains', 'find_orientations'])
+def test_cli_dashboard_selection(
+    monkeypatch, quiet, no_tui, terminal, expected, command
+):
+    from importlib import import_module
+    from hexrd.hedm._progress import STAGES
+
+    cli = import_module('hexrd.hedm.cli.' + command)
+    fit = command == 'fit_grains'
     from hexrd.hedm import _dashboard as ui
 
     seen = []
@@ -38,14 +45,16 @@ def test_cli_dashboard_selection(monkeypatch, quiet, no_tui, terminal, expected)
         failure = None
 
         def __init__(self, dashboard, workflow, config):
-            assert tuple(dashboard.stages) == FIT_STAGES
+            assert tuple(dashboard.stages) == (FIT_STAGES if fit else STAGES)
             self.workflow = workflow
 
         def run(self):
             seen.append('dashboard')
             self.workflow()
 
-    monkeypatch.setattr(ui, 'FitGrainsDashboard', App)
+    monkeypatch.setattr(
+        ui, 'FitGrainsDashboard' if fit else 'OrientationDashboard', App
+    )
     args = SimpleNamespace(quiet=quiet, no_tui=no_tui, yml='config.yml')
     cli.execute(args, None)
     assert seen == (['dashboard', 'workflow'] if expected else ['workflow'])
@@ -59,17 +68,22 @@ def test_cli_parser_has_batch_escape_hatch():
     assert parser.parse_args(['fit-grains', 'config.yml', '--no-tui']).no_tui
 
 
-def test_cli_failure_restores_logging_and_progress(monkeypatch):
-    from hexrd.hedm.cli import fit_grains as cli
+@pytest.mark.parametrize('command', ['fit_grains', 'find_orientations'])
+def test_cli_failure_restores_logging_and_progress(monkeypatch, command):
+    from importlib import import_module
+
+    cli = import_module('hexrd.hedm.cli.' + command)
     from hexrd.hedm._progress import current_dashboard
 
     log = logging.getLogger('hexrd')
     initial = log.level, log.propagate, list(log.handlers)
     monkeypatch.setattr(
-        cli, '_run', lambda *args: (_ for _ in ()).throw(ValueError('bad config'))
+        cli,
+        '_run' if command == 'fit_grains' else 'HedmExperiment',
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError('bad config')),
     )
     dashboard = Dashboard(FIT_STAGES)
-    args = SimpleNamespace(quiet=False, no_tui=False, debug=False)
+    args = SimpleNamespace(quiet=False, no_tui=False, debug=False, yml='bad.yml')
     with pytest.raises(ValueError, match='bad config'):
         cli._execute(args, None, dashboard)
     assert (log.level, log.propagate, log.handlers) == initial
