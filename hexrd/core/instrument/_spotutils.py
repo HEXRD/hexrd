@@ -1,14 +1,12 @@
 """Numerical helpers for reflection extraction."""
 
 from functools import lru_cache
-from contextvars import ContextVar
 from weakref import WeakKeyDictionary
 
 import numpy as np
 from scipy import ndimage
 
 _frame_views = WeakKeyDictionary()
-_extraction_context = ContextVar('spot_extraction_context', default=None)
 
 
 def clear_sparse_frame_views():
@@ -241,18 +239,6 @@ class _DeferredSpotData:
 
 
 def sparse_frame_view(series):
-    context = _extraction_context.get()
-    if context is None:
-        return _sparse_frame_view(series)
-    token = _extraction_context.set(None)
-    try:
-        result = _sparse_frame_view(series)
-    finally:
-        _extraction_context.reset(token)
-    return context.wrap(result)
-
-
-def _sparse_frame_view(series):
     """Borrow CSR buffers, including zero-copy ROI views, without densifying.
 
     Native views live outside the series' pickle state. Fork workers inherit

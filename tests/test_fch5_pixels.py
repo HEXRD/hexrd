@@ -10,6 +10,15 @@ import pytest
 from hexrd.hedm._image_cache import FileReader, FrameCache, StreamingView, View
 
 
+def assert_stats_equal(actual, pixels, shapes, threshold=0):
+    from hexrd.core.extensions import transforms as native
+
+    offsets = np.r_[0, np.cumsum(np.prod(shapes, axis=1))]
+    expected = native._spotStats(np.asarray(pixels).ravel(), offsets, shapes, threshold)
+    for found, wanted in zip(actual, expected):
+        np.testing.assert_array_equal(found, wanted, strict=True)
+
+
 def make_reader(
     path, dtype='float64', malformed=None, large_offset=False, compression=None
 ):
@@ -113,13 +122,13 @@ def test_noncanonical_coordinates_fall_back_to_existing_csr(tmp_path, malformed)
         assert reader.sample_pixels(0, np.array([1]), np.array([5]), cache) is None
         # Exercise the actual dispatch and compare to the established sampler.
         ids, offsets = np.array([[0]]), np.array([0, 1])
-        actual = StreamingView(View(reader), cache).gather(
-            ids, offsets, np.array([1]), np.array([5])
+        actual = StreamingView(View(reader), cache).extract(
+            ids, offsets, np.array([1]), np.array([5]), np.array([[1, 1, 1]]), 0
         )
         from hexrd.core.imageseries._sparse import sample_pixels
 
         expected = sample_pixels(cache.frame(reader, 0), np.array([1]), np.array([5]))
-        np.testing.assert_array_equal(actual, expected)
+        assert_stats_equal(actual, expected, np.array([[1, 1, 1]]))
     finally:
         cache.close()
 
@@ -132,10 +141,15 @@ def test_chunk_gather_preserves_roi_mapping_and_clipping(tmp_path):
     offsets = np.array([0, 4, 6])
     rows, cols = np.array([-2, 0, 3, 20, 7, 3]), np.array([0, 3, 7, 30, 11, 3])
     try:
-        actual = StreamingView(view, partial).gather(ids, offsets, rows, cols)
-        reader.estimate = 0
-        expected = StreamingView(view, whole).gather(ids, offsets, rows, cols)
-        np.testing.assert_array_equal(actual, expected, strict=True)
+        from hexrd.core.extensions import transforms as native
+
+        shapes = np.array([[3, 2, 2], [3, 1, 2]])
+        actual = StreamingView(view, partial).extract(
+            ids, offsets, rows, cols, shapes, 0
+        )
+        frames = native._SparseFrames([whole.frame(reader, i) for i in range(5)])
+        pixels = frames.view(*view.roi).gather(view.mapping[ids], offsets, rows, cols)
+        assert_stats_equal(actual, pixels, shapes)
     finally:
         partial.close()
         whole.close()
@@ -207,11 +221,16 @@ def test_reads_follow_file_offsets_instead_of_omega_order(tmp_path):
 
     reader.sample_pixels = record
     try:
-        actual = StreamingView(View(reader), cache).gather(
-            np.array([[0, 1, 2, 3, 4]]), np.array([0, 1]), np.array([4]), np.array([9])
+        actual = StreamingView(View(reader), cache).extract(
+            np.array([[0, 1, 2, 3, 4]]),
+            np.array([0, 1]),
+            np.array([4]),
+            np.array([9]),
+            np.array([[5, 1, 1]]),
+            0,
         )
         assert seen == [2, 0, 3, 1, 4]
-        np.testing.assert_array_equal(actual, [7.0, 7.0, 7.0, 7.0, 0.0])
+        assert_stats_equal(actual, [7.0, 7.0, 7.0, 7.0, 0.0], np.array([[5, 1, 1]]))
     finally:
         cache.close()
 

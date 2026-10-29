@@ -184,7 +184,6 @@ def test_source_coordinates_are_prepared_once_even_after_rejected_group():
 
 
 def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
-    from hexrd.hedm._staged_spots import _DeferredView
     from hexrd.hedm._image_cache import StreamingView
 
     class Reader:
@@ -196,14 +195,15 @@ def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
     cache = FrameCache(0)
     reader = Reader()
     plan = MeasurementPlan(None, None)
-    _DeferredView(plan, StreamingView(View(reader), cache)).extract(
-        np.array([[0, 1], [2, 3]]),
-        np.array([0, 4, 8]),
-        np.tile([0, 0, 1, 1], 2),
-        np.tile([0, 1, 0, 1], 2),
-        np.array([[2, 2, 2], [2, 2, 2]]),
-        0,
-    )
+    with plan._context():
+        StreamingView(View(reader), cache).extract(
+            np.array([[0, 1], [2, 3]]),
+            np.array([0, 4, 8]),
+            np.tile([0, 0, 1, 1], 2),
+            np.tile([0, 1, 0, 1], 2),
+            np.array([[2, 2, 2], [2, 2, 2]]),
+            0,
+        )
     group = MeasurementGroup(16 * 1024**2)
     assert group.add(plan)
     # The windows are disjoint in omega order, but overlap in file order.
@@ -249,7 +249,6 @@ def test_captured_panel_results_do_not_repeat_geometry_and_number_bad_peaks(pack
 
 
 def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
-    from hexrd.hedm._staged_spots import _DeferredView
     from hexrd.hedm._image_cache import StreamingView
 
     class Reader:
@@ -261,14 +260,15 @@ def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
     cache = FrameCache(0)
     view = StreamingView(View(Reader(), dense=True), cache)
     plan = MeasurementPlan(None, None)
-    _DeferredView(plan, view).extract(
-        np.array([[0, 1, 2]]),
-        np.array([0, 9]),
-        np.repeat(np.arange(3), 3),
-        np.tile(np.arange(3), 3),
-        np.array([[3, 3, 3]]),
-        0.5,
-    )
+    with plan._context():
+        view.extract(
+            np.array([[0, 1, 2]]),
+            np.array([0, 9]),
+            np.repeat(np.arange(3), 3),
+            np.tile(np.arange(3), 3),
+            np.array([[3, 3, 3]]),
+            0.5,
+        )
     assert not MeasurementGroup(100).add(plan)
     group = MeasurementGroup(1024**2)
     assert group.add(plan)
@@ -289,7 +289,6 @@ def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
 
 
 def test_planning_copies_window_coordinates_without_replaying_extraction():
-    from hexrd.hedm._staged_spots import _DeferredView
 
     class Reader:
         dtype, shape, nframes = np.dtype('f8'), (2, 2), 2
@@ -297,16 +296,17 @@ def test_planning_copies_window_coordinates_without_replaying_extraction():
     from hexrd.hedm._image_cache import StreamingView
 
     plan = MeasurementPlan(None, None)
-    deferred = _DeferredView(plan, StreamingView(View(Reader()), FrameCache(0)))
+    deferred = StreamingView(View(Reader()), FrameCache(0))
     rows = np.array([0])
-    stats = deferred.extract(
-        np.array([[0, 1]]),
-        np.array([0, 1]),
-        rows,
-        np.array([0]),
-        np.array([[2, 1, 1]]),
-        10.0,
-    )
+    with plan._context():
+        stats = deferred.extract(
+            np.array([[0, 1]]),
+            np.array([0, 1]),
+            rows,
+            np.array([0]),
+            np.array([[2, 1, 1]]),
+            10.0,
+        )
     rows[0] = 1
     assert plan.windows[0].rows[0] == 0
     plan.fallback_result = stats
@@ -483,7 +483,6 @@ def test_invalid_measurement_mode_is_rejected():
 
 
 def test_single_grain_geometry_overflow_uses_exact_bounded_fallback():
-    from hexrd.hedm._staged_spots import _DeferredView
     from hexrd.hedm._image_cache import StreamingView
 
     class Source:
@@ -496,11 +495,11 @@ def test_single_grain_geometry_overflow_uses_exact_bounded_fallback():
 
     class Instrument:
         def pull_spots(self):
-            from hexrd.core.instrument._spotutils import _extraction_context
+            from hexrd.hedm._staged_spots import _extraction_context
 
             context = _extraction_context.get()
             view = (
-                _DeferredView(context, StreamingView(View(source), FrameCache(0)))
+                StreamingView(View(source), FrameCache(0))
                 if context is not None
                 else source
             )
@@ -606,16 +605,18 @@ def test_shared_roi_preserves_sparse_zero_conversion(dense):
     try:
         expected = crop[0]
         expected = expected.toarray() if sparse.issparse(expected) else expected
-        rows, cols = np.indices(crop.shape)
-        actual = (
-            sparse_frame_view(crop)
-            .gather(
-                np.array([[0]]), np.array([0, rows.size]), rows.ravel(), cols.ravel()
+        from hexrd.core.extensions import transforms as native
+
+        shape = np.array([[1, 1, 1]])
+        offsets = np.array([0, 1])
+        with np.errstate(invalid='ignore'):
+            actual = sparse_frame_view(crop).extract(
+                np.array([[0]]), offsets, np.array([1]), np.array([1]), shape, -1
             )
-            .reshape(crop.shape)
-        )
-        np.testing.assert_array_equal(actual, expected, strict=True)
-        np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
+            wanted = native._spotStats(expected[1:2, 1:2].ravel(), offsets, shape, -1)
+        for found, reference in zip(actual, wanted):
+            np.testing.assert_array_equal(found, reference, strict=True)
+            np.testing.assert_array_equal(np.signbit(found), np.signbit(reference))
     finally:
         cache.close()
         clear_sparse_frame_views()

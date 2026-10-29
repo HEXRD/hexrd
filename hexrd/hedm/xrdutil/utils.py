@@ -959,30 +959,6 @@ def make_reflection_patches(
             start = stop
         return
 
-    def project_patches(patches):
-        # Bound temporary storage while amortizing transform dispatch and
-        # sparse-index grid construction over several reflections.
-        xy = project(np.vstack([patch[1] for patch in patches]))
-        rows = gutil.cellIndices(row_edges, xy[:, 1])
-        cols = gutil.cellIndices(col_edges, xy[:, 0])
-        first = 0
-        for vertex_angles, sample_angles, shape in patches:
-            stop = first + len(sample_angles)
-            yield (
-                (
-                    vertex_angles[:, 0].reshape(shape[0] + 1, shape[1] + 1),
-                    vertex_angles[:, 1].reshape(shape[0] + 1, shape[1] + 1),
-                ),
-                None,
-                None,
-                None,
-                (xy[first:stop, 0].reshape(shape), xy[first:stop, 1].reshape(shape)),
-                (rows[first:stop].reshape(shape), cols[first:stop].reshape(shape)),
-            )
-            first = stop
-
-    pending = []
-    pending_points = 0
     for angs, pix in zip(full_angs, ang_pixel_size):
         # calculate bin edges for patch based on local angular pixel size
         # tth
@@ -1020,23 +996,6 @@ def make_reflection_patches(
 
         gVec_angs = np.hstack([tth_eta_cen, np.tile(angs[2], (len(tth_eta_cen), 1))])
 
-        if not full_output and len(gVec_angs) % 8 == 0:
-            # Preserve alignment for native SIMD groups of 2, 4, or 8 doubles.
-            # Other grids retain their original scalar tails, which can have
-            # different rounding from the SIMD trig kernels.
-            pending.append((gVec_angs_vtx, gVec_angs, (netas, ntths)))
-            pending_points += len(gVec_angs)
-            if len(pending) >= 32 or pending_points >= 65536:
-                yield from project_patches(pending)
-                pending = []
-                pending_points = 0
-            continue
-
-        if pending:
-            yield from project_patches(pending)
-            pending = []
-            pending_points = 0
-
         xy_eval = project(gVec_angs)
 
         row_indices = gutil.cellIndices(row_edges, xy_eval[:, 1])
@@ -1061,9 +1020,6 @@ def make_reflection_patches(
                 ),
             )
         )
-
-    if pending:
-        yield from project_patches(pending)
 
 
 def extract_detector_transformation(

@@ -6,14 +6,16 @@ kernel then produces its measurements. Global detector centroids are not used.
 """
 
 from contextlib import contextmanager, nullcontext
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 import numpy as np
 
-from hexrd.core.instrument._spotutils import _extraction_context
 from hexrd.hedm._fit_progress import current_reporter, set_reporter
 from hexrd.hedm._image_cache import FrameSampler, StreamingView
 from hexrd.hedm._progress import check_cancelled
+
+_extraction_context = ContextVar('spot_extraction_context', default=None)
 
 
 class StagedCancelled(Exception):
@@ -55,42 +57,34 @@ class Window:
     def bytes(self):
         return self.rows.size * self.frames.size * self.view.dtype.itemsize
 
-    def request(self):
-        return (
-            self.rows,
-            self.cols,
-            self.shape,
-            self.threshold,
-            self.stats,
-            self.view.view.dense,
-        )
-
-
-class _DeferredView:
-    def __init__(self, context, original):
-        self.context, self.original, self.dtype = context, original, original.dtype
-
-    def defer_result(self, finish, size):
-        from hexrd.core.instrument._spotutils import _DeferredSpotData
-
-        context = self.context
-        if context.max_bytes is not None and context.bytes + size > context.max_bytes:
-            raise _PlanTooLarge()
-        context.bytes += size
-        return _DeferredSpotData(finish)
-
-    def extract(self, frames, offsets, rows, cols, shapes, threshold):
+    @classmethod
+    def capture(cls, original, frames, offsets, rows, cols, shapes, threshold):
         check_cancelled()
-        context = self.context
         n = len(shapes)
-        sum_dtype = np.empty(0, dtype=self.dtype).sum().dtype
+        if (
+            frames.ndim != 2
+            or frames.shape[0] != n
+            or shapes.shape != (n, 3)
+            or offsets.shape != (n + 1,)
+            or rows.ndim != 1
+            or cols.ndim != 1
+            or offsets[0] != 0
+            or offsets[-1] != len(rows)
+            or len(rows) != len(cols)
+            or np.any(shapes <= 0)
+            or np.any(shapes[:, 0] != frames.shape[1])
+            or np.any(shapes[:, 1:] > len(rows))
+            or np.any(np.diff(offsets) != np.prod(shapes[:, 1:], axis=1))
+        ):
+            raise ValueError('invalid window dimensions')
+        sum_dtype = np.empty(0, dtype=original.dtype).sum().dtype
         stats = (
             np.zeros((n, 3)),
             np.zeros(n, dtype=sum_dtype),
-            np.zeros(n, dtype=self.dtype),
+            np.zeros(n, dtype=original.dtype),
             np.zeros(n, dtype=bool),
         )
-        view = self.original.view
+        view = original.view
         rows = np.asarray(rows, dtype='i8').clip(0, view.shape[0] - 1)
         cols = np.asarray(cols, dtype='i8').clip(0, view.shape[1] - 1)
         if view.roi is not None:
@@ -106,12 +100,9 @@ class _DeferredView:
         actual[actual < 0] += view.reader.nframes
         shapes = shapes.copy()
         size = 2048 + sum(a.nbytes for a in (actual, rows, cols, shapes, *stats))
-        if context.max_bytes is not None and context.bytes + size > context.max_bytes:
-            raise _PlanTooLarge()
-        context.bytes += size
-        context.windows.extend(
-            Window(
-                self.original,
+        windows = [
+            cls(
+                original,
                 actual[i],
                 rows[first:last],
                 cols[first:last],
@@ -120,8 +111,8 @@ class _DeferredView:
                 tuple(a[i : i + 1] for a in stats),
             )
             for i, (first, last) in enumerate(zip(offsets[:-1], offsets[1:]))
-        )
-        return stats
+        ]
+        return windows, stats, size
 
 
 class MeasurementPlan:
@@ -130,8 +121,20 @@ class MeasurementPlan:
         self.windows = []
         self.max_bytes, self.bytes = max_bytes, 0
 
-    def wrap(self, view):
-        return _DeferredView(self, view) if isinstance(view, StreamingView) else view
+    def _reserve(self, size):
+        if self.max_bytes is not None and self.bytes + size > self.max_bytes:
+            raise _PlanTooLarge()
+        self.bytes += size
+
+    def capture(self, windows, size):
+        self._reserve(size)
+        self.windows.extend(windows)
+
+    def defer_result(self, finish, size):
+        from hexrd.core.instrument._spotutils import _DeferredSpotData
+
+        self._reserve(size)
+        return _DeferredSpotData(finish)
 
     @contextmanager
     def _context(self):
@@ -264,56 +267,119 @@ class MeasurementGroup:
         return True
 
     def measure(self, cache, cancel=check_cancelled):
+        cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
+        cache.metadata_limit = cache.max_bytes // 2
         try:
-            self._measure(cache, cancel)
+            self.frame_visits += measure_windows(
+                self.windows, cache, cancel, self.frame_ranks
+            )
         finally:
             cache.clear_payload()
 
-    def _measure(self, cache, cancel):
-        readers = {}
-        for p in self.windows:
-            readers.setdefault(p.reader, []).append(p)
-        reporter = current_reporter()
-        for reader, items in readers.items():
-            cancel()
-            events = np.empty((sum(len(p.frames) for p in items), 3), dtype='i8')
-            cursor = 0
-            for index, p in enumerate(items):
-                end = cursor + len(p.frames)
-                events[cursor:end, 0] = p.frames
-                events[cursor:end, 1] = index
-                events[cursor:end, 2] = np.arange(len(p.frames))
-                cursor = end
-            ranks = self.frame_ranks.get(reader)
-            positions = ranks[events[:, 0]] if ranks is not None else events[:, 0]
-            order = np.argsort(positions, kind='stable')
-            events = events[order]
-            del order
-            edges = np.r_[0, np.flatnonzero(np.diff(events[:, 0])) + 1, len(events)]
-            if reporter is not None:
-                reporter.batch(len(edges) - 1)
-            prefetch = getattr(reader, 'prefetch_frame_indexes', None)
-            with prefetch(events[edges[:-1], 0], cache) if prefetch else nullcontext():
-                self.frame_visits += self._measure_windows(
-                    reader, items, events, cache, cancel, reporter
-                )
 
-    def _measure_windows(self, reader, items, events, cache, cancel, reporter):
-        from hexrd.core.extensions import transforms as native
+def _tiles(events, items):
+    """Bound coordinates and sampled values to 65,536 pixels per read."""
+    event = offset = 0
+    while event < len(events):
+        pieces, total = [], 0
+        while event < len(events) and total < 65536:
+            _, index, omega = events[event]
+            stop = min(items[index].rows.size, offset + 65536 - total)
+            pieces.append((index, omega, offset, stop))
+            total += stop - offset
+            offset = stop
+            if stop == items[index].rows.size:
+                event += 1
+                offset = 0
+        yield pieces
 
-        dtype = items[0].view.dtype
-        requests = [window.request() for window in items]
-        cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
-        cache.metadata_limit = cache.max_bytes // 2
-        sample = FrameSampler(reader, cache)
 
-        def tick(completed):
-            if reporter is not None:
-                if completed:
-                    reporter.phase('Segmenting peak windows')
-                reporter.sampled_frame()
+def measure_windows(windows, cache, cancel=check_cancelled, frame_ranks=None):
+    """One bounded coordinator for both immediate and staged extraction."""
+    from hexrd.core.extensions import transforms as native
 
-        return native._measureWindows(requests, events, dtype, sample, cancel, tick)
+    readers, visits = {}, 0
+    for window in windows:
+        readers.setdefault(window.reader, []).append(window)
+    reporter = current_reporter()
+    for reader, items in readers.items():
+        cancel()
+        events = np.empty((sum(len(w.frames) for w in items), 3), dtype='i8')
+        cursor = 0
+        for index, w in enumerate(items):
+            if index % 64 == 0:
+                cancel()
+            stop = cursor + len(w.frames)
+            events[cursor:stop, 0] = w.frames
+            events[cursor:stop, 1] = index
+            events[cursor:stop, 2] = np.arange(len(w.frames))
+            cursor = stop
+        ranks = (frame_ranks or {}).get(reader)
+        positions = ranks[events[:, 0]] if ranks is not None else events[:, 0]
+        if frame_ranks is None and hasattr(reader, 'read_positions'):
+            physical = reader.read_positions(events[:, 0], cache)
+            if physical is not None:
+                positions = physical
+        events = events[np.lexsort((events[:, 0], positions))]
+        edges = np.r_[0, np.flatnonzero(np.diff(events[:, 0])) + 1, len(events)]
+        if reporter is not None:
+            reporter.batch(len(edges) - 1)
+        prefetch = getattr(reader, 'prefetch_frame_indexes', None)
+        live, remaining = {}, [len(w.frames) for w in items]
+        sample, dtype = FrameSampler(reader, cache), items[0].view.dtype
+        with prefetch(events[edges[:-1], 0], cache) if prefetch else nullcontext():
+            for start, stop in zip(edges[:-1], edges[1:]):
+                cancel()
+                completed = False
+                for pieces in _tiles(events[start:stop], items):
+                    cancel()
+                    rows, cols = [
+                        np.concatenate(
+                            [getattr(items[i], axis)[lo:hi] for i, _, lo, hi in pieces],
+                            dtype='i8',
+                        )
+                        for axis in ('rows', 'cols')
+                    ]
+                    values = sample(int(events[start, 0]), rows, cols)
+                    if values.shape != rows.shape or values.dtype != dtype:
+                        raise ValueError(
+                            'sampled pixels do not match image shape/dtype'
+                        )
+                    cursor = 0
+                    for index, omega, lo, hi in pieces:
+                        w = items[index]
+                        if index not in live:
+                            live[index] = np.empty(
+                                (len(w.frames), len(w.rows)), dtype=dtype
+                            )
+                        block = live[index][omega, lo:hi]
+                        block[:] = values[cursor : cursor + hi - lo]
+                        if not w.view.view.dense and dtype.kind == 'f':
+                            block[block == 0] = 0
+                        cursor += hi - lo
+                        del block
+                        if hi == len(w.rows):
+                            remaining[index] -= 1
+                            if remaining[index] == 0:
+                                cancel()
+                                pixels = live.pop(index).ravel()
+                                stats = native._spotStats(
+                                    pixels,
+                                    np.array([0, len(pixels)], dtype='i8'),
+                                    w.shape,
+                                    w.threshold,
+                                )
+                                for dest, value in zip(w.stats, stats):
+                                    dest[:] = value
+                                del pixels, stats
+                                completed = True
+                    del rows, cols, values
+                if reporter is not None:
+                    if completed:
+                        reporter.phase('Segmenting peak windows')
+                    reporter.sampled_frame()
+                visits += 1
+    return visits
 
 
 def fit_staged(params, bar, cancel_callback=None):

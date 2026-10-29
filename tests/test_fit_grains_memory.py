@@ -173,9 +173,6 @@ def test_streaming_batches_match_native_while_holding_only_one_frame(dtype):
     ids = np.array([[0, 2, 19], [1, 1, 7]])
     rows = rng.integers(-3, 16, offsets[-1])
     cols = rng.integers(-3, 18, offsets[-1])
-    np.testing.assert_array_equal(
-        lazy.gather(ids, offsets, rows, cols), eager.gather(ids, offsets, rows, cols)
-    )
     for threshold in (-1, 0, 75, 110):
         for actual, expected in zip(
             lazy.extract(ids, offsets, rows, cols, shapes, threshold),

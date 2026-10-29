@@ -6,84 +6,78 @@ coordinates; every missing pixel still comes from the original image reader.
 """
 
 from collections import OrderedDict
+from dataclasses import dataclass
 
 import numpy as np
 
 
+@dataclass
+class _Entry:
+    keytype: np.dtype
+    valuetype: np.dtype
+    count: int
+    keys: bytes
+    values: bytes
+
+    @property
+    def size(self):
+        return 1024 + len(self.keys) + len(self.values)
+
+
+def _codec():
+    from hexrd.core.extensions import transforms as native
+    from hexrd.hedm._chunk_io import _blosc
+
+    kind = getattr(native, '_BloscReader', None)
+    try:
+        lib = _blosc() if kind is not None else None
+    except (ImportError, OSError):
+        return None
+    return kind(lib) if lib is not None and hasattr(lib, 'blosc_compress_ctx') else None
+
+
 class PixelCache:
-    def __init__(self, *, compress=True, compression_min_bytes=32 * 1024**2):
+    def __init__(self):
         self.max_bytes = self.bytes = self.peak_bytes = 0
         self.hits = self.queries = 0
         self.frames = OrderedDict()
-        self.compress = compress
-        self.compression_min_bytes = compression_min_bytes
-        self.packing = False
-        self._codec = None
-        self._codec_unavailable = False
+        self.codec = _codec()
         self._decoded_source = self._decoded = None
 
-    def _drop_decoded(self):
-        self._decoded_source = self._decoded = None
+    def _encode(self, array):
+        return (
+            self.codec.encode(np.ascontiguousarray(array))
+            if self.codec is not None
+            else array.tobytes()
+        )
 
-    def _arrays(self, item):
-        if item[1] is not None:
-            return item
-        if self._decoded_source is not item[0]:
-            self._drop_decoded()
-            keys, values = item[0].restore()
-            self._decoded_source = item[0]
-            self._decoded = keys, values, 1024 + keys.nbytes + values.nbytes
+    def _decode(self, blob, dtype, count):
+        return (
+            self.codec.decode(blob, dtype, count)
+            if self.codec is not None
+            else np.frombuffer(blob, dtype=dtype, count=count)
+        )
+
+    def _arrays(self, entry):
+        if self._decoded_source is not entry:
+            arrays = (
+                self._decode(entry.keys, entry.keytype, entry.count),
+                self._decode(entry.values, entry.valuetype, entry.count),
+                entry.size,
+            )
+            self._decoded_source, self._decoded = entry, arrays
         return self._decoded
 
-    def _enable_packing(self):
-        if (
-            self.packing
-            or not self.compress
-            or self.max_bytes < self.compression_min_bytes
-        ):
-            return
-        from hexrd.core.extensions import transforms as native
-        from hexrd.hedm._chunk_io import _blosc
-        from hexrd.hedm._progress import check_cancelled
-
-        kind = getattr(native, '_BloscReader', None)
-        if self._codec_unavailable:
-            return
-        if kind is None:
-            self._codec_unavailable = True
-            return
-        library = _blosc()
-        if library is None or not hasattr(library, 'blosc_compress_ctx'):
-            self._codec_unavailable = True
-            return
-        self._codec = kind(library)
-        self.packing = True
-        # Snapshot keys only: retaining all old tuples would keep the entire
-        # raw catalogue alive while constructing its compressed replacement.
-        for key in list(self.frames):
-            check_cancelled()
-            item = self.frames[key]
-            if item[1] is not None:
-                packed = self._codec.pack_pixels(item[0], item[1])
-                if packed is not None and packed.storage_bytes < item[2]:
-                    self.frames[key] = packed, None, packed.storage_bytes
-                    self.bytes -= item[2] - packed.storage_bytes
-
     def set_limit(self, limit):
-        self._drop_decoded()
+        self._decoded_source = self._decoded = None
         self.max_bytes = max(0, int(limit))
-        if self.bytes > self.max_bytes:
-            self._enable_packing()
         while self.bytes > self.max_bytes:
-            _, (_, _, size) = self.frames.popitem(last=False)
-            self.bytes -= size
+            self.bytes -= self.frames.popitem(last=False)[1].size
 
     def clear(self):
-        self._drop_decoded()
+        self._decoded_source = self._decoded = None
         self.frames.clear()
         self.bytes = 0
-        self._codec = None
-        self.packing = False
 
     def query(self, reader, frame, rows, cols):
         from hexrd.core.extensions import transforms as native
@@ -115,11 +109,9 @@ class PixelCache:
         unique, incoming = keys, values
         if incoming.dtype != reader.dtype:
             incoming = incoming.astype(reader.dtype)
-        if self.bytes + unique.nbytes + incoming.nbytes + 1024 > self.max_bytes:
-            self._enable_packing()
         old = self.frames.pop(key, None)
         if old is not None:
-            self.bytes -= old[2]
+            self.bytes -= old.size
             old_keys, old_values, _ = self._arrays(old)
             from hexrd.core.extensions import transforms as native
 
@@ -127,29 +119,27 @@ class PixelCache:
                 old_keys, old_values, unique, incoming
             )
         else:
-            joined, output = unique.copy(), incoming.copy()
-        joined.flags.writeable = output.flags.writeable = False
-        size = 1024 + joined.nbytes + len(joined) * reader.dtype.itemsize
-        item = joined, output, size
-        if self.packing:
-            packed = self._codec.pack_pixels(joined, output)
-            if packed is not None and packed.storage_bytes < size:
-                size = packed.storage_bytes
-                item = packed, None, size
-        self._drop_decoded()
-        if size > self.max_bytes:
+            joined, output = unique, incoming
+        keys_blob, values_blob = self._encode(joined), self._encode(output)
+        item = (
+            _Entry(joined.dtype, output.dtype, len(joined), keys_blob, values_blob)
+            if keys_blob is not None and values_blob is not None
+            else None
+        )
+        self._decoded_source = self._decoded = None
+        if item is None or item.size > self.max_bytes:
             if old is not None:
                 self.frames[key] = old
-                self.bytes += old[2]
+                self.bytes += old.size
             return
+        size = item.size
         # Keep a useful subset of source frames when a scan exceeds capacity.
         # Cycling every frame through an LRU would evict the entire previous
         # pass just before it could be reused on a large scan.
         if old is None and self.bytes + size > self.max_bytes:
             return
         while self.bytes + size > self.max_bytes:
-            _, (_, _, removed) = self.frames.popitem(last=False)
-            self.bytes -= removed
+            self.bytes -= self.frames.popitem(last=False)[1].size
         self.frames[key] = item
         self.bytes += size
         self.peak_bytes = max(self.peak_bytes, self.bytes)

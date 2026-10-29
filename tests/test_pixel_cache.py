@@ -26,7 +26,14 @@ def read_cached(cache, reader, frame, keys):
 
 
 @pytest.mark.parametrize('dtype', ['i2', 'u2', 'f4', 'f8'])
-def test_pixels_reused_in_original_order_with_exact_float_bits(dtype):
+@pytest.mark.parametrize('compressed', [False, True])
+def test_pixels_reused_in_original_order_with_exact_float_bits(
+    dtype, compressed, monkeypatch
+):
+    if not compressed:
+        from hexrd.hedm import _pixel_cache
+
+        monkeypatch.setattr(_pixel_cache, '_codec', lambda: None)
     reader = source(dtype)
     cache = PixelCache()
     cache.set_limit(8192)
@@ -35,6 +42,8 @@ def test_pixels_reused_in_original_order_with_exact_float_bits(dtype):
     values[2] = values[0]
     if reader.dtype.kind == 'f':
         values[:] = [-0.0, np.nan, -0.0, np.inf, -np.inf]
+        if reader.dtype == np.dtype('f8'):
+            values.view('u8')[1] = 0x7FF8000000001234
     unique, indices = np.unique(keys, return_index=True)
     cache.remember(reader, 0, unique, values[indices])
     selected = np.array([3, 7, 2, 1, 7, 9], dtype='u4')
@@ -46,8 +55,8 @@ def test_pixels_reused_in_original_order_with_exact_float_bits(dtype):
     found, actual = read_cached(cache, reader, 0, selected)
     assert found.all() and actual[2] == 8
     assert cache.bytes <= cache.max_bytes
-    assert not cache.frames[reader, 0][0].flags.writeable
-    assert not cache.frames[reader, 0][1].flags.writeable
+    keys, values, _ = cache._arrays(cache.frames[reader, 0])
+    assert not keys.flags.writeable and not values.flags.writeable
     # Separate source identities and frames can never share measurements.
     assert not read_cached(cache, source(dtype), 0, selected)[0].any()
     assert not read_cached(cache, reader, 1, selected)[0].any()
@@ -116,7 +125,7 @@ def test_native_query_rejects_invalid_coordinates_and_handles_empty_input():
 def test_capacity_does_not_thrash_frames_before_next_tolerance_pass():
     reader = source()
     cache = PixelCache()
-    cache.set_limit(2200)
+    cache.set_limit(2300)
     keys, values = np.arange(4, dtype='u4'), np.arange(4, dtype='f8')
     cache.remember(reader, 0, keys, values)
     cache.remember(reader, 1, keys, values)
@@ -125,8 +134,8 @@ def test_capacity_does_not_thrash_frames_before_next_tolerance_pass():
         assert cache.bytes <= cache.max_bytes
     assert read_cached(cache, reader, 0, keys)[0].all()
     assert read_cached(cache, reader, 1, keys)[0].all()
-    cache.set_limit(1100)
-    assert len(cache.frames) == 1 and cache.bytes <= 1100
+    cache.set_limit(1150)
+    assert len(cache.frames) == 1 and cache.bytes <= 1150
     cache.set_limit(0)
     assert cache.bytes == 0 and not cache.frames
 
@@ -255,3 +264,82 @@ def test_native_query_scatter_matches_numpy_at_tile_limit(count, distinct, shape
     cached = cache.query(reader, 0, rows[::-1], cols[::-1])
     assert cached.missing_count == 0
     assert cached.finish().tobytes() == expected[::-1].tobytes()
+
+
+def test_sorted_admission_owns_buffers_and_matches_generic_merge():
+    reader = source(shape=(1, 65536))
+    cache = PixelCache()
+    cache.set_limit(60000)
+    keys = np.arange(4096, dtype='u4')
+    values = keys.astype('f8')
+    expected = values.copy()
+    cache.remember(reader, 0, keys, values)
+    keys[:] = 0
+    values[:] = -1
+    found, actual = read_cached(cache, reader, 0, np.arange(4096, dtype='u4'))
+    assert found.all() and actual.tobytes() == expected.tobytes()
+    cache.remember(
+        reader,
+        0,
+        np.array([42, 4096], dtype='u4'),
+        np.array([-0.0, np.nan]),
+    )
+    expected[42] = -0.0
+    expected = np.r_[expected, np.nan]
+    found, actual = read_cached(cache, reader, 0, np.arange(4097, dtype='u4'))
+    assert found.all() and actual.tobytes() == expected.tobytes()
+    assert cache.bytes <= cache.max_bytes
+
+
+@pytest.mark.parametrize('dtype', ['u8', 'f4', 'f8'])
+def test_native_sorted_merge_matches_original_overwrite_bits(dtype):
+    from hexrd.core.extensions import transforms as native
+
+    keys_a = np.array([0, 1, 5, 6], dtype='u4')
+    keys_b = np.array([1, 3, 6], dtype='u8')
+    a = np.array([3, 4, 5, 6], dtype=dtype)
+    b = np.array([7, 8, 9], dtype=dtype)
+    if a.dtype.kind == 'f':
+        a[0] = -0.0
+        b[:] = [np.nan, np.inf, -np.inf]
+    else:
+        a += np.uint64(2**63)
+        b += np.uint64(2**63)
+    keys, values = native._mergePixelEntries(keys_a, a, keys_b, b)
+    np.testing.assert_array_equal(
+        keys, np.array([0, 1, 3, 5, 6], dtype='u8'), strict=True
+    )
+    assert (
+        values.tobytes()
+        == np.array([a[0], b[0], b[1], a[2], b[2]], dtype=dtype).tobytes()
+    )
+
+
+@pytest.mark.parametrize('compressed', [False, True])
+def test_strided_input_entries_keep_exact_values(compressed, monkeypatch):
+    if not compressed:
+        from hexrd.hedm import _pixel_cache
+
+        monkeypatch.setattr(_pixel_cache, '_codec', lambda: None)
+    reader = source(shape=(1, 128))
+    cache = PixelCache()
+    cache.set_limit(8192)
+    keys, values = np.arange(64, dtype='u4')[::2], np.arange(64, dtype='f8')[::2]
+    cache.remember(reader, 0, keys, values)
+    found, actual = read_cached(cache, reader, 0, keys)
+    assert found.all() and actual.tobytes() == values.tobytes()
+
+
+def test_array_codec_checks_types_sizes_and_corrupt_input():
+    codec = PixelCache().codec
+    if codec is None:
+        pytest.skip('native Blosc codec is optional')
+    assert codec.encode(np.array([object()])) is None
+    assert codec.encode(np.zeros(1024**2 + 1, dtype='u1')) is None
+    assert codec.encode(np.arange(12, dtype='f8')[::2]) is None
+    with pytest.raises(ValueError, match='dtype'):
+        codec.decode(b'invalid', np.dtype('O'), 1)
+    with pytest.raises(ValueError, match='dimensions'):
+        codec.decode(b'invalid', np.dtype('f8'), 1024**2)
+    with pytest.raises(RuntimeError, match='data'):
+        codec.decode(b'invalid', np.dtype('f8'), 1)

@@ -57,19 +57,21 @@ omega order, 26-neighbor connectivity, component selection, centroid arithmetic
 and optimizer behavior. Detector-space centroids alone are not equivalent to
 these measurements; the unused standalone centroid experiments have been removed.
 
-The planner captures one immutable set of source coordinates per window, with
-its frame IDs, shape and statistics destinations. The native extension measures
-those windows directly; there are no separate batch and patch models.
-Compatible NumPy buffers are borrowed.
+Both measurement modes use one coordinator and one window model, containing
+source coordinates, frame IDs, shape and statistics destinations. Reads are
+split into at most 65,536 pixels. The coordinator releases completed windows
+and calls the unchanged native statistics kernel.
 Fallbacks remain for supported formats, noncanonical sparse data, numerical
 ranges and user-provided geometry that require the reference implementation.
 Use the Python code and native extension from the same branch; earlier native
 I/O APIs are not supported.
 
 Exact source pixels can be reused across fitting passes. A byte-bounded cache
-keys entries by source frame and integer detector coordinates. Under pressure,
-C-Blosc compresses entries losslessly in RAM; each compressed entry decodes to
-at most 1 MiB. Unsupported codecs retain raw entries within the same allowance.
+keys entries by source frame and integer detector coordinates. Entries are
+immutable byte blocks, optionally compressed losslessly with C-Blosc. Resizing
+the cache evicts entries without migrating their representation. Each compressed
+array decodes to at most 1 MiB; one decoded key/value pair is memoized. Without
+the native codec, entries use raw byte blocks within the same allowance.
 All pixel-cache requests use the native query path. Unsupported requests bypass
 the cache and use the regular reader. HDF5 fallback sampling uses one chunk
 accessor and releases its borrowed chunk on completion or cancellation.
@@ -131,5 +133,5 @@ stayed below 1.09 GiB. These are not speed comparisons with master. Full
 
 [Validation evidence](fit-grains-validation.json) records reference commits,
 configuration fingerprints, guarded timings and the cleanup checks. Earlier
-validation records remain in git history at `203808c8`; experiment reports and
+validation records remain in git history at `c6faf32d`; experiment reports and
 raw measurements are also available at `42f7623e`.

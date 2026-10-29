@@ -47,7 +47,6 @@ class RowIndexes;
 
 class BloscReader {
   friend class RowIndexes;
-  friend class PackedPixels;
   friend class FrameSampler;
 #ifndef _WIN32
   std::shared_ptr<NativeChunkExecutor> executor;
@@ -59,9 +58,8 @@ class BloscReader {
   using Sizes = void (*)(const void *, size_t *, size_t *, size_t *);
   using Meta = void (*)(const void *, size_t *, int *);
   using Getitem = int (*)(const void *, int, int, void *);
-  using Compress = int (*)(int, int, size_t, size_t, const void *, void *,
-                           size_t, const char *, size_t, int);
-  // Retain the owning CDLL. Calls below use only immutable C function pointers.
+  using Compress = int (*)(int, int, size_t, size_t, const void *, void *, size_t,
+                           const char *, size_t, int);
   py::object library;
   Validate validate;
   Decompress decompress;
@@ -138,8 +136,52 @@ public:
   }
 
 #ifndef _WIN32
-  py::object packPixels(py::array keys, py::array values,
-                        const std::string &algorithm) const;
+  py::object encodeArray(py::array array) const {
+    const int64_t size = array.nbytes();
+    const char kind = array.dtype().kind();
+    if (!compress || size <= 0 || size > 1024 * 1024 ||
+        !(array.flags() & py::array::c_style) ||
+        (kind != 'i' && kind != 'u' && kind != 'f'))
+      return py::none();
+    std::vector<char> buffer(size_t(size + 16));
+    const auto itemsize = array.itemsize();
+    const auto source = array.data();
+    int written;
+    {
+      py::gil_scoped_release release;
+      written = compress(1, 1, itemsize, size, source, buffer.data(),
+                         buffer.size(), "zstd", 128 * 1024, 1);
+    }
+    return written > 0 ? py::object(py::bytes(buffer.data(), written))
+                       : py::object(py::none());
+  }
+
+  py::array decodeArray(py::bytes blob, py::dtype dtype, int64_t count) const {
+    const char kind = dtype.kind();
+    const int64_t itemsize = dtype.itemsize();
+    if ((kind != 'i' && kind != 'u' && kind != 'f') || itemsize <= 0 ||
+        count <= 0 || count > 1024 * 1024 / itemsize)
+      throw py::value_error("invalid cached array dimensions or dtype");
+    char *source;
+    Py_ssize_t length;
+    if (PyBytes_AsStringAndSize(blob.ptr(), &source, &length))
+      throw py::error_already_set();
+    py::array output(dtype, std::vector<py::ssize_t>{count});
+    const auto size = output.nbytes();
+    auto target = output.mutable_data();
+    {
+      py::gil_scoped_release release;
+      size_t expected = 0;
+      if (length < 16 || validate(source, size_t(length), &expected) ||
+          expected != size_t(size) ||
+          decompress(source, target, expected, 1) != int(expected))
+        throw std::runtime_error("invalid cached array data");
+    }
+    PyArray_CLEARFLAGS(reinterpret_cast<PyArrayObject *>(output.ptr()),
+                       NPY_ARRAY_WRITEABLE);
+    return output;
+  }
+
   void configure(int count) {
     if (count < 1 || count > 8)
       throw py::value_error("native decoder workers must be between 1 and 8");
@@ -2052,10 +2094,7 @@ static py::array measuredXY(CArray<double> angles, CArray<double> rd,
   return output;
 }
 
-static py::object measureWindows(py::list, CArray<int64_t>, py::dtype,
-                                py::function, py::function, py::function);
 static void bindPixelQuery(py::module_ &);
-static void bindPackedPixels(py::module_ &);
 static void bindRowIndexes(py::module_ &);
 static py::object mergePixelEntries(py::array, py::array, py::array, py::array);
 
@@ -2068,18 +2107,16 @@ static void bind(py::module_ &m) {
 #endif
   bindPixelQuery(m);
   m.def("_mergePixelEntries", &mergePixelEntries);
-  m.def("_measureWindows", &measureWindows);
   m.def("_fch5RowOffsets", &updateRowOffsets);
 #ifndef _WIN32
-  bindPackedPixels(m);
   bindRowIndexes(m);
   py::class_<BloscReader>(m, "_BloscReader")
       .def(py::init<py::object>())
       .def("configure", &BloscReader::configure)
+      .def("encode", &BloscReader::encodeArray)
+      .def("decode", &BloscReader::decodeArray)
       .def("close", &BloscReader::close)
       .def("read_pixels", &BloscReader::readPixels)
-      .def("pack_pixels", &BloscReader::packPixels, py::arg("keys"),
-           py::arg("values"), py::arg("algorithm") = "zstd")
       .def("read_rows", &BloscReader::readRows)
       .def("prefetch_rows", &BloscReader::prefetchRows);
 #endif
@@ -2117,8 +2154,6 @@ static void bind(py::module_ &m) {
 
 #ifndef _WIN32
 #include "native_frame.hpp"
-#include "packed_pixels.hpp"
 #endif
-#include "window_measurement.hpp"
 #include "pixel_query.hpp"
 #include "pixel_merge.hpp"

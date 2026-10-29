@@ -88,7 +88,7 @@ class FrameCache:
             if store is self.metadata:
                 self.metadata_bytes -= old_size
 
-    def array(self, reader, kind, index, load, *, metadata=False):
+    def _cached(self, key, load, *, metadata=False, retain=True):
         """Cache decoded chunks and compact indexes under one byte allowance.
 
         Protect small row indexes from intensity chunk churn, with a separate
@@ -96,7 +96,6 @@ class FrameCache:
         """
         self._process()
         store = self.metadata if metadata else self.frames
-        key = (reader, kind, int(index))
         item = store.pop(key, None)
         if item is not None:
             self.hits += 1
@@ -104,7 +103,8 @@ class FrameCache:
             return item[0]
         self.misses += 1
         value = load()
-        value.flags.writeable = False
+        if not retain:
+            return value
         size = frame_bytes(value)
         quota = min(
             self.max_bytes - self.reserved_bytes,
@@ -130,40 +130,32 @@ class FrameCache:
             self.peak_bytes = max(self.peak_bytes, self.bytes)
         return value
 
+    def array(self, reader, kind, index, load, *, metadata=False):
+        value = self._cached((reader, kind, int(index)), load, metadata=metadata)
+        value.flags.writeable = False
+        return value
+
     def frame(self, reader, index):
-        self._process()
         index = int(index)
         if index < 0:
             index += reader.nframes
         if not 0 <= index < reader.nframes:
             raise IndexError('image frame index out of bounds')
-        key = (reader, index)
-        reporter = current_reporter()
-        item = self.frames.pop(key, None)
-        if item is not None:
-            self.hits += 1
-            self.frames[key] = item
-            return item[0]
-        self.misses += 1
-        # Processed frames may recursively load their source. Count source
-        # reads once, rather than counting the processing result as disk I/O.
-        track_read = (
-            reporter is not None
-            and not reader.resident
-            and not isinstance(reader, ProcessedReader)
-        )
-        if track_read:
-            reporter.read_started()
-        frame = reader.read(index, self)
-        if tuple(frame.shape) != tuple(reader.shape) or frame.dtype != reader.dtype:
-            raise ValueError('image frame shape/dtype differs from its metadata')
-        size = frame_bytes(frame)
-        if not reader.resident and size <= self.max_bytes - self.reserved_bytes:
-            self._evict(size)
-            self.frames[key] = (frame, size)
-            self.bytes += size
-            self.peak_bytes = max(self.peak_bytes, self.bytes)
-        return frame
+
+        def load():
+            reporter = current_reporter()
+            if (
+                reporter is not None
+                and not reader.resident
+                and not isinstance(reader, ProcessedReader)
+            ):
+                reporter.read_started()
+            frame = reader.read(index, self)
+            if tuple(frame.shape) != tuple(reader.shape) or frame.dtype != reader.dtype:
+                raise ValueError('image frame shape/dtype differs from its metadata')
+            return frame
+
+        return self._cached((reader, index), load, retain=not reader.resident)
 
     def clear_payload(self):
         self.frames.clear()
@@ -442,12 +434,12 @@ class BoundedSeries(ImageSeriesABC):
 class FrameSampler:
     """Borrow one frame across sampling tiles; release it before the next read."""
 
-    def __init__(self, reader, cache, normalize_zeros=False):
+    def __init__(self, reader, cache):
         from hexrd.core.extensions import transforms as native
         from hexrd.core.imageseries._sparse import sample_pixels
 
         self.native, self.sample_pixels = native, sample_pixels
-        self.reader, self.cache, self.normalize_zeros = reader, cache, normalize_zeros
+        self.reader, self.cache = reader, cache
         self.index = self.frame = self.sparse = None
 
     def __call__(self, index, rows, cols):
@@ -470,87 +462,36 @@ class FrameSampler:
             )
         if sparse.issparse(self.frame):
             return self.sample_pixels(self.frame, rows, cols)
-        values = self.frame[rows, cols]
-        if self.normalize_zeros:
-            values[values == 0] = 0  # Match CSR conversion of dense source frames.
-        return values
+        return self.frame[rows, cols]
 
 
 class StreamingView:
     def __init__(self, view, cache):
         self.view, self.cache, self.dtype = view, cache, view.dtype
 
-    def gather(self, frame_ids, offsets, rows, cols):
-        sample = FrameSampler(self.view.reader, self.cache, not self.view.dense)
-        frame_ids = np.asarray(frame_ids)
-        _, depth = frame_ids.shape
-        sizes = np.diff(offsets)
-        output = np.empty(int(offsets[-1]) * depth, dtype=self.dtype)
-        # Sorting source frames improves HDD locality. Each frame is released
-        # before reading the next; only sampled patch pixels span the window.
-        ordered = np.argsort(frame_ids.ravel(), kind='stable')
-        positions = getattr(self.view.reader, 'read_positions', None)
-        if positions is not None:
-            actual = frame_ids.ravel()
-            if self.view.mapping is not None:
-                actual = np.asarray(self.view.mapping)[actual]
-            positions = positions(actual, self.cache)
-            if positions is not None:
-                # Parallel FCH5 writers can store frames out of omega order.
-                # Sort physical offsets to reduce HDD seeks; scatter positions
-                # and centroid arithmetic retain the original patch order.
-                ordered = np.lexsort((frame_ids.ravel(), positions))
-        boundaries = np.flatnonzero(np.diff(frame_ids.ravel()[ordered])) + 1
-        groups = np.split(ordered, boundaries)
-        from hexrd.hedm._progress import check_cancelled
+    @property
+    def defer_result(self):
+        from hexrd.hedm._staged_spots import _extraction_context
 
-        reporter = current_reporter()
-        if reporter is not None:
-            reporter.batch(len(groups) if len(ordered) else 0)
-        for group in groups:
-            check_cancelled()
-            if not len(group):
-                continue
-            frame_id = frame_ids.ravel()[group[0]]
-            occurrences = np.column_stack(np.divmod(group, depth))
-            rr = np.concatenate(
-                [rows[offsets[p] : offsets[p + 1]] for p, k in occurrences]
-            )
-            cc = np.concatenate(
-                [cols[offsets[p] : offsets[p + 1]] for p, k in occurrences]
-            )
-            rr = rr.clip(0, self.view.shape[0] - 1)
-            cc = cc.clip(0, self.view.shape[1] - 1)
-            actual = (
-                int(self.view.mapping[frame_id])
-                if self.view.mapping is not None
-                else int(frame_id)
-            )
-            if self.view.roi is not None:
-                rr += self.view.roi[0]
-                cc += self.view.roi[1]
-            sampled = sample(actual, rr, cc)
-            cursor = 0
-            for p, k in occurrences:
-                size = int(sizes[p])
-                first = int(offsets[p]) * depth + int(k) * size
-                output[first : first + size] = sampled[cursor : cursor + size]
-                cursor += size
-            del sampled
-            if reporter is not None:
-                reporter.sampled_frame()
-        return output
+        context = _extraction_context.get()
+        return context.defer_result if context is not None else None
 
     def extract(self, frame_ids, offsets, rows, cols, shapes, threshold):
-        from hexrd.core.extensions import transforms as native
-
-        pixels = self.gather(frame_ids, offsets, rows, cols)
-        reporter = current_reporter()
-        if reporter is not None:
-            reporter.phase('Computing centroids', force=True)
-        return native._spotStats(
-            pixels, offsets * frame_ids.shape[1], shapes, threshold
+        from hexrd.hedm._staged_spots import (
+            Window,
+            measure_windows,
+            _extraction_context,
         )
+
+        windows, stats, size = Window.capture(
+            self, frame_ids, offsets, rows, cols, shapes, threshold
+        )
+        context = _extraction_context.get()
+        if context is None:
+            measure_windows(windows, self.cache)
+        else:
+            context.capture(windows, size)
+        return stats
 
 
 class _Readers:

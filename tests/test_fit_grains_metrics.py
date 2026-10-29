@@ -47,10 +47,15 @@ def test_frame_progress_is_reported_before_extraction_completes():
 
     cache = FrameCache(0)
     view = StreamingView(View(Reader()), cache)
-    result = view.gather(
-        np.arange(8).reshape(1, 8), np.array([0, 1]), np.array([1]), np.array([2])
+    result = view.extract(
+        np.arange(8).reshape(1, 8),
+        np.array([0, 1]),
+        np.array([1]),
+        np.array([2]),
+        np.array([[8, 1, 1]]),
+        0,
     )
-    np.testing.assert_array_equal(result, np.arange(1, 9))
+    assert result[1][0] == 36 and result[2][0] == 8 and result[3][0]
     snapshots = []
     while not queue.empty():
         snapshots.append(queue.get_nowait())

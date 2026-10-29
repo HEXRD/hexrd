@@ -1,28 +1,29 @@
 {
   "branch_start_commit": "925967d2",
-  "cleanup_start_commit": "203808c8",
+  "cleanup_start_commit": "c6faf32d",
   "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
-  "previous_validation_record_commit": "203808c8",
+  "previous_validation_record_commit": "c6faf32d",
   "cleanup": {
-    "python_runtime_lines_removed_net": 352,
-    "python_runtime_net_since_branch_start": 3466,
+    "python_runtime_lines_removed_net": 61,
+    "cpp_runtime_lines_removed_net": 263,
+    "python_runtime_net_since_branch_start": 3405,
     "net_negative_branch_target_met": false,
     "changes": [
-      "Share reflection conversion, fitting and chi-square calculation.",
-      "Share frame sampling and the CLI dashboard launcher.",
-      "Remove forwarding wrappers, repeated projection argument lists and placeholder documentation."
+      "One bounded window coordinator serves both measurement modes; remove the deferred-view adapter and native window module.",
+      "One immutable byte-block cache representation replaces raw/packed catalogue migration and the native packed-entry class.",
+      "Share frame/chunk/index cache lookup and eviction; remove legacy projection batching."
     ],
-    "native_binary_changed": false
+    "native_extension_rebuild_required": true
   },
-  "test_suite": {
-    "passed": 535,
-    "address_space_limit_mib": 1536,
-    "blas_and_numba_threads": 1
+  "tests": {
+    "focused_suite_passed": 528,
+    "cache_payload_cases_passed": 34,
+    "address_space_limit_mib": 1536
   },
   "dataset_policy": {
     "address_space_limit_mib": 4096,
     "fitting_processes": 1,
-    "blas_threads": 1,
+    "blas_and_numba_threads": 1,
     "runs_sequentially": true,
     "direct_fch5_reads": true,
     "image_scratch": false
@@ -53,7 +54,7 @@
       "exact_starting_commit": true,
       "master_reference": "master scientific algorithms with bounded input",
       "spot_files_byte_identical": 4,
-      "peak_rss_bytes": 870580224
+      "peak_rss_bytes": 815497216
     },
     {
       "mode": "grain",
@@ -61,100 +62,85 @@
       "exact_starting_commit": true,
       "master_reference": "master scientific algorithms with bounded input",
       "spot_files_byte_identical": 4,
-      "peak_rss_bytes": 1295839232
+      "peak_rss_bytes": 1290948608
     },
     {
       "mode": "staged",
       "grains": 52,
       "exact_starting_commit": true,
-      "master_reference": "starting commit 203808c8",
+      "master_reference": "starting commit c6faf32d",
       "spot_files_byte_identical": 52,
-      "peak_rss_bytes": 1167937536
+      "peak_rss_bytes": 1171324928
     }
   ],
   "timing_comparison": {
-    "reference_commit": "203808c8",
-    "first_runs_excluded": true,
+    "reference_commit": "c6faf32d",
+    "four_grain_staged_first_runs_excluded": true,
     "samples": {
       "staged-4": {
         "before_seconds": [
-          13.015369164990261,
-          12.502832234997186
+          12.67717278499913,
+          12.157913860006374
         ],
         "after_seconds": [
-          13.185989097997663,
-          12.565060585999163
+          13.421522276999895,
+          12.71687489800388
         ],
-        "median_time_change_percent": 0.9124792157549688
+        "median_time_change_percent": 5.247859806683519
       },
       "grain-4": {
         "before_seconds": [
-          113.06458632000431
+          109.89630143900285
         ],
         "after_seconds": [
-          114.63721611900837
+          108.38257528499526
         ],
-        "median_time_change_percent": 1.3909127961190926
+        "median_time_change_percent": -1.377413192424659
       },
       "staged-52": {
         "before_seconds": [
-          61.659310652001295
+          61.13700759000494
         ],
         "after_seconds": [
-          61.94171370800177
+          63.33589816199674
         ],
-        "median_time_change_percent": 0.45800553560244595
+        "median_time_change_percent": 3.5966604494906296
       }
     },
-    "interleaved_grain_mode": [
-      {
-        "case": "baseline-1",
-        "seconds": 40.125998539995635,
-        "cpu_seconds": 32.165276
-      },
-      {
-        "case": "candidate",
-        "seconds": 40.26699389900023,
-        "cpu_seconds": 32.0146584
-      },
-      {
-        "case": "baseline-2",
-        "seconds": 39.6751978520042,
-        "cpu_seconds": 31.7737967
-      }
-    ],
-    "interpretation": "Small timing differences do not establish zero runtime cost or a speedup; full 920-grain and remote-HDD scaling remain unmeasured."
+    "interpretation": "Measured staged slowdown accepted for reduced code debt; no claim of a speedup. Full 920-grain and remote-HDD scaling remain unmeasured.",
+    "rejected_raw_only_cache_staged_52_seconds": 68.92698475600628
   },
   "cancellation": {
     "runs": [
       {
         "method": "button",
-        "seconds_from_cancel_request_to_cleanup": 0.004243746006977744,
-        "seconds_including_simulated_ui_dispatch": 3.2999268990097335,
+        "seconds_from_cancel_request_to_cleanup": 0.0034893940028268844,
+        "seconds_including_simulated_ui_dispatch": 3.273792323001544,
         "cancelled_during_real_fch5_reads": true
       },
       {
         "method": "ctrl+c",
-        "seconds_from_cancel_request_to_cleanup": 0.0018844149890355766,
-        "seconds_including_simulated_ui_dispatch": 0.0869700260082027,
+        "seconds_from_cancel_request_to_cleanup": 0.0015843250002944842,
+        "seconds_including_simulated_ui_dispatch": 0.08866635699814651,
         "cancelled_during_real_fch5_reads": true
       }
     ],
     "address_limit_mib": 4096,
-    "peak_rss_mib": 1032.63671875
+    "peak_rss_mib": 1032.984375
   },
   "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
   "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
   "source_sha256": {
-    "hexrd/core/instrument/_spotutils.py": "3468085d9ea074dd1e7f9fc41232851bf3439953d1da6d2e708aed03df5a6285",
-    "hexrd/hedm/_image_cache.py": "ce3e3f8287995fdae8b505cedeac66a4d6a738295954d06ad3ea54d14914f357",
-    "hexrd/hedm/_progress.py": "93150a6a14376d344c732dfe9f47d6ef2d249f85d3adde88e0e8a6b351744ca4",
-    "hexrd/hedm/_staged_spots.py": "5466acf1ecfde583275ead6ca6002393779f8aefc8c1371341e6ed07c79f5f04",
-    "hexrd/hedm/cli/find_orientations.py": "15b4de8f04bdf3f89c1b7582665e3b23068d1995fadc55606cd2c5b783dffb55",
-    "hexrd/hedm/cli/fit_grains.py": "46dc48925aeeee62f4dffa4e1753f9ddec3dea7255c86410b2dd1fe67cc6cb55",
-    "hexrd/hedm/fitgrains.py": "9205afedb0831bf54a7df7c1135290d0736a9f579274e3d2e34d2e05177d5822",
-    "hexrd/hedm/fitting/grains.py": "23de54a89e11391216c74b2f1409838a0f6033d631deda01ff814e9bbc1622fe",
-    "hexrd/hedm/xrdutil/utils.py": "3d7e80f91fb53a5c4423f359f0cbc8b5899d7bebe1a5c9df0b6a6633967a8051"
+    "hexrd/core/instrument/_spotutils.py": "8c3946a6856f3cb8e5738cb138575a1c9031f39dedd52aa5bb4c63a50144eed1",
+    "hexrd/core/transforms/cpp_sublibrary/src/spot_extraction.hpp": "0df8614df75fb6fb7cf48608115ac31053c3066b3ffe98dfcbafd0a3adf325f6",
+    "hexrd/hedm/_image_cache.py": "0d7a4a4b5d58e9ce4f3823c58859be8f21c3c1656d780c350dffe81a08682927",
+    "hexrd/hedm/_pixel_cache.py": "bc2760d83e893fd2b284e35a0515210bd54043ff39d3fa6ae919d0d31a3d1220",
+    "hexrd/hedm/_staged_spots.py": "43d9ac5e4a104fd139065518bce85c2bb7b45e2b8078a3302aca8d4a32a327b8",
+    "hexrd/hedm/xrdutil/utils.py": "2ae047aa1bffb816d8ba82eed6ac8c34462cd85d2d596e264d36a38a0a603254"
   },
-  "native_extension_sha256": "30dcfedb450178adb7ae2d043b9cf67e70c94af1aa9753338a8f7fe02e809889"
+  "deleted_native_modules": [
+    "hexrd/core/transforms/cpp_sublibrary/src/packed_pixels.hpp",
+    "hexrd/core/transforms/cpp_sublibrary/src/window_measurement.hpp"
+  ],
+  "native_extension_sha256": "f5bb0930054f6ae995a6d59d1b457e6972abfd04570ae77f16fcb3f4c8fb53a2"
 }
