@@ -1,6 +1,5 @@
 """Shared Textual presentation, imported only for interactive HEDM runs."""
 
-from collections import deque
 from dataclasses import replace
 from contextvars import copy_context
 import multiprocessing as mp
@@ -132,7 +131,6 @@ class WorkflowDashboard(App):
                 yield Static('', id='detail', markup=False)
                 yield Static('', id='counts', markup=False)
                 yield ProgressBar(id='progress', show_eta=True)
-        yield from self.compose_work_metrics()
         with Horizontal(id='memory'):
             yield Static('HEXRD RAM', id='memory-label', markup=False)
             yield ProgressBar(id='memory-bar', total=100, show_eta=False)
@@ -150,9 +148,6 @@ class WorkflowDashboard(App):
             yield Button('Hide log', id='logs')
             yield Button('Cancel run', id='cancel', variant='error')
         yield Footer()
-
-    def compose_work_metrics(self):
-        return ()
 
     def on_mount(self):
         self.query_one('#workflow').border_title = 'WORKFLOW'
@@ -409,50 +404,10 @@ class FitGrainsDashboard(WorkflowDashboard):
     SUMMARY_TITLE = 'FITTING SUMMARY'
     COMPLETION_CAPTION = 'GRAINS FITTED'
     COMPLETION_KEY = 'Grains finished'
-    # Keep the shared palette and navigation while exposing fit-specific work.
     CSS = WorkflowDashboard.CSS + """
     #reflections { width: 3fr; }
     #events { width: 2fr; }
-    #fit-metrics { height: 9; margin: 0 1; border: round #24425a; padding: 0 1; }
-    .fit-metric { width: 1fr; padding: 0 1; }
-    .fit-metric Static { height: 1; color: #91a5be; }
-    .fit-metric ProgressBar { height: 1; }
-    .fit-metric .fit-title { color: #6de0d2; text-style: bold; }
-    #fit-reads, #fit-cache { height: 2; }
-    .fit-short #panels { height: 8; }
-    .fit-short #fit-metrics { height: 8; }
-    .fit-short #fit-read-time { display: none; }
     """
-
-    def compose_work_metrics(self):
-        with Horizontal(id='fit-metrics'):
-            with Vertical(classes='fit-metric'):
-                yield Static('PASSES & SOLVER', classes='fit-title')
-                yield Static('Passes: waiting', id='fit-passes-label', markup=False)
-                yield ProgressBar(id='fit-passes', show_eta=False)
-                yield Static('Optimizer evaluations: 0', id='fit-solver', markup=False)
-                yield Static('Workers: waiting', id='fit-workers', markup=False)
-            with Vertical(classes='fit-metric'):
-                yield Static('EXTRACTION', classes='fit-title')
-                yield Static('Reflections: waiting', id='fit-spots-label', markup=False)
-                yield ProgressBar(id='fit-spots', show_eta=False)
-                yield Static(
-                    'Frame batches: waiting', id='fit-frames-label', markup=False
-                )
-                yield ProgressBar(id='fit-frames', show_eta=False)
-                yield Static('Total tested: 0', id='fit-tested', markup=False)
-            with Vertical(classes='fit-metric'):
-                yield Static('IMAGE READS & CACHE', classes='fit-title')
-                yield Static('Reads: waiting', id='fit-reads', markup=False)
-                yield Static('Cache: waiting', id='fit-cache', markup=False)
-                yield Static('Read/decode: waiting', id='fit-read-time', markup=False)
-                yield Static(
-                    'Latest activity: waiting', id='fit-activity', markup=False
-                )
-
-    def on_resize(self, event):
-        super().on_resize(event)
-        self.screen.set_class(event.size.height < 40, 'fit-short')
 
     def setup_data_table(self):
         table = self.query_one('#reflections', DataTable)
@@ -473,40 +428,12 @@ class FitGrainsDashboard(WorkflowDashboard):
             'Age',
         ):
             table.add_column(column, key=column)
-        self.query_one('#fit-metrics').border_title = 'FIT ACTIVITY'
-        self.query_one('#fit-spots-label').tooltip = (
-            'Progress within workers’ current passes. These totals reset for the '
-            'next pass. Total tested counts reflections across all passes.'
-        )
-        self.query_one('#fit-frames-label').tooltip = (
-            'Source-frame groups sampled within current lazy extraction batches. '
-            'The same source frame may be read again after eviction or by another worker.'
-        )
-        self.query_one('#fit-reads').tooltip = (
-            'Cache misses and decoded image bytes, not physical disk bytes or disk bandwidth.'
-        )
-        self.query_one('#fit-cache').tooltip = (
-            'Last reported retained image buffers across workers. Decoder/fitting '
-            'workspace is additional; the HEXRD RAM bar shows process memory.'
-        )
-        self.query_one('#fit-activity').tooltip = (
-            'Last: time since any worker reported activity. Oldest: longest '
-            'interval without an update among active workers. These are not ETAs.'
-        )
-        self._fit_history = deque()
-        self._fit_generation = 0.0
 
     def refresh_reflections(self, hkls, peaks):
         with self.dashboard.lock:
             rows = tuple(reversed(tuple(self.dashboard.grains.values())))
             grains = dict(self.dashboard.fit_grain_metrics)
-            workers = list(self.dashboard.fit_workers.values())
-            planned = self.dashboard.fit_passes_planned
-            generation = self.dashboard.fit_started
         now = self.ended or monotonic()
-        if generation != self._fit_generation:
-            self._fit_history.clear()
-            self._fit_generation = generation
         # Update existing cells instead of rebuilding the table on every heartbeat.
         table = self.query_one('#reflections', DataTable)
         desired = {str(row[0]) for row in rows}
@@ -545,92 +472,4 @@ class FitGrainsDashboard(WorkflowDashboard):
                         table.update_cell(str(grain), column, value, update_width=True)
         table.border_subtitle = (
             'Age = time since worker activity' if rows else 'Waiting for fitting'
-        )
-        self._refresh_fit_metrics(workers, planned, now)
-
-    def _refresh_fit_metrics(self, workers, planned, now):
-        def total(name):
-            return sum(worker.get(name, 0) for worker in workers)
-
-        done, skipped = total('passes_done'), total('passes_skipped')
-        self.query_one('#fit-passes-label', Static).update(
-            f'Passes: {done:,} / {planned:,}'
-            + (f' · skipped: {skipped:,}' if skipped else '')
-        )
-        self.query_one('#fit-passes', ProgressBar).update(
-            total=planned or None, progress=done + skipped
-        )
-        self.query_one('#fit-solver', Static).update(
-            f"Solver evals: {total('evaluations'):,} · refits: {total('refits_done'):,}"
-        )
-        terminal = ('Done', 'Insufficient reflections', 'Failed')
-        active = [w for w in workers if w['state'] not in terminal]
-        extracting = sum(w['state'] == 'Extracting' for w in active)
-        fitting = sum(w['state'] in ('Fitting', 'Refitting') for w in active)
-        self.query_one('#fit-workers', Static).update(
-            f'Workers: {extracting} extract / {fitting} fit'
-        )
-        spots, expected = total('pass_done'), total('pass_total')
-        self.query_one('#fit-spots-label', Static).update(
-            f'Reflections: {spots:,} / {expected:,}'
-        )
-        self.query_one('#fit-spots', ProgressBar).update(
-            total=expected or None, progress=spots
-        )
-        lazy = any(w['lazy'] for w in workers)
-        self.query_one('#fit-frames', ProgressBar).display = lazy
-        sampled, frames = total('batch_done'), total('batch_total')
-        self.query_one('#fit-frames-label', Static).update(
-            f'Frame batches: {sampled:,} / {frames:,}'
-            if lazy
-            else 'Frames: eager/shared images'
-        )
-        self.query_one('#fit-frames', ProgressBar).update(
-            total=frames or None, progress=sampled
-        )
-        self.query_one('#fit-tested', Static).update(
-            f"Tested: {total('reflections'):,} · signal: {total('signals'):,}"
-        )
-        reads, decoded = total('frame_reads'), total('decoded_bytes')
-        self._fit_history.append((now, reads, decoded))
-        while len(self._fit_history) > 1 and now - self._fit_history[0][0] > 2:
-            self._fit_history.popleft()
-        first, old_reads, old_decoded = self._fit_history[0]
-        elapsed = now - first
-        rate = (reads - old_reads) / elapsed if elapsed else 0.0
-        mib_rate = (decoded - old_decoded) / elapsed / 1024**2 if elapsed else 0.0
-        lazy = any(w['lazy'] for w in workers)
-        decoded_text = (
-            f'{decoded/1024**3:.2f} GiB'
-            if decoded >= 1024**3
-            else f'{decoded/1024**2:.1f} MiB'
-        )
-        cache_unit = 'GiB' if total('cache_limit') >= 1024**3 else 'MiB'
-        cache_scale = 1024**3 if cache_unit == 'GiB' else 1024**2
-        self.query_one('#fit-reads', Static).update(
-            f'Reads: {reads:,} · {rate:.1f} frames/s\nDecoded: {decoded_text} · {mib_rate:.1f} MiB/s'
-            if lazy
-            else 'Images: eager/shared (no lazy reads)'
-        )
-        hits = total('frame_hits')
-        misses = total('cache_misses')
-        hit_rate = hits / (hits + misses) if hits + misses else 0.0
-        self.query_one('#fit-cache', Static).update(
-            f"Cache: {total('cache_bytes')/cache_scale:.2f} / {total('cache_limit')/cache_scale:.2f} {cache_unit}\n"
-            f"Hits: {hit_rate:.1%} · evictions: {total('evictions'):,}"
-            if lazy
-            else 'Cache: eager/shared'
-        )
-        self.query_one('#fit-read-time', Static).update(
-            f"Read/decode time: {total('read_seconds'):.1f}s (sum)"
-        )
-        if not workers:
-            self.query_one('#fit-reads', Static).update('Reads: waiting for workers')
-            self.query_one('#fit-cache', Static).update('Cache: waiting for workers')
-        newest = max((w['updated'] for w in workers), default=None)
-        oldest = max((now - w['updated'] for w in active), default=0.0)
-        self.query_one('#fit-activity', Static).update(
-            f'Last: {max(0., now-newest):.1f}s ago · oldest: {max(0., oldest):.1f}s'
-            if newest is not None
-            else 'Latest activity: waiting for workers'
         )

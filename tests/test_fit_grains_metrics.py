@@ -101,9 +101,9 @@ def test_parent_retains_bounded_grain_details_and_ignores_stale_updates():
 
 
 @pytest.mark.parametrize('size', [(120, 38), (190, 55)])
-def test_dashboard_shows_metrics_while_no_grains_are_finished(size, tmp_path):
+def test_dashboard_shows_grain_progress_without_fit_activity_panel(size, tmp_path):
     from hexrd.hedm._dashboard import FitGrainsDashboard
-    from textual.widgets import DataTable, ProgressBar, Static, Button
+    from textual.widgets import DataTable, Button
 
     dashboard = Dashboard(FIT_STAGES)
     release = threading.Event()
@@ -145,19 +145,15 @@ def test_dashboard_shows_metrics_while_no_grains_are_finished(size, tmp_path):
                 await pilot.pause(0.3)
                 assert started.is_set() and not app.finished.is_set()
                 assert dashboard.stages['Fit grains'].count == 0
-                assert app.query_one('#fit-spots', ProgressBar).progress == 23
-                assert app.query_one('#fit-frames', ProgressBar).progress == 71
-                assert '64' in str(app.query_one('#fit-reads', Static).render())
-                assert '36.0%' in str(app.query_one('#fit-cache', Static).render())
-                assert '32' in str(app.query_one('#fit-solver', Static).render())
+                assert len(app.query('#fit-metrics')) == 0
                 assert (
                     app.query_one('#reflections', DataTable).get_row('12')[5]
                     == 'frames 71/200'
                 )
                 assert app.query_one('#cancel', Button).region.bottom <= size[1]
                 assert (
-                    app.query_one('#fit-frames', ProgressBar).region.bottom
-                    < app.query_one('#memory').region.y
+                    app.query_one('#panels').region.bottom
+                    == app.query_one('#memory').region.y
                 )
                 app.save_screenshot(f'metrics-{size[0]}x{size[1]}.svg', str(tmp_path))
             finally:
