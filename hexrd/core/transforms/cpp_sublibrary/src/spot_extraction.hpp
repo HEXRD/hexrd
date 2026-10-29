@@ -5,6 +5,15 @@
 #include <type_traits>
 #include <atomic>
 #include "chunk_executor.hpp"
+#if defined(__has_include)
+#if __has_include(<boost/unordered/unordered_flat_map.hpp>)
+#include <boost/unordered/unordered_flat_map.hpp>
+#define HEXRD_BOOST_FLAT_QUERY 1
+#endif
+#endif
+#ifndef HEXRD_BOOST_FLAT_QUERY
+#define HEXRD_BOOST_FLAT_QUERY 0
+#endif
 #ifndef _WIN32
 #include <unistd.h>
 #include <cerrno>
@@ -42,6 +51,7 @@ public:
 };
 
 class BloscReader {
+  friend class PackedPixels;
   friend class FrameSampler;
   mutable ReadLimiter limiter;
 #ifndef _WIN32
@@ -54,6 +64,8 @@ class BloscReader {
   using Sizes = void (*)(const void *, size_t *, size_t *, size_t *);
   using Meta = void (*)(const void *, size_t *, int *);
   using Getitem = int (*)(const void *, int, int, void *);
+  using Compress = int (*)(int, int, size_t, size_t, const void *, void *,
+                           size_t, const char *, size_t, int);
   // Retain the owning CDLL. Calls below use only immutable C function pointers.
   py::object library;
   Validate validate;
@@ -61,6 +73,7 @@ class BloscReader {
   Sizes sizes;
   Meta meta;
   Getitem getitem;
+  Compress compress = nullptr;
 
   int readData(int fd, int64_t begin, int64_t count, int64_t skip, int64_t size,
                unsigned char *source, unsigned char *target, int64_t expected,
@@ -126,6 +139,8 @@ public:
     sizes = reinterpret_cast<Sizes>(address("blosc_cbuffer_sizes"));
     meta = reinterpret_cast<Meta>(address("blosc_cbuffer_metainfo"));
     getitem = reinterpret_cast<Getitem>(address("blosc_getitem"));
+    if (py::hasattr(lib, "blosc_compress_ctx"))
+      compress = reinterpret_cast<Compress>(address("blosc_compress_ctx"));
   }
 
   int read(int fd, int64_t offset, int64_t size, py::buffer workspace,
@@ -160,6 +175,8 @@ public:
 #endif
   }
 #ifndef _WIN32
+  py::object packPixels(py::array keys, py::array values,
+                        const std::string &algorithm) const;
   void configure(int count) {
     if (count < 1 || count > 8)
       throw py::value_error("native decoder workers must be between 1 and 8");
@@ -1412,7 +1429,7 @@ template <typename T> struct IntegerRunScratch {
 template <typename T, typename Sum>
 static bool finishIntegerRuns(IntegerRunScratch<T> &scratch, Index a, Index b,
                               Index c, double *center, Sum *sum, T *maximum,
-                              bool *valid) {
+                              bool *valid, int mass_scale = 1) {
   auto &runs = scratch.runs;
   auto root = [&](int32_t id) {
     while (runs[id].parent != id) {
@@ -1468,7 +1485,7 @@ static bool finishIntegerRuns(IntegerRunScratch<T> &scratch, Index a, Index b,
       std::copy(local, local + 3, center);
     }
   }
-  *sum = Sum(components[chosen].mass);
+  *sum = Sum(components[chosen].mass) / Sum(mass_scale);
   *maximum = components[chosen].peak;
   *valid = true;
   return true;
@@ -1482,11 +1499,40 @@ static bool integerRunStats(const T *data, Index a, Index b, Index c,
                             double threshold, double *center, Sum *sum,
                             T *maximum, bool *valid,
                             IntegerRunScratch<T> &scratch) {
-  if (!std::is_integral<T>::value || threshold < 0.)
+  if (threshold < 0.)
     return false;
   double scale = double(a * b * c) * double(std::max(a, std::max(b, c)));
-  if (double(std::numeric_limits<T>::max()) * scale > 4611686018427387904.)
-    return false;
+  int mass_scale = 1;
+  if (std::is_integral<T>::value) {
+    if (double(std::numeric_limits<T>::max()) * scale > 4611686018427387904.)
+      return false;
+  } else {
+    // Integer and half-integer detector counts have exact binary moments.
+    // Check every input: a nonfinite background value can affect the original
+    // masked BLAS contractions even when it is not labelled foreground.
+    if (!std::isfinite(threshold))
+      return false;
+    mass_scale = 2;
+    const double sum_bound = std::min(
+        4503599627370496., std::ldexp(1., std::numeric_limits<Sum>::digits));
+    const double mass_bound = std::min(
+        sum_bound, 4503599627370496. / double(std::max(a, std::max(b, c))));
+    int64_t total = 0;
+    for (Index p = 0; p < a * b * c; ++p) {
+      const double value = double(data[p]);
+      if (!std::isfinite(value) || std::signbit(value))
+        return false;
+      if (value > threshold) {
+        const double weighted = value * 2.;
+        if (weighted > mass_bound - double(total))
+          return false;
+        const int64_t integral = int64_t(weighted);
+        if (double(integral) != weighted)
+          return false;
+        total += integral;
+      }
+    }
+  }
   auto &runs = scratch.runs;
   auto &lines = scratch.lines;
   runs.clear();
@@ -1513,7 +1559,7 @@ static bool integerRunStats(const T *data, Index a, Index b, Index c,
         int64_t mass = 0, moment = 0;
         T peak = values[z];
         do {
-          int64_t value = int64_t(values[z]);
+          int64_t value = int64_t(double(values[z]) * double(mass_scale));
           mass += value;
           moment += z * value;
           peak = std::max(peak, values[z]);
@@ -1541,9 +1587,10 @@ static bool integerRunStats(const T *data, Index a, Index b, Index c,
              ++yy)
           link((x - 1) * b + yy);
     }
-  if (largest * scale > 4503599627370496.)
+  if (std::is_integral<T>::value && largest * scale > 4503599627370496.)
     return false;
-  return finishIntegerRuns(scratch, a, b, c, center, sum, maximum, valid);
+  return finishIntegerRuns(scratch, a, b, c, center, sum, maximum, valid,
+                           mass_scale);
 }
 
 template <typename T>
@@ -2117,12 +2164,22 @@ static py::array measuredXY(CArray<double> angles, CArray<double> rd,
 static py::object measureWindows(py::list, CArray<int64_t>, py::dtype,
                                 py::function, py::function, py::function);
 static void bindPixelQuery(py::module_ &);
+static void bindPackedPixels(py::module_ &);
+static py::object mergePixelEntries(py::array, py::array, py::array, py::array);
 
 static void bind(py::module_ &m) {
+  m.attr("_pixel_query_boost") = bool(HEXRD_BOOST_FLAT_QUERY);
+#ifdef HEXRD_FAST_LTO
+  m.attr("_fast_lto") = true;
+#else
+  m.attr("_fast_lto") = false;
+#endif
   bindPixelQuery(m);
+  m.def("_mergePixelEntries", &mergePixelEntries);
   m.def("_measureWindows", &measureWindows);
   m.def("_fch5RowOffsets", &updateRowOffsets);
 #ifndef _WIN32
+  bindPackedPixels(m);
   py::class_<ReadCancellation>(m, "_ReadCancellation")
       .def(py::init<>())
       .def("cancel", &ReadCancellation::cancel);
@@ -2131,6 +2188,8 @@ static void bind(py::module_ &m) {
       .def("configure", &BloscReader::configure)
       .def("close", &BloscReader::close)
       .def("read_pixels", &BloscReader::readPixels)
+      .def("pack_pixels", &BloscReader::packPixels, py::arg("keys"),
+           py::arg("values"), py::arg("algorithm") = "zstd")
       .def("read", &BloscReader::read)
       .def("read_rows", &BloscReader::readRows);
 #endif
@@ -2168,6 +2227,8 @@ static void bind(py::module_ &m) {
 
 #ifndef _WIN32
 #include "native_frame.hpp"
+#include "packed_pixels.hpp"
 #endif
 #include "window_measurement.hpp"
 #include "pixel_query.hpp"
+#include "pixel_merge.hpp"

@@ -263,3 +263,47 @@ def test_packed_spot_writing_preserves_scalar_field_order_and_missing_values():
         left.dump_patch(*row[:7], row[8], row[7])
     right.dump_packed(records)
     assert bulk.getvalue() == scalar.getvalue()
+
+
+@pytest.mark.parametrize('dtype', ['float32', 'float64'])
+@pytest.mark.parametrize('scale', [0.5, 1.0, 0.1, 2.0**24, 2.0**48])
+def test_float_run_statistics_preserve_reference_moments(dtype, scale):
+    rng = np.random.default_rng(932)
+    shapes = np.array([(3, 9, 15), (1, 17, 23), (7, 6, 11)])
+    patches = [(rng.integers(0, 100, tuple(s)) * scale).astype(dtype) for s in shapes]
+    for threshold in [0.0, scale * 55, scale * 95, scale * 101]:
+        offsets = np.r_[0, np.cumsum([p.size for p in patches])]
+        centers, sums, maxima, valid = native._spotStats(
+            np.concatenate([p.ravel() for p in patches]), offsets, shapes, threshold
+        )
+        for i, patch in enumerate(patches):
+            labels, count = ndimage.label(patch > threshold, np.ones((3, 3, 3)))
+            assert valid[i] == bool(count)
+            if not count:
+                continue
+            coms = _weighted_centroids(labels, patch, count)
+            closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
+            selected = patch[labels == closest + 1]
+            np.testing.assert_array_equal(centers[i], coms[closest])
+            np.testing.assert_equal(sums[i], selected.sum())
+            np.testing.assert_equal(maxima[i], selected.max())
+
+
+@pytest.mark.parametrize('background', [-0.0, -2.0, np.nan, np.inf, -np.inf, 0.125])
+def test_float_run_statistics_keep_background_semantics(background):
+    patch = np.zeros((3, 5, 7), dtype='f8')
+    patch[1, 1:4, 2:5] = np.arange(9).reshape(3, 3) + 4.5
+    patch[0, 0, 0] = background
+    threshold = 1.0
+    with np.errstate(invalid='ignore'):
+        centers, sums, maxima, valid = native._spotStats(
+            patch.ravel(), np.array([0, patch.size]), np.array([patch.shape]), threshold
+        )
+    labels, count = ndimage.label(patch > threshold, np.ones((3, 3, 3)))
+    with np.errstate(invalid='ignore'):
+        coms = _weighted_centroids(labels, patch, count)
+    closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
+    selected = patch[labels == closest + 1]
+    np.testing.assert_array_equal(centers[0], coms[closest])
+    np.testing.assert_equal(sums[0], selected.sum())
+    np.testing.assert_equal(maxima[0], selected.max())

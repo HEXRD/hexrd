@@ -214,3 +214,30 @@ def test_cancellation_discards_retained_pixels_and_restores_fit_context(
     finally:
         cache.close()
         clear_sparse_frame_views()
+
+
+@pytest.mark.parametrize('count, distinct', [(0, 1), (65536, 17), (65536, 65536)])
+@pytest.mark.parametrize('shape', [(257, 263), (2**20, 2**20)])
+def test_native_query_scatter_matches_numpy_at_tile_limit(count, distinct, shape):
+    rng = np.random.default_rng(802)
+    reader = source(shape=shape, dtype='f8')
+    cache = PixelCache()
+    cache.set_limit(2 * 1024**2)
+    possible = rng.integers(0, shape[0] * shape[1], distinct, dtype='u8')
+    selected = possible[rng.integers(0, distinct, count)]
+    rows = (selected // shape[1]).astype('i8')
+    cols = (selected % shape[1]).astype('i8')
+    query = cache.query(reader, 0, rows, cols)
+    assert query is not None
+    expected_keys = np.unique(selected)
+    np.testing.assert_array_equal(query.missing_keys, expected_keys)
+    values = expected_keys.astype('f8')
+    if len(values):
+        values[::3] = -0.0
+        values[1::3] = np.nan
+    expected = values[np.searchsorted(expected_keys, selected)]
+    assert query.finish(values).tobytes() == expected.tobytes()
+    cache.remember(reader, 0, query.missing_keys, values)
+    cached = cache.query(reader, 0, rows[::-1], cols[::-1])
+    assert cached.missing_count == 0
+    assert cached.finish().tobytes() == expected[::-1].tobytes()

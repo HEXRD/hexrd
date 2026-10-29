@@ -139,6 +139,74 @@ class FrameSampler {
     pending.clear();
     return 1;
   }
+  int loadValues(std::vector<Query> queries,
+                 const std::map<int64_t, Span> &spans, void *output,
+                 Store store) {
+    // Queue all lightweight descriptors, allocating decoded storage only when
+    // a worker starts a job. Slow chunks cannot strand the other readers at a
+    // batch barrier. Each job scatters to disjoint original sample slots.
+    auto requests = std::make_shared<std::vector<Query>>(std::move(queries));
+    pending.clear();
+    pending.reserve(spans.size());
+    size_t cursor = 0;
+    for (const auto &entry : spans) {
+      const int64_t index = entry.first;
+      const Span span = entry.second;
+      const size_t first = cursor;
+      while (cursor < requests->size()) {
+        const auto &query = (*requests)[cursor];
+        if (query.position >= 0 && query.position / values.chunk > index)
+          break;
+        ++cursor;
+      }
+      const size_t last = cursor;
+      const int64_t slot = index * values.stride;
+      const int64_t offset = values.positions[slot],
+                    size = values.lengths[slot],
+                    expected = values.chunk * values.itemsize;
+      const int mask = values.filters[slot];
+      if (size > expected + 16)
+        return -2;
+      pending.push_back(reader.executor->submit(
+          [this, requests, first, last, span, output, store, offset, size,
+           expected, mask](NativeChunkExecutor::Buffer &buffer) {
+            if (stopped.load(std::memory_order_relaxed))
+              return -4;
+            std::unique_ptr<unsigned char[]> decoded(
+                new unsigned char[size_t(expected)]);
+            const int64_t begin = direct ? offset / 4096 * 4096 : offset,
+                          skip = offset - begin,
+                          count = direct ? (skip + size + 4095) / 4096 * 4096
+                                         : size;
+            const int result =
+                reader.readData(fd, begin, count, skip, size, buffer.get(),
+                                decoded.get(), expected, values.itemsize, mask,
+                                span.first, span.last, &stopped);
+            if (result < 0)
+              return result;
+            for (size_t i = first; i < last; ++i) {
+              const auto &query = (*requests)[i];
+              if (query.position >= 0)
+                store(output, query.index, decoded.get(),
+                      query.position % values.chunk);
+            }
+            return result;
+          }));
+    }
+    for (auto &future : pending) {
+      while (future.wait_for(std::chrono::milliseconds(25)) !=
+             std::future_status::ready)
+        checkpoint(true);
+      checkpoint();
+      const int result = future.get();
+      if (result < 0)
+        return result;
+      decodedBytes += result;
+      ++chunkReads;
+    }
+    pending.clear();
+    return 1;
+  }
   static std::shared_ptr<Job> job(int64_t index, Span span) {
     auto output = std::make_shared<Job>();
     output->index = index;
@@ -202,10 +270,11 @@ public:
         return 0;
       queries.push_back({rows[i], cols[i], i, -1});
     }
-    std::sort(queries.begin(), queries.end(),
-              [](const Query &a, const Query &b) {
-                return a.row != b.row ? a.row < b.row : a.col < b.col;
-              });
+    auto ordered = [](const Query &a, const Query &b) {
+      return a.row != b.row ? a.row < b.row : a.col < b.col;
+    };
+    if (!std::is_sorted(queries.begin(), queries.end(), ordered))
+      std::sort(queries.begin(), queries.end(), ordered);
     std::map<int64_t, Span> spans;
     int64_t previous = -1;
     for (const auto &query : queries) {
@@ -310,31 +379,7 @@ public:
       if (spans.size() > 128 || !allocated(values, 0, index))
         return 2;
     }
-    // Intensity chunks are consumed in fixed-size batches; decoded output
-    // storage is never proportional to the number of requested disk chunks.
-    auto span = spans.begin();
-    size_t position = 0;
-    while (span != spans.end()) {
-      Jobs batch;
-      for (int i = 0; i < reader.workers && span != spans.end(); ++i, ++span)
-        batch.emplace(span->first, job(span->first, span->second));
-      status = load(values, 0, batch);
-      if (status != 1)
-        return status;
-      const int64_t last = batch.rbegin()->first;
-      while (position < queries.size()) {
-        const auto &query = queries[position];
-        if (query.position >= 0) {
-          const int64_t index = query.position / values.chunk;
-          if (index > last)
-            break;
-          store(output, query.index, batch.at(index)->data.get(),
-                query.position % values.chunk);
-        }
-        ++position;
-      }
-    }
-    return 1;
+    return loadValues(std::move(queries), spans, output, store);
   }
 };
 

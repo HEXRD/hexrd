@@ -125,9 +125,23 @@ def get_cpp_extensions():
         '-shared',
         '-std=c++14',
         '-funroll-loops',
+        '-DNDEBUG',
     ]
+    extra_link_args = []
     if not sys.platform.startswith('win'):
         extra_compile_args.append('-fPIC')
+        if os.environ.get('HEXRD_ENABLE_LTO') == '1':
+            # Keep IEEE arithmetic and portable CPU instructions. A single LTO
+            # worker avoids a compiler memory spike on constrained machines.
+            extra_compile_args.extend(
+                [
+                    '-flto=1',
+                    '-fvisibility=hidden',
+                    '-fno-semantic-interposition',
+                    '-DHEXRD_FAST_LTO=1',
+                ]
+            )
+            extra_link_args.append('-flto=1')
 
     # Define include directories
     include_dirs = [
@@ -136,6 +150,16 @@ def get_cpp_extensions():
         get_pybind11_include_path(),
         numpy.get_include(),
     ]
+    for candidate in (
+        os.environ.get('BOOST_INCLUDE_DIR', ''),
+        str(Path(sys.prefix) / 'include'),
+    ):
+        if (
+            candidate
+            and (Path(candidate) / 'boost/unordered/unordered_flat_map.hpp').is_file()
+        ):
+            include_dirs.append(candidate)
+            break
 
     transforms_ext = Extension(
         name='hexrd.core.extensions.transforms',
@@ -149,9 +173,12 @@ def get_cpp_extensions():
                 'native_frame.hpp',
                 'window_measurement.hpp',
                 'pixel_query.hpp',
+                'packed_pixels.hpp',
+                'pixel_merge.hpp',
             )
         ],
         extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
         include_dirs=include_dirs,
         language='c++',
     )
@@ -160,6 +187,7 @@ def get_cpp_extensions():
         name='hexrd.core.extensions.inverse_distortion',
         sources=[str(cpp_transform_pkgdir / 'src/inverse_distortion.cpp')],
         extra_compile_args=extra_compile_args,
+        extra_link_args=extra_link_args,
         include_dirs=include_dirs,
         language='c++',
     )

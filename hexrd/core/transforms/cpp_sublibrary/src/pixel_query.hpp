@@ -28,21 +28,46 @@ public:
              int64_t width, py::dtype dtype, py::object old, uint64_t maximum)
       : dtype(dtype), inverse(rows.size()), count(rows.size()),
         itemsize(dtype.itemsize()), wide(maximum > UINT32_MAX) {
-    std::vector<Entry> entries(static_cast<size_t>(count));
+    std::vector<Entry> entries;
     {
       py::gil_scoped_release release;
+#if HEXRD_BOOST_FLAT_QUERY
+      // Polar subpixels often repeat one source pixel many times. Hash first
+      // and sort only distinct pixels, retaining the exact inverse scatter.
+      boost::unordered_flat_map<uint64_t, uint32_t> positions;
+      positions.reserve(std::min(count, int64_t(16384)));
+      entries.reserve(size_t(std::min(count, int64_t(16384))));
+#else
+      entries.resize(size_t(count));
+#endif
       for (int64_t i = 0; i < count; ++i) {
         if (rows.data()[i] < 0 || rows.data()[i] >= height ||
             cols.data()[i] < 0 || cols.data()[i] >= width)
           throw std::invalid_argument("pixel coordinates outside source");
-        entries[i] = {uint64_t(rows.data()[i]) * uint64_t(width) +
-                          uint64_t(cols.data()[i]),
-                      i};
+        uint64_t key = uint64_t(rows.data()[i]) * uint64_t(width) +
+                       uint64_t(cols.data()[i]);
+#if HEXRD_BOOST_FLAT_QUERY
+        auto inserted = positions.try_emplace(key, uint32_t(entries.size()));
+        if (inserted.second)
+          entries.push_back({key, int64_t(entries.size())});
+        inverse.mutable_data()[i] = inserted.first->second;
+#else
+        entries[i] = {key, i};
+#endif
       }
       std::sort(entries.begin(), entries.end(),
                 [](const Entry &a, const Entry &b) { return a.key < b.key; });
+#if HEXRD_BOOST_FLAT_QUERY
+      uniqueCount = int64_t(entries.size());
+      std::vector<uint32_t> ordered(size_t(uniqueCount), 0);
+      for (int64_t i = 0; i < uniqueCount; ++i)
+        ordered[size_t(entries[size_t(i)].index)] = uint32_t(i);
+      for (int64_t i = 0; i < count; ++i)
+        inverse.mutable_data()[i] = ordered[size_t(inverse.data()[i])];
+#else
       for (int64_t i = 0; i < count; ++i)
         uniqueCount += !i || entries[i].key != entries[i - 1].key;
+#endif
     }
     auto keydtype =
         wide ? py::dtype::of<uint64_t>() : py::dtype::of<uint32_t>();
@@ -74,7 +99,7 @@ public:
                           : static_cast<const uint32_t *>(storedKeys.data())[i];
       };
       int64_t index = -1;
-      for (int64_t i = 0; i < count; ++i) {
+      for (int64_t i = 0; i < int64_t(entries.size()); ++i) {
         if (!i || entries[i].key != entries[i - 1].key) {
           ++index;
           if (wide)
@@ -100,7 +125,9 @@ public:
           else
             missing.push_back(index);
         }
+#if !HEXRD_BOOST_FLAT_QUERY
         inverse.mutable_data()[entries[i].index] = index;
+#endif
       }
     }
     missingCount = int64_t(missing.size());

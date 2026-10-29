@@ -259,7 +259,9 @@ class FileReader:
             if values is None:
                 return None
             result = query.finish(values)
-            pixels.remember(self, int(index), query.missing_keys, values)
+            pixels.remember(
+                self, int(index), query.missing_keys, values, sorted_unique=True
+            )
             return result
         keys = pixels.keys(self, rows, cols)
         if keys is None:
@@ -279,7 +281,7 @@ class FileReader:
         if values is None:
             return None
         result[missing] = values
-        pixels.remember(self, int(index), unique[missing], values)
+        pixels.remember(self, int(index), unique[missing], values, sorted_unique=True)
         return result[inverse]
 
     def read_positions(self, indices, cache):

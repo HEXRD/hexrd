@@ -11,20 +11,79 @@ import numpy as np
 
 
 class PixelCache:
-    def __init__(self):
+    def __init__(self, *, compress=True, compression_min_bytes=32 * 1024**2):
         self.max_bytes = self.bytes = self.peak_bytes = 0
         self.hits = self.queries = 0
         self.frames = OrderedDict()
+        self.compress = compress
+        self.compression_min_bytes = compression_min_bytes
+        self.packing = False
+        self._codec = None
+        self._codec_unavailable = False
+        self._decoded_source = self._decoded = None
+
+    def _drop_decoded(self):
+        self._decoded_source = self._decoded = None
+
+    def _arrays(self, item):
+        if item[1] is not None:
+            return item
+        if self._decoded_source is not item[0]:
+            self._drop_decoded()
+            keys, values = item[0].restore()
+            self._decoded_source = item[0]
+            self._decoded = keys, values, 1024 + keys.nbytes + values.nbytes
+        return self._decoded
+
+    def _enable_packing(self):
+        if (
+            self.packing
+            or not self.compress
+            or self.max_bytes < self.compression_min_bytes
+        ):
+            return
+        from hexrd.core.extensions import transforms as native
+        from hexrd.hedm._chunk_io import _blosc
+        from hexrd.hedm._progress import check_cancelled
+
+        kind = getattr(native, '_BloscReader', None)
+        if self._codec_unavailable:
+            return
+        if kind is None or not hasattr(kind, 'pack_pixels'):
+            self._codec_unavailable = True
+            return
+        library = _blosc()
+        if library is None or not hasattr(library, 'blosc_compress_ctx'):
+            self._codec_unavailable = True
+            return
+        self._codec = kind(library)
+        self.packing = True
+        # Snapshot keys only: retaining all old tuples would keep the entire
+        # raw catalogue alive while constructing its compressed replacement.
+        for key in list(self.frames):
+            check_cancelled()
+            item = self.frames[key]
+            if item[1] is not None:
+                packed = self._codec.pack_pixels(item[0], item[1])
+                if packed is not None and packed.storage_bytes < item[2]:
+                    self.frames[key] = packed, None, packed.storage_bytes
+                    self.bytes -= item[2] - packed.storage_bytes
 
     def set_limit(self, limit):
+        self._drop_decoded()
         self.max_bytes = max(0, int(limit))
+        if self.bytes > self.max_bytes:
+            self._enable_packing()
         while self.bytes > self.max_bytes:
             _, (_, _, size) = self.frames.popitem(last=False)
             self.bytes -= size
 
     def clear(self):
+        self._drop_decoded()
         self.frames.clear()
         self.bytes = 0
+        self._codec = None
+        self.packing = False
 
     def query(self, reader, frame, rows, cols):
         from hexrd.core.extensions import transforms as native
@@ -33,7 +92,8 @@ class PixelCache:
         if make is None or any(n > np.iinfo('i8').max for n in reader.shape):
             return None
         key = reader, frame
-        old = self.frames.get(key)
+        stored = self.frames.get(key)
+        old = self._arrays(stored) if stored is not None else None
         query = make(
             np.asarray(rows).ravel(),
             np.asarray(cols).ravel(),
@@ -72,7 +132,7 @@ class PixelCache:
         item = self.frames.pop((reader, frame), None)
         if item is not None:
             self.frames[reader, frame] = item
-            stored_keys, stored_values, _ = item
+            stored_keys, stored_values, _ = self._arrays(item)
             indices = np.searchsorted(stored_keys, keys)
             found = indices < len(stored_keys)
             found[found] &= stored_keys[indices[found]] == keys[found]
@@ -80,19 +140,51 @@ class PixelCache:
             self.hits += int(np.count_nonzero(found))
         return found, values
 
-    def remember(self, reader, frame, keys, values):
+    def remember(self, reader, frame, keys, values, *, sorted_unique=False):
         if not len(keys) or not self.max_bytes:
             return
         key = reader, frame
-        unique, indices = np.unique(keys, return_index=True)
-        incoming = values[indices]
+        if sorted_unique:
+            # Native queries and the generic lookup already produce sorted,
+            # unique keys. Keep private ownership without sorting them again.
+            unique, incoming = keys, values
+        else:
+            unique, indices = np.unique(keys, return_index=True)
+            incoming = values[indices]
+        if incoming.dtype != reader.dtype:
+            incoming = incoming.astype(reader.dtype)
+        if self.bytes + unique.nbytes + incoming.nbytes + 1024 > self.max_bytes:
+            self._enable_packing()
         old = self.frames.pop(key, None)
         if old is not None:
             self.bytes -= old[2]
-            joined = np.union1d(old[0], unique)
+            old_keys, old_values, _ = self._arrays(old)
+            from hexrd.core.extensions import transforms as native
+
+            merge = getattr(native, '_mergePixelEntries', None)
+            merged = merge(old_keys, old_values, unique, incoming) if merge else None
+            if merged is not None:
+                joined, output = merged
+            else:
+                joined = np.union1d(old_keys, unique)
+                output = np.empty(len(joined), dtype=reader.dtype)
+                output[np.searchsorted(joined, old_keys)] = old_values
+                output[np.searchsorted(joined, unique)] = incoming
         else:
-            joined = unique
+            joined, output = (
+                (unique.copy(), incoming.copy())
+                if sorted_unique
+                else (unique, incoming)
+            )
+        joined.flags.writeable = output.flags.writeable = False
         size = 1024 + joined.nbytes + len(joined) * reader.dtype.itemsize
+        item = joined, output, size
+        if self.packing:
+            packed = self._codec.pack_pixels(joined, output)
+            if packed is not None and packed.storage_bytes < size:
+                size = packed.storage_bytes
+                item = packed, None, size
+        self._drop_decoded()
         if size > self.max_bytes:
             if old is not None:
                 self.frames[key] = old
@@ -103,14 +195,9 @@ class PixelCache:
         # pass just before it could be reused on a large scan.
         if old is None and self.bytes + size > self.max_bytes:
             return
-        output = np.empty(len(joined), dtype=reader.dtype)
-        if old is not None:
-            output[np.searchsorted(joined, old[0])] = old[1]
-        output[np.searchsorted(joined, unique)] = incoming
-        joined.flags.writeable = output.flags.writeable = False
         while self.bytes + size > self.max_bytes:
             _, (_, _, removed) = self.frames.popitem(last=False)
             self.bytes -= removed
-        self.frames[key] = joined, output, size
+        self.frames[key] = item
         self.bytes += size
         self.peak_bytes = max(self.peak_bytes, self.bytes)

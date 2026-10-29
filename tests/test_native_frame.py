@@ -163,23 +163,41 @@ def test_cancellation_drains_native_jobs_and_reader_can_be_reused(tmp_path):
         cache.close()
 
 
-def test_corrupt_native_chunk_drains_jobs_and_restored_source_can_be_read(tmp_path):
+@pytest.mark.parametrize('dataset', ['indices', 'data'])
+def test_corrupt_native_chunk_drains_jobs_and_restored_source_can_be_read(
+    tmp_path, dataset
+):
     from test_fch5_pixels import make_reader
     from hexrd.hedm._chunk_io import ChunkReader
 
     path = tmp_path / 'corrupt.h5'
     reader = make_reader(path, compression=hdf5plugin.Blosc())
-    with h5py.File(path, 'a') as handle:
-        coordinates = handle['scan/indices'][()]
-        del handle['scan/indices']
-        dataset = handle.create_dataset(
-            'scan/indices',
-            shape=(1024, 2),
-            dtype='u2',
-            chunks=(1024, 1),
-            **hdf5plugin.Blosc(cname='zstd'),
-        )
-        dataset[: len(coordinates)] = coordinates
+    if dataset == 'indices':
+        with h5py.File(path, 'a') as handle:
+            coordinates = handle['scan/indices'][()]
+            del handle['scan/indices']
+            replacement = handle.create_dataset(
+                'scan/indices',
+                shape=(1024, 2),
+                dtype='u2',
+                chunks=(1024, 1),
+                **hdf5plugin.Blosc(cname='zstd'),
+            )
+            replacement[: len(coordinates)] = coordinates
+    else:
+        # Tiny chunks can skip the Blosc filter entirely. Use a compressible
+        # full chunk so the test exercises corrupt queued codec jobs.
+        with h5py.File(path, 'a') as handle:
+            values = handle['scan/data'][()]
+            del handle['scan/data']
+            replacement = handle.create_dataset(
+                'scan/data',
+                shape=(1024, 1),
+                dtype='f8',
+                chunks=(1024, 1),
+                **hdf5plugin.Blosc(cname='zstd'),
+            )
+            replacement[: len(values)] = values
     cache, reference = FrameCache(32 * 1024**2), FrameCache(12000)
     cache.chunk_workers = 4
     try:
@@ -189,10 +207,12 @@ def test_corrupt_native_chunk_drains_jobs_and_restored_source_can_be_read(tmp_pa
         sampler._offsets(0, cache)
         backend = ChunkReader.create(sampler.handle(), cache)
         sampler.chunk_reader = backend
-        _, _, offsets, _, masks = backend._spec(sampler.indices)
-        chunk = int(sampler.bounds[0, 0]) // sampler.coord_chunk
-        assert masks[chunk, 1] == 0, 'fixture must actually use Blosc'
-        position = int(offsets[chunk, 1])
+        target = sampler.indices if dataset == 'indices' else sampler.values
+        column = 1 if dataset == 'indices' else 0
+        _, _, offsets, _, masks = backend._spec(target)
+        chunk = int(sampler.bounds[0, 0]) // target.chunks[0]
+        assert masks[chunk, column] == 0, 'fixture must actually use Blosc'
+        position = int(offsets[chunk, column])
         fd = os.open(path, os.O_RDWR)
         try:
             original = os.pread(fd, 16, position)
@@ -206,6 +226,56 @@ def test_corrupt_native_chunk_drains_jobs_and_restored_source_can_be_read(tmp_pa
             assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
         finally:
             os.close(fd)
+    finally:
+        cache.close()
+        reference.close()
+
+
+@pytest.mark.parametrize('malformed', [None, 'duplicate', 'reverse'])
+@pytest.mark.parametrize('position', [7, 8, 15, 16, 47, 95])
+def test_native_column_validation_keeps_unsigned_range_and_lane_boundaries(
+    tmp_path, malformed, position
+):
+    from hexrd.hedm._image_cache import FileReader
+
+    height, width = 12, 65536
+    columns = np.linspace(0, width - 1, 96).astype('u2')
+    rows = np.repeat(np.arange(height, dtype='u2'), len(columns))
+    cols = np.tile(columns, height)
+    coords = np.column_stack((rows, cols))
+    pivot = 2 * len(columns) + position
+    if malformed == 'duplicate':
+        coords[pivot] = coords[pivot - 1]
+    elif malformed == 'reverse':
+        coords[[pivot - 1, pivot]] = coords[[pivot, pivot - 1]]
+    data = np.arange(len(rows), dtype='f8')
+    data[::13] = -0.0
+    data[::17] = np.nan
+    path = tmp_path / 'columns.h5'
+    with h5py.File(path, 'w') as handle:
+        handle['frame_ids'] = np.array([0, len(rows)], dtype='u8')
+        handle.create_dataset(
+            'indices', data=coords, chunks=(256, 1), **hdf5plugin.Blosc(cname='zstd')
+        )
+        handle.create_dataset(
+            'data', data=data[:, None], chunks=(64, 1), **hdf5plugin.Blosc(cname='zstd')
+        )
+    reader = FileReader(
+        str(path), 'fch5', {}, (height, width), np.dtype('f8'), 1, estimate=1024**3
+    )
+    cache, reference = FrameCache(32 * 1024**2), FrameCache(12000)
+    cache.chunk_workers = 4
+    order = np.random.default_rng(14).permutation(len(rows))
+    try:
+        expected = reader.sample_pixels(0, rows[order], cols[order], reference)
+        actual = reader.sample_pixels(0, rows[order], cols[order], cache)
+        if malformed is None:
+            assert actual.tobytes() == expected.tobytes()
+        else:
+            # None requests the established CSR coalescing path. Neither
+            # sampler may silently accept noncanonical coordinates.
+            assert actual is None and expected is None
+        assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
     finally:
         cache.close()
         reference.close()
