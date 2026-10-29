@@ -62,6 +62,7 @@ class FrameCache:
         self.chunk_workers = 0
         self.chunk_pool = None
         self.reserved_bytes = 0
+        self.pixel_cache = None
         self.bytes = self.peak_bytes = self.hits = self.misses = 0
 
     def _process(self):
@@ -195,6 +196,9 @@ class FrameCache:
         self.bytes = 0
 
     def close(self):
+        if self.pixel_cache is not None:
+            self.pixel_cache.clear()
+            self.pixel_cache = None
         if self.chunk_pool is not None:
             self.chunk_pool.close()
             self.chunk_pool = None
@@ -242,11 +246,42 @@ class FileReader:
         if (self, int(index)) in cache.frames:
             return None
         sampler = self._chunk_reader(cache)
-        return sampler.sample(int(index), rows, cols, cache) if sampler else None
+        if sampler is None:
+            return None
+        pixels = cache.pixel_cache
+        if pixels is None or not pixels.max_bytes:
+            return sampler.sample(int(index), rows, cols, cache)
+        keys = pixels.keys(self, rows, cols)
+        if keys is None:
+            return sampler.sample(int(index), rows, cols, cache)
+        unique, inverse = np.unique(keys, return_inverse=True)
+        found, result = pixels.lookup(self, int(index), unique)
+        if np.all(found):
+            return result[inverse]
+        missing = ~found
+        missing_keys = unique[missing].astype('u8')
+        values = sampler.sample(
+            int(index),
+            (missing_keys // self.shape[1]).astype('i8'),
+            (missing_keys % self.shape[1]).astype('i8'),
+            cache,
+        )
+        if values is None:
+            return None
+        result[missing] = values
+        pixels.remember(self, int(index), unique[missing], values)
+        return result[inverse]
 
     def read_positions(self, indices, cache):
         sampler = self._chunk_reader(cache)
         return sampler.bounds[indices, 0] if sampler else None
+
+    def prefetch_frame_indexes(self, indices, cache):
+        from contextlib import nullcontext
+        from hexrd.hedm._row_index import prefetch_rows
+
+        sampler = self._chunk_reader(cache)
+        return prefetch_rows(sampler, indices, cache) if sampler else nullcontext()
 
     def open(self):
         if self.fmt == 'npz':

@@ -367,8 +367,11 @@ class ImageCacheSettings:
     mode: str = 'auto'
     max_size_mb: float | None = None
     read_workers: int = 4
+    reuse_pixels: bool = True
 
     def __post_init__(self):
+        if not isinstance(self.reuse_pixels, bool):
+            raise ValueError('fit_grains:image_cache:reuse_pixels must be boolean')
         if (isinstance(self.read_workers, bool)
                 or not isinstance(self.read_workers, int)
                 or not 1 <= self.read_workers <= 8):

@@ -1,0 +1,653 @@
+{
+  "baseline_commit": "f33fd58f16238574dc606d823a0546c4be1a180e",
+  "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+  "timing_comparison": "previous branch commit versus this change; not unmodified master timing",
+  "dataset": "sven_dataset/data/images_median_and_25_counts_removed_eiger.fch5",
+  "dataset_size_bytes": 44303807671,
+  "full_scan_grains": 920,
+  "four_grain_repetitions_per_source": 3,
+  "median_four_grain_seconds": {
+    "before": 45.118918250000206,
+    "after": 21.249869585999477
+  },
+  "four_grain_speedup": 2.123256242463102,
+  "four_grain_peak_rss_bytes": {
+    "before": 874573824,
+    "after": 940548096
+  },
+  "four_grain_mean_cpu_seconds": {
+    "before": 71.26896656666668,
+    "after": 37.30758136666667
+  },
+  "four_grain_mean_effective_cpu_cores": {
+    "before": 1.5448728340417848,
+    "after": 1.748031017875973
+  },
+  "thirteen_grain_speedup_single_pair": 1.9901928979190813,
+  "four_grain_runs": [
+    {
+      "source": "/home/zack/hexrd/.local-bench/next/before",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5692974890007463,
+      "seconds": [
+        48.32547253700068
+      ],
+      "parent_process_cpu_seconds": [
+        73.39231740000001
+      ],
+      "effective_parent_cpu_cores": [
+        1.5187087377946848
+      ],
+      "median_seconds": 48.32547253700068,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 874573824,
+          "pss": 866598912,
+          "uss": 863752192
+        },
+        "peak_processes": 1,
+        "samples": 467,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "before",
+      "repetition": 0
+    },
+    {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5136210269993171,
+      "seconds": [
+        21.239531437999176
+      ],
+      "parent_process_cpu_seconds": [
+        37.0339419
+      ],
+      "effective_parent_cpu_cores": [
+        1.7436327165741234
+      ],
+      "median_seconds": 21.239531437999176,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 940548096,
+          "pss": 932951040,
+          "uss": 930177024
+        },
+        "peak_processes": 1,
+        "samples": 202,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "after",
+      "repetition": 0
+    },
+    {
+      "source": "/home/zack/hexrd/.local-bench/next/before",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5316286119996221,
+      "seconds": [
+        45.118918250000206
+      ],
+      "parent_process_cpu_seconds": [
+        70.2183349
+      ],
+      "effective_parent_cpu_cores": [
+        1.5562947345263465
+      ],
+      "median_seconds": 45.118918250000206,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 830070784,
+          "pss": 822494208,
+          "uss": 819757056
+        },
+        "peak_processes": 1,
+        "samples": 436,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "before",
+      "repetition": 1
+    },
+    {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5063458609984082,
+      "seconds": [
+        21.53971322899997
+      ],
+      "parent_process_cpu_seconds": [
+        37.4901448
+      ],
+      "effective_parent_cpu_cores": [
+        1.7405127172039219
+      ],
+      "median_seconds": 21.53971322899997,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 937893888,
+          "pss": 930238464,
+          "uss": 927412224
+        },
+        "peak_processes": 1,
+        "samples": 205,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "after",
+      "repetition": 1
+    },
+    {
+      "source": "/home/zack/hexrd/.local-bench/next/before",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5195622730007017,
+      "seconds": [
+        45.00870154400036
+      ],
+      "parent_process_cpu_seconds": [
+        70.1962474
+      ],
+      "effective_parent_cpu_cores": [
+        1.5596150298043232
+      ],
+      "median_seconds": 45.00870154400036,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 829640704,
+          "pss": 822177792,
+          "uss": 819458048
+        },
+        "peak_processes": 1,
+        "samples": 434,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "before",
+      "repetition": 2
+    },
+    {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.49339615999997477,
+      "seconds": [
+        21.249869585999477
+      ],
+      "parent_process_cpu_seconds": [
+        37.398657400000005
+      ],
+      "effective_parent_cpu_cores": [
+        1.7599476198498738
+      ],
+      "median_seconds": 21.249869585999477,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 937631744,
+          "pss": 930146304,
+          "uss": 927408128
+        },
+        "peak_processes": 1,
+        "samples": 203,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "after",
+      "repetition": 2
+    }
+  ],
+  "thirteen_grain_runs": [
+    {
+      "source": "/home/zack/hexrd/.local-bench/next/before",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 13,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5452396079999744,
+      "seconds": [
+        71.930265555
+      ],
+      "parent_process_cpu_seconds": [
+        124.67676449999999
+      ],
+      "effective_parent_cpu_cores": [
+        1.7333004895507922
+      ],
+      "median_seconds": 71.930265555,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 866279424,
+          "pss": 858896384,
+          "uss": 856150016
+        },
+        "peak_processes": 1,
+        "samples": 695,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "before",
+      "repetition": 0
+    },
+    {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.worktrees/fit-grains-progression/.local-bench/sven.yml",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "grains": "/home/zack/hexrd/sven_dataset/grains.out",
+      "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+      "grain_count": 13,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "staged",
+      "address_space_limit_mb": 4096,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy"
+      },
+      "setup_seconds": 0.5120477720010967,
+      "seconds": [
+        36.142358678000164
+      ],
+      "parent_process_cpu_seconds": [
+        60.3282831
+      ],
+      "effective_parent_cpu_cores": [
+        1.669185003598611
+      ],
+      "median_seconds": 36.142358678000164,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 1137106944,
+          "pss": 1129826304,
+          "uss": 1127018496
+        },
+        "peak_processes": 1,
+        "samples": 346,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "label": "after",
+      "repetition": 0
+    }
+  ],
+  "sven_master_reference_checks": [
+    {
+      "run": "before-final-0",
+      "exact_master_fits_and_spots": true,
+      "byte_identical_master_spot_files": [
+        "spots_00000.out",
+        "spots_00001.out",
+        "spots_00002.out",
+        "spots_00003.out"
+      ]
+    },
+    {
+      "run": "after-final-0",
+      "exact_master_fits_and_spots": true,
+      "byte_identical_master_spot_files": [
+        "spots_00000.out",
+        "spots_00001.out",
+        "spots_00002.out",
+        "spots_00003.out"
+      ]
+    },
+    {
+      "run": "before-final-1",
+      "exact_master_fits_and_spots": true,
+      "byte_identical_master_spot_files": [
+        "spots_00000.out",
+        "spots_00001.out",
+        "spots_00002.out",
+        "spots_00003.out"
+      ]
+    },
+    {
+      "run": "after-final-1",
+      "exact_master_fits_and_spots": true,
+      "byte_identical_master_spot_files": [
+        "spots_00000.out",
+        "spots_00001.out",
+        "spots_00002.out",
+        "spots_00003.out"
+      ]
+    },
+    {
+      "run": "before-final-2",
+      "exact_master_fits_and_spots": true,
+      "byte_identical_master_spot_files": [
+        "spots_00000.out",
+        "spots_00001.out",
+        "spots_00002.out",
+        "spots_00003.out"
+      ]
+    },
+    {
+      "run": "after-final-2",
+      "exact_master_fits_and_spots": true,
+      "byte_identical_master_spot_files": [
+        "spots_00000.out",
+        "spots_00001.out",
+        "spots_00002.out",
+        "spots_00003.out"
+      ]
+    }
+  ],
+  "sven_thirteen_starting_branch_check": {
+    "exact_starting_branch_fits_and_spots": true,
+    "byte_identical_spot_files": [
+      "eiger/spots_00000.out",
+      "eiger/spots_00005.out",
+      "eiger/spots_00002.out",
+      "eiger/spots_00008.out",
+      "eiger/spots_00006.out",
+      "eiger/spots_00012.out",
+      "eiger/spots_00009.out",
+      "eiger/spots_00011.out",
+      "eiger/spots_00004.out",
+      "eiger/spots_00003.out",
+      "eiger/spots_00001.out",
+      "eiger/spots_00007.out",
+      "eiger/spots_00010.out"
+    ]
+  },
+  "master_reference_scope": "Sven: original master scientific algorithms with separately compiled transforms and bounded pixel input; eager master exceeds local memory. Examples: unmodified master.",
+  "examples": [
+    {
+      "mode": "staged",
+      "case": "ruby-0",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "ruby-1",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "ruby-2",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "ruby-3",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "ruby-4",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "ruby-5",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "dexelas",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "dexelas-roi",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "staged",
+      "case": "zirconium",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "ruby-0",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "ruby-1",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "ruby-2",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "ruby-3",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "ruby-4",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "ruby-5",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "dexelas",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "dexelas-roi",
+      "exact_unmodified_master_fits_and_spots": true
+    },
+    {
+      "mode": "grain",
+      "case": "zirconium",
+      "exact_unmodified_master_fits_and_spots": true
+    }
+  ],
+  "cancellation": {
+    "runs": [
+      {
+        "method": "button",
+        "seconds_from_cancel_request_to_cleanup": 0.004923731999951997,
+        "seconds_including_simulated_ui_dispatch": 3.18760265399942,
+        "cancelled_during_real_fch5_reads": true
+      },
+      {
+        "method": "ctrl+c",
+        "seconds_from_cancel_request_to_cleanup": 0.007220235998829594,
+        "seconds_including_simulated_ui_dispatch": 0.18587366300016583,
+        "cancelled_during_real_fch5_reads": true
+      }
+    ],
+    "address_limit_mib": 4096,
+    "peak_rss_mib": 1059.875
+  },
+  "regression_suite": {
+    "passed": 298,
+    "address_space_limit_mib": 1536
+  },
+  "guards": {
+    "address_space_limit_mib": 4096,
+    "processes": 1,
+    "direct_fch5_input": true,
+    "blas_threads": 1
+  },
+  "workspace_limits_mib": {
+    "staged_total": 512,
+    "source_chunks_and_indexes": 128,
+    "chunk_directory": 8,
+    "native_lookup_pins": 16,
+    "pixel_catalogue": "remaining workspace after geometry, live windows and headroom"
+  },
+  "remaining_scope": [
+    "Full 920-grain Sven run not timed",
+    "Remote HDD scaling not measured",
+    "Pixel reuse can decrease when a scan exceeds catalogue capacity",
+    "Cache/workspace settings do not impose a total-process or OS RAM limit"
+  ]
+}

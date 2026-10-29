@@ -53,10 +53,11 @@ for the `image_cache.read_workers` setting and updated measurements.
 The preparation workspace derives from the image-cache allowance and is clamped
 to 16–512 MiB. It accounts for compressed geometry, event tables, compact statistics
 and the estimated peak live pixel support. Up to one quarter, capped at 128 MiB,
-is reserved for current-frame chunks and compact row indexes. Payload arrays are
-cleared between source frames; small indexes can survive to avoid decoding row
-coordinates again. A pending geometry plan, source-frame decoder workspace,
-fitting objects and returned results need additional RAM, so this allowance is
+is reserved for source chunks and compact row indexes. Decoder chunks can
+survive neighboring source frames under their LRU byte bound. Small indexes survive across passes, and the remaining workspace can
+retain exact source pixels for later windows. See the
+[pixel-reuse guide](fit-grains-pixel-reuse.md) for the current bounds and timings.
+A pending geometry plan, source-frame decoder workspace, fitting objects and returned results need additional RAM, so this allowance is
 not a total process limit.
 
 Requests are split into smaller groups when their live windows would exceed the

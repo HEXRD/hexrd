@@ -14,7 +14,10 @@ from hexrd.hedm._staged_spots import MeasurementPlan, MeasurementGroup
 
 @pytest.mark.parametrize('dtype', ['uint16', 'int32', 'float32', 'float64'])
 @pytest.mark.parametrize('as_sparse', [False, True])
-def test_staging_is_exact_and_reads_each_shared_frame_once(dtype, as_sparse):
+@pytest.mark.parametrize('physical_order', [False, True])
+def test_staging_is_exact_and_reads_each_shared_frame_once(
+    dtype, as_sparse, physical_order
+):
     rng = np.random.default_rng(408)
     data = rng.integers(0, 100, (11, 17, 21)).astype(dtype)
     if np.dtype(dtype).kind == 'f':
@@ -31,6 +34,8 @@ def test_staging_is_exact_and_reads_each_shared_frame_once(dtype, as_sparse):
             return sparse.csr_array(data[index]) if as_sparse else data[index]
 
     reader = Reader()
+    if physical_order:
+        reader.read_positions = lambda frames, cache: (10 - frames)
     reader.dtype = np.dtype(dtype)
     cache = FrameCache(0)
     view = View(reader, roi=(2, 3, 12, 14), mapping=np.arange(11)[::-1], dense=True)
@@ -65,6 +70,7 @@ def test_staging_is_exact_and_reads_each_shared_frame_once(dtype, as_sparse):
         assert all(group.add(p) for p in plans)
         group.measure(cache)
         assert Counter(calls) == Counter({0: 1, 1: 1, 9: 1, 10: 1})
+        assert calls == ([10, 9, 1, 0] if physical_order else [0, 1, 9, 10])
         before = list(calls)
         for plan, reference in zip(plans, expected):
             for actual, wanted in zip(plan.result(), reference):
@@ -88,6 +94,38 @@ def test_planning_without_native_windows_uses_existing_result():
     assert plan.result() is result
     group = MeasurementGroup(1)
     assert group.add(plan)
+
+
+def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
+    from hexrd.hedm._staged_spots import Batch
+    from hexrd.hedm._image_cache import StreamingView
+
+    class Reader:
+        shape, nframes, dtype, resident = (2, 2), 4, np.dtype('f8'), False
+
+        def read_positions(self, frames, cache):
+            return np.array([0, 2, 1, 3])[frames]
+
+    cache = FrameCache(0)
+    reader = Reader()
+    batch = Batch(
+        StreamingView(View(reader), cache),
+        np.array([[0, 1], [2, 3]]),
+        np.array([0, 4, 8]),
+        np.tile([0, 0, 1, 1], 2),
+        np.tile([0, 1, 0, 1], 2),
+        np.array([[2, 2, 2], [2, 2, 2]]),
+        0,
+        (),
+        (np.zeros((2, 3)), np.zeros(2), np.zeros(2), np.zeros(2, bool)),
+    )
+    plan = MeasurementPlan(None, None)
+    plan.batches = [batch]
+    group = MeasurementGroup(16 * 1024**2)
+    assert group.add(plan)
+    # The windows are disjoint in omega order, but overlap in file order.
+    assert group.peak_pixels == 2 * (2 * 2 * 2 * reader.dtype.itemsize)
+    cache.close()
 
 
 @pytest.mark.parametrize('packed', [False, True])

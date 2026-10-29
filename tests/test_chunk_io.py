@@ -131,14 +131,21 @@ def test_cancel_joins_active_reads_and_does_not_launch_unbounded_work(
             cache.close()
 
 
-def test_codec_rejects_corrupt_or_wrong_size_payload(tmp_path):
+@pytest.mark.parametrize('native_api', [False, True])
+def test_codec_rejects_corrupt_or_wrong_size_payload(tmp_path, native_api):
     from types import SimpleNamespace
+    from hexrd.core.extensions import transforms as native
 
     path = tmp_path / 'invalid.bin'
     path.write_bytes(b'!' * 80)
     backend = object.__new__(ChunkReader)
     backend.fd = os.open(path, os.O_RDONLY)
     backend.direct, backend.codec = False, _blosc()
+    backend.pool = SimpleNamespace(
+        native_reader=native._BloscReader(backend.codec) if native_api else None,
+        local=threading.local(),
+        max_chunk=1024**2,
+    )
     try:
         with pytest.raises(OSError, match='Invalid Blosc'):
             backend._decode(
@@ -242,3 +249,85 @@ def test_native_pixel_positions_match_sparse_coordinates(dtype, start):
     chunk, offset = divmod(start + 1, size)
     chunks[chunk - ids[0]][offset] = coordinates[0, 1]
     assert native._fch5Positions(ptr, start, chunks, ids, size, rows, cols, 45) is None
+
+
+@pytest.mark.parametrize('direct', [False, True])
+@pytest.mark.parametrize('native_api', [False, True])
+@pytest.mark.parametrize('dtype', ['u2', 'f4', 'f8', '>f8'])
+def test_selected_blocks_preserve_bits_without_entering_full_chunk_cache(
+    tmp_path, direct, native_api, dtype
+):
+    from hexrd.hedm._direct_io import open_direct_hdf5
+    from hexrd.hedm._chunk_io import SelectedChunk
+
+    if direct and not hasattr(os, 'O_DIRECT'):
+        pytest.skip('Linux direct reads')
+    # Four Blosc blocks per chunk, with a short final HDF5 chunk as well.
+    length = 1024**2 // np.dtype(dtype).itemsize
+    values = (np.arange(length + 17, dtype='i8') % 173).astype(dtype)
+    if np.dtype(dtype).kind == 'f':
+        values[:5] = [-0.0, np.nan, np.inf, -np.inf, 0.5]
+    path = tmp_path / 'blocks.h5'
+    with h5py.File(path, 'w') as h:
+        h.create_dataset(
+            'data',
+            data=values[:, None],
+            chunks=(length, 1),
+            **hdf5plugin.Blosc(cname='zstd'),
+        )
+    cache = FrameCache(32 * 1024**2)
+    cache.chunk_workers = 4
+    handle = open_direct_hdf5(path) if direct else h5py.File(path, 'r')
+    try:
+        reader = ChunkReader.create(handle, cache)
+        if not native_api:
+            reader.pool.native_reader = None
+        for start, stop in [
+            (0, 20),
+            (length - 123, length - 1),
+            (length // 2 - 5, length // 2 + 5),
+        ]:
+            stream = reader.chunks(
+                handle['data'], 0, [0], cache, object(), 'test', {0: (start, stop)}
+            )
+            try:
+                _, actual, _ = next(stream)
+                assert isinstance(actual, SelectedChunk) and not actual.complete
+                assert actual.decoded_bytes < actual.array.nbytes
+                assert (
+                    actual.array[start:stop, 0].tobytes()
+                    == values[start:stop].tobytes()
+                )
+                assert not cache.frames  # Uninitialized support cannot be cached.
+            finally:
+                stream.close()
+        stream = reader.chunks(
+            handle['data'], 0, [1], cache, object(), 'test', {1: (0, 17)}
+        )
+        try:
+            _, actual, _ = next(stream)
+            assert actual.array[:17, 0].tobytes() == values[length:].tobytes()
+        finally:
+            stream.close()
+    finally:
+        cache.close()
+        handle.close()
+
+
+def test_native_reader_checks_buffers_before_io_and_reports_read_error():
+    import mmap
+    import errno
+    from hexrd.core.extensions import transforms as native
+
+    decoder = native._BloscReader(_blosc())
+    with mmap.mmap(-1, 8192) as workspace:
+        with pytest.raises(ValueError, match='numeric dtype'):
+            decoder.read(
+                -1, 0, 16, workspace, np.empty(8, dtype=object), 0, -1, -1, False
+            )
+        assert (
+            decoder.read(
+                -1, 0, 16, workspace, np.empty(8, dtype='f8'), 0, -1, -1, False
+            )
+            == -1000 - errno.EBADF
+        )

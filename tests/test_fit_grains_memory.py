@@ -237,6 +237,7 @@ def test_auto_keeps_small_scan_fast_and_honors_resident_edits(sources):
         {'read_workers': 9},
         {'read_workers': 2.5},
         {'read_workers': True},
+        {'reuse_pixels': 'yes'},
     ],
 )
 def test_invalid_cache_policy_rejected(kwargs):

@@ -283,6 +283,7 @@ class MeasurementGroup:
         self.plans, self.patches = [], []
         self.cost = min(128 * 1024**2, max_bytes // 4)
         self.frontiers = {}
+        self.frame_ranks = {}
         self.peak_pixels = 0
         self.frame_visits = 0
 
@@ -292,12 +293,32 @@ class MeasurementGroup:
             1024 + 64 * len(p.frames) for p in incoming
         )
         frontiers = {r: x.copy() for r, x in self.frontiers.items()}
+        frame_ranks = self.frame_ranks.copy()
         for p in incoming:
             if p.reader not in frontiers:
                 frontiers[p.reader] = np.zeros(p.reader.nframes + 1, dtype='i8')
+            if p.reader not in frame_ranks:
+                ranks = None
+                if (
+                    hasattr(p.reader, 'read_positions')
+                    and p.reader.nframes * 16 <= self.max_bytes // 16
+                ):
+                    positions = p.reader.read_positions(
+                        np.arange(p.reader.nframes), p.batch.view.cache
+                    )
+                    if positions is not None:
+                        ranks = np.empty(p.reader.nframes, dtype='i8')
+                        ranks[np.argsort(positions, kind='stable')] = np.arange(
+                            p.reader.nframes
+                        )
+                frame_ranks[p.reader] = ranks
+                if ranks is not None:
+                    cost += ranks.nbytes
             delta = frontiers[p.reader]
-            delta[int(p.frames.min())] += p.bytes
-            delta[int(p.frames.max()) + 1] -= p.bytes
+            ranks = frame_ranks[p.reader]
+            positions = ranks[p.frames] if ranks is not None else p.frames
+            delta[int(positions.min())] += p.bytes
+            delta[int(positions.max()) + 1] -= p.bytes
         peak = max(
             (int(x.cumsum().max(initial=0)) for x in frontiers.values()), default=0
         )
@@ -307,6 +328,11 @@ class MeasurementGroup:
         self.patches.extend(incoming)
         self.cost += cost
         self.frontiers, self.peak_pixels = frontiers, peak
+        self.frame_ranks = frame_ranks
+        for batch in plan.batches:
+            pixels = batch.view.cache.pixel_cache
+            if pixels is not None:
+                pixels.set_limit(max(0, self.max_bytes - self.cost - peak - 1024**2))
         return True
 
     def measure(self, cache, cancel=check_cancelled):
@@ -335,106 +361,110 @@ class MeasurementGroup:
                 events[cursor:end, 1] = index
                 events[cursor:end, 2] = np.arange(len(p.frames))
                 cursor = end
-            order = np.argsort(events[:, 0], kind='stable')
+            ranks = self.frame_ranks.get(reader)
+            positions = ranks[events[:, 0]] if ranks is not None else events[:, 0]
+            order = np.argsort(positions, kind='stable')
             events = events[order]
             del order
             edges = np.r_[0, np.flatnonzero(np.diff(events[:, 0])) + 1, len(events)]
             if reporter is not None:
                 reporter.batch(len(edges) - 1)
-            for first, last in zip(edges[:-1], edges[1:]):
-                cancel()
-                occurrences = events[first:last]
-                row_parts, col_parts = [], []
-                for _, patch_index, _ in occurrences:
-                    p = items[patch_index]
-                    view = p.batch.view.view
-                    rows = p.rows.astype('i8').clip(0, view.shape[0] - 1)
-                    cols = p.cols.astype('i8').clip(0, view.shape[1] - 1)
-                    if view.roi is not None:
-                        rows += view.roi[0]
-                        cols += view.roi[1]
-                    row_parts.append(rows)
-                    col_parts.append(cols)
-                counts = np.array([len(x) for x in row_parts])
-                sparse_query = counts.sum() <= 65536
-                combined = None
-                cache.clear_payload()
-                self.frame_visits += 1
-                cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
-                cache.metadata_limit = cache.max_bytes // 2
-                if sparse_query and hasattr(reader, 'sample_pixels'):
-                    combined = reader.sample_pixels(
-                        int(events[first, 0]),
-                        np.concatenate(row_parts),
-                        np.concatenate(col_parts),
-                        cache,
-                    )
-                frame = frame_view = None
-                if combined is None:
-                    frame = cache.frame(reader, int(events[first, 0]))
-                    frame_view = (
-                        native._SparseFrames([frame])
-                        if sparse.issparse(frame) and frame.has_sorted_indices
-                        else None
-                    )
-                cursor = 0
-                for event, rows, cols in zip(occurrences, row_parts, col_parts):
+            from contextlib import nullcontext
+
+            prefetch = getattr(reader, 'prefetch_frame_indexes', None)
+            with prefetch(events[edges[:-1], 0], cache) if prefetch else nullcontext():
+                for first, last in zip(edges[:-1], edges[1:]):
                     cancel()
-                    _, patch_index, omega_index = event
-                    p = items[patch_index]
-                    view = p.batch.view.view
-                    if combined is not None:
-                        values = combined[cursor : cursor + len(rows)]
-                        cursor += len(rows)
-                    elif frame_view is not None:
-                        values = frame_view.gather(
-                            np.zeros((1, 1), dtype='i8'),
-                            np.array([0, len(rows)], dtype='i8'),
-                            rows,
-                            cols,
+                    occurrences = events[first:last]
+                    row_parts, col_parts = [], []
+                    for _, patch_index, _ in occurrences:
+                        p = items[patch_index]
+                        view = p.batch.view.view
+                        rows = p.rows.astype('i8').clip(0, view.shape[0] - 1)
+                        cols = p.cols.astype('i8').clip(0, view.shape[1] - 1)
+                        if view.roi is not None:
+                            rows += view.roi[0]
+                            cols += view.roi[1]
+                        row_parts.append(rows)
+                        col_parts.append(cols)
+                    counts = np.array([len(x) for x in row_parts])
+                    sparse_query = counts.sum() <= 65536
+                    combined = None
+                    self.frame_visits += 1
+                    cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
+                    cache.metadata_limit = cache.max_bytes // 2
+                    if sparse_query and hasattr(reader, 'sample_pixels'):
+                        combined = reader.sample_pixels(
+                            int(events[first, 0]),
+                            np.concatenate(row_parts),
+                            np.concatenate(col_parts),
+                            cache,
                         )
-                    else:
-                        values = (
-                            sample_pixels(frame, rows, cols)
-                            if sparse.issparse(frame)
-                            else frame[rows, cols]
+                    frame = frame_view = None
+                    if combined is None:
+                        frame = cache.frame(reader, int(events[first, 0]))
+                        frame_view = (
+                            native._SparseFrames([frame])
+                            if sparse.issparse(frame) and frame.has_sorted_indices
+                            else None
                         )
-                        if not view.dense and not sparse.issparse(frame):
-                            values = values.copy()
-                            values[values == 0] = 0
-                    if p.pixels is None:
-                        p.pixels = np.empty(
-                            (len(p.frames), len(rows)), dtype=p.batch.view.dtype
-                        )
-                    p.pixels[omega_index] = values
-                    p.remaining -= 1
-                    if not p.remaining:
-                        if reporter is not None:
-                            reporter.phase('Segmenting peak windows')
-                        shape = p.batch.shapes[p.index : p.index + 1]
-                        stats = native._spotStats(
-                            p.pixels.ravel(),
-                            np.array([0, p.pixels.size], dtype='i8'),
-                            shape,
-                            p.batch.threshold,
-                        )
-                        for dest, source in zip(p.batch.stats, stats):
-                            dest[p.index] = source[0]
-                        p.pixels = None
-                del (
-                    frame_view,
-                    frame,
-                    combined,
-                    row_parts,
-                    col_parts,
-                    rows,
-                    cols,
-                    values,
-                )
-                cache.clear_payload()
-                if reporter is not None:
-                    reporter.cache(cache)
-                    reporter.sampled_frame()
+                    cursor = 0
+                    for event, rows, cols in zip(occurrences, row_parts, col_parts):
+                        cancel()
+                        _, patch_index, omega_index = event
+                        p = items[patch_index]
+                        view = p.batch.view.view
+                        if combined is not None:
+                            values = combined[cursor : cursor + len(rows)]
+                            cursor += len(rows)
+                        elif frame_view is not None:
+                            values = frame_view.gather(
+                                np.zeros((1, 1), dtype='i8'),
+                                np.array([0, len(rows)], dtype='i8'),
+                                rows,
+                                cols,
+                            )
+                        else:
+                            values = (
+                                sample_pixels(frame, rows, cols)
+                                if sparse.issparse(frame)
+                                else frame[rows, cols]
+                            )
+                            if not view.dense and not sparse.issparse(frame):
+                                values = values.copy()
+                                values[values == 0] = 0
+                        if p.pixels is None:
+                            p.pixels = np.empty(
+                                (len(p.frames), len(rows)), dtype=p.batch.view.dtype
+                            )
+                        p.pixels[omega_index] = values
+                        p.remaining -= 1
+                        if not p.remaining:
+                            if reporter is not None:
+                                reporter.phase('Segmenting peak windows')
+                            shape = p.batch.shapes[p.index : p.index + 1]
+                            stats = native._spotStats(
+                                p.pixels.ravel(),
+                                np.array([0, p.pixels.size], dtype='i8'),
+                                shape,
+                                p.batch.threshold,
+                            )
+                            for dest, source in zip(p.batch.stats, stats):
+                                dest[p.index] = source[0]
+                            p.pixels = None
+                    del (
+                        frame_view,
+                        frame,
+                        combined,
+                        row_parts,
+                        col_parts,
+                        rows,
+                        cols,
+                        values,
+                    )
+                    if reporter is not None:
+                        reporter.cache(cache)
+                        reporter.sampled_frame()
         if any(p.remaining for p in self.patches):
             raise RuntimeError('Incomplete staged pixel support')
 
@@ -456,6 +486,14 @@ def fit_staged(params, bar, cancel_callback=None):
     steps = {i: fitting._fit_grain_steps(i) for i in ids}
     pending, last_spots, pass_indices, results = {}, {}, {}, {}
     cache = next(iter(params['imgser_dict'].values()))._adapter.cache
+    if params.get('reuse_pixels', True):
+        from hexrd.hedm._pixel_cache import PixelCache
+
+        cache.pixel_cache = PixelCache()
+    else:
+        if cache.pixel_cache is not None:
+            cache.pixel_cache.clear()
+        cache.pixel_cache = None
     budget = params['staged_workspace']
     groups_done = 0
     frames_done = windows_done = 0
@@ -503,6 +541,14 @@ def fit_staged(params, bar, cancel_callback=None):
         diagnostic('Staged groups complete', groups_done)
         diagnostic('Staged frame visits', frames_done)
         diagnostic('Peak windows prepared', windows_done)
+        if cache.pixel_cache is not None:
+            diagnostic(
+                'Source pixel reuse',
+                f'{cache.pixel_cache.hits:,}/{cache.pixel_cache.queries:,} queries',
+            )
+            diagnostic(
+                'Source pixel cache', f'{cache.pixel_cache.bytes / 1024**2:.1f} MiB'
+            )
 
     cancel_token = _cancellation_check.set(
         requested_cancel if cancel_callback is not None else None
@@ -552,6 +598,8 @@ def fit_staged(params, bar, cancel_callback=None):
                         params['pending_spot_data'] = last_spots.pop(grain)
                         fitting._write_pending_spots(grain)
         finally:
+            if cache.pixel_cache is not None:
+                cache.pixel_cache.clear()
             cache.clear_payload()
             fitting.fit_grain_FF_cleanup()
             _cancellation_check.reset(cancel_token)

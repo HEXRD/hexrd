@@ -1,5 +1,8 @@
 # Feeding the fit-grains compute pipeline
 
+These measurements describe commit `f33fd58f`. Further improvements and current
+settings are documented in [the pixel-reuse guide](fit-grains-pixel-reuse.md).
+
 This change targets the staged measurement workflow on Sven's FCH5 input. It
 keeps the original grain-dependent windows, pixels, connected-component
 selection, centroids and optimizer. It changes how those inputs reach the

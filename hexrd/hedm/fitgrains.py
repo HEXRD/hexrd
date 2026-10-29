@@ -699,6 +699,7 @@ def _fit_grains(
             image_plan.cache.max_bytes = temporary_cache
             image_plan.cache.metadata_limit = temporary_cache // 2
             image_plan.cache.chunk_workers = settings.read_workers
+            params['reuse_pixels'] = settings.reuse_pixels
             params['image_cache_limit'] = temporary_cache
             diagnostic('Measurement mode', 'Segment and measure before each fit pass')
             diagnostic('Maximum chunk read workers', settings.read_workers)

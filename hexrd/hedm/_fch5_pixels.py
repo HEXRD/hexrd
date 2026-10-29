@@ -29,11 +29,12 @@ class Fch5Pixels:
         )[0]
         self.handle = weakref.ref(handle)
         self.chunk_reader = None
+        self.row_queue = None
 
     @contextmanager
-    def _sequence(self, kind, indices, cache):
+    def _sequence(self, kind, indices, cache, selected=None):
         """Consume ordered chunks once, overlapping a bounded number of reads."""
-        from hexrd.hedm._chunk_io import ChunkReader
+        from hexrd.hedm._chunk_io import ChunkReader, SelectedChunk
 
         dataset = self.values if kind == 'values' else self.indices
         column = 1 if kind == 'columns' else 0
@@ -42,7 +43,9 @@ class Fch5Pixels:
             self.chunk_reader = ChunkReader.create(self.handle(), cache)
         parallel = self.chunk_reader
         stream = (
-            parallel.chunks(dataset, column, indices, cache, self.reader, kind)
+            parallel.chunks(
+                dataset, column, indices, cache, self.reader, kind, selected
+            )
             if parallel is not None and parallel.supported(dataset)
             else ((int(index), None, 0.0) for index in indices)
         )
@@ -59,6 +62,11 @@ class Fch5Pixels:
                 current, decoded, _ = next(stream)
                 self.read_seconds += monotonic() - started
                 first = current * chunk
+                complete = True
+                decoded_bytes = None
+                if isinstance(decoded, SelectedChunk):
+                    decoded_bytes = decoded.decoded_bytes
+                    decoded, complete = decoded.array, decoded.complete
 
                 def load():
                     if decoded is None:
@@ -68,10 +76,23 @@ class Fch5Pixels:
                     result = decoded[: min(chunk, len(dataset) - first), 0]
                     if self.reporter is not None and not self.read_bytes:
                         self.reporter.read_started()
-                    self.read_bytes += result.nbytes
+                    self.read_bytes += (
+                        result.nbytes if decoded_bytes is None else decoded_bytes
+                    )
                     return result
 
-                value = cache.array(self.reader, kind, current, load)
+                # Incomplete arrays are private to this query. Only requested
+                # row spans / intensity positions are read from them. A later
+                # query must never mistake them for fully decoded cache data.
+                if not complete:
+                    cache.misses += 1
+                    if self.reporter is not None:
+                        self.reporter.data['cache_misses'] += 1
+                value = (
+                    cache.array(self.reader, kind, current, load)
+                    if complete
+                    else load()
+                )
             if current != index:
                 raise RuntimeError('FCH5 chunk requests must be ordered')
             return value
@@ -91,7 +112,19 @@ class Fch5Pixels:
         return result
 
     def _offsets(self, frame, cache):
+        future = self.row_queue.take(frame) if self.row_queue is not None else None
+
         def load():
+            if future is not None:
+                from hexrd.hedm._row_index import wait_index
+
+                if self.reporter is not None and not self.read_bytes:
+                    self.reporter.read_started()
+                started = monotonic()
+                result = wait_index(future)
+                self.read_seconds += monotonic() - started
+                self.read_bytes += result.decoded_bytes
+                return result.array
             start, stop = map(int, self.bounds[frame])
             invalid = np.array([-1], dtype=np.int64)
             if (
@@ -170,7 +203,7 @@ class Fch5Pixels:
             first += count
         return chunks[0] if len(chunks) == 1 else np.concatenate(chunks)
 
-    def _positions(self, ptr, start, rows, cols, needed, cache):
+    def _positions(self, ptr, start, rows, cols, needed, cache, selected=None):
         from hexrd.core.extensions import transforms as native
 
         lookup = getattr(native, '_fch5Positions', None)
@@ -187,7 +220,7 @@ class Fch5Pixels:
         cache.reserved_bytes += size
         cache._evict(0, self.reporter)
         try:
-            with self._sequence('columns', needed, cache) as get:
+            with self._sequence('columns', needed, cache, selected) as get:
                 arrays = [get(index) for index in needed]
                 return lookup(
                     ptr,
@@ -220,6 +253,7 @@ class Fch5Pixels:
             queries, positions = [], []
             requested_rows = rows[order[edges[:-1]]]
             needed = set()
+            column_spans = {}
             for row in requested_rows:
                 first, last = start + int(ptr[row]), start + int(ptr[row + 1])
                 needed.update(
@@ -230,15 +264,26 @@ class Fch5Pixels:
                     if first < last
                     else ()
                 )
+                while first < last:
+                    index, offset = divmod(first, self.coord_chunk)
+                    end = min(last, (index + 1) * self.coord_chunk)
+                    previous = column_spans.get(index, (offset, offset + end - first))
+                    column_spans[index] = (
+                        min(offset, previous[0]),
+                        max(offset + end - first, previous[1]),
+                    )
+                    first = end
             needed = sorted(needed)
-            found = self._positions(ptr, start, rows[order], cols[order], needed, cache)
+            found = self._positions(
+                ptr, start, rows[order], cols[order], needed, cache, column_spans
+            )
             if found is None:
                 return None
             if found is not NotImplemented:
                 valid = found >= 0
                 queries, positions = [order[valid]], [found[valid]]
             else:
-                with self._sequence('columns', needed, cache) as get:
+                with self._sequence('columns', needed, cache, column_spans) as get:
                     for left, right in zip(edges[:-1], edges[1:]):
                         check_cancelled()
                         selected = order[left:right]
@@ -269,7 +314,17 @@ class Fch5Pixels:
             values = np.empty(len(positions), dtype=self.reader.dtype)
             chunks = positions // self.value_chunk
             edges = np.r_[0, np.flatnonzero(np.diff(chunks)) + 1, len(chunks)]
-            with self._sequence('values', chunks[edges[:-1]], cache) as get:
+            value_spans = {
+                int(chunks[left]): (
+                    int(positions[left] % self.value_chunk),
+                    int(positions[right - 1] % self.value_chunk) + 1,
+                )
+                for left, right in zip(edges[:-1], edges[1:])
+                if left < right
+            }
+            with self._sequence(
+                'values', chunks[edges[:-1]], cache, value_spans
+            ) as get:
                 for left, right in zip(edges[:-1], edges[1:]):
                     if left == right:
                         continue

@@ -21,6 +21,7 @@ from hexrd.hedm._progress import check_cancelled
 
 _MIB = 1024**2
 ChunkInfo = namedtuple('ChunkInfo', 'byte_offset size filter_mask')
+SelectedChunk = namedtuple('SelectedChunk', 'array complete decoded_bytes')
 
 
 @lru_cache(maxsize=1)
@@ -45,6 +46,26 @@ def _blosc():
                 ctypes.c_int,
             )
             lib.blosc_decompress_ctx.restype = ctypes.c_int
+            lib.blosc_cbuffer_sizes.argtypes = (
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_size_t),
+                ctypes.POINTER(ctypes.c_size_t),
+                ctypes.POINTER(ctypes.c_size_t),
+            )
+            lib.blosc_cbuffer_sizes.restype = None
+            lib.blosc_cbuffer_metainfo.argtypes = (
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_size_t),
+                ctypes.POINTER(ctypes.c_int),
+            )
+            lib.blosc_cbuffer_metainfo.restype = None
+            lib.blosc_getitem.argtypes = (
+                ctypes.c_void_p,
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_void_p,
+            )
+            lib.blosc_getitem.restype = ctypes.c_int
             return lib
         except (OSError, AttributeError):
             continue
@@ -62,7 +83,7 @@ class ChunkPool:
         # Bound codec scratch as well as inputs/results, without multiplying
         # this allowance by the number of open detector files.
         per_worker = 6 * self.max_chunk + 16384
-        fixed = self.directory_budget + self.max_chunk + 16384
+        fixed = self.directory_budget + 2 * self.max_chunk + 16384
         capacity = max(1, (cache.max_bytes * 3 // 4 - fixed) // per_worker)
         self.workers = min(workers, os.cpu_count() or 1, capacity)
         # Includes decoded results, compressed input, direct-I/O alignment and
@@ -70,6 +91,7 @@ class ChunkPool:
         self.reserved_bytes = fixed + self.workers * per_worker
         self.directory_bytes = 0
         self.local = threading.local()
+        self.native_reader = None
         cache.reserved_bytes += self.reserved_bytes
         cache._evict(0, None)
         self.executor = ThreadPoolExecutor(
@@ -83,6 +105,12 @@ class ChunkPool:
 class ChunkReader:
     def __init__(self, handle, pool, codec):
         self.pool, self.codec = pool, codec
+        if pool.native_reader is None:
+            from hexrd.core.extensions import transforms as native
+
+            reader = getattr(native, '_BloscReader', None)
+            if reader is not None:
+                pool.native_reader = reader(codec)
         self.specs = {}
         direct = getattr(handle, '_hexrd_direct_file', None)
         self.direct = direct is not None
@@ -158,6 +186,7 @@ class ChunkReader:
             self.specs[dataset.name] = None
             return None
         self.pool.directory_bytes += directory_size
+        offsets.flags.writeable = sizes.flags.writeable = masks.flags.writeable = False
         spec = dataset.chunks, dataset.dtype, offsets, sizes, masks
         self.specs[dataset.name] = spec
         return spec
@@ -165,15 +194,48 @@ class ChunkReader:
     def supported(self, dataset):
         return self._spec(dataset) is not None
 
-    def _decode(self, info, shape, dtype):
+    def _decode(self, info, shape, dtype, selected=None):
         """No HDF5 calls, mutable file position, or Python callback in workers."""
         started = monotonic()
         expected = shape[0] * shape[1] * dtype.itemsize
+        if (
+            selected is not None
+            and not 0 <= selected[0] <= selected[1] <= shape[0] * shape[1]
+        ):
+            raise ValueError('Selected FCH5 pixels exceed their chunk')
         size, offset = int(info.size), int(info.byte_offset)
         if size <= 0 or size > expected + 16:
             raise OSError('Invalid FCH5 compressed chunk size')
         result = np.empty(shape, dtype=dtype)
-        if self.direct:
+        if self.pool.native_reader is not None:
+            source = getattr(self.pool.local, 'buffer', None)
+            if source is None:
+                source = self.pool.local.buffer = mmap.mmap(
+                    -1, self.pool.max_chunk + 8192
+                )
+            first, last = selected if selected is not None else (-1, -1)
+            decoded_bytes = self.pool.native_reader.read(
+                self.fd,
+                offset,
+                size,
+                source,
+                result,
+                info.filter_mask,
+                first,
+                last,
+                self.direct,
+            )
+            if decoded_bytes < 0:
+                if decoded_bytes <= -1000:
+                    error = -1000 - decoded_bytes
+                    raise OSError(error, os.strerror(error))
+                message = {
+                    -1: 'Truncated FCH5 chunk',
+                    -2: 'Invalid Blosc FCH5 chunk',
+                    -3: 'Cannot decompress Blosc FCH5 chunk',
+                }[decoded_bytes]
+                raise OSError(message)
+        elif self.direct:
             first = offset // 4096 * 4096
             skip = offset - first
             allocated = ((skip + size + 4095) // 4096) * 4096
@@ -189,23 +251,29 @@ class ChunkReader:
             if count < skip + size:
                 raise OSError('Truncated FCH5 chunk')
             address = ctypes.addressof(ctypes.c_char.from_buffer(source, skip))
-            self._decompress(address, size, expected, info.filter_mask, result)
+            decoded_bytes = self._decompress(
+                address, size, expected, info.filter_mask, result, selected
+            )
         else:
             source = os.pread(self.fd, size, offset)
             if len(source) != size:
                 raise OSError('Truncated FCH5 chunk')
             address = ctypes.cast(ctypes.c_char_p(source), ctypes.c_void_p)
-            self._decompress(address, size, expected, info.filter_mask, result)
+            decoded_bytes = self._decompress(
+                address, size, expected, info.filter_mask, result, selected
+            )
         result.flags.writeable = False
+        if selected is not None:
+            result = SelectedChunk(result, decoded_bytes == expected, decoded_bytes)
         return result, monotonic() - started
 
-    def _decompress(self, source, size, expected, mask, result):
+    def _decompress(self, source, size, expected, mask, result, selected=None):
         target = result.ctypes.data
         if mask == 1:  # HDF5 explicitly skipped its only filter.
             if size != expected:
                 raise OSError('Invalid unfiltered FCH5 chunk size')
             ctypes.memmove(target, source, expected)
-            return
+            return expected
         if mask != 0:
             raise OSError('Invalid FCH5 filter mask')
         decoded = ctypes.c_size_t()
@@ -214,12 +282,55 @@ class ChunkReader:
             or decoded.value != expected
         ):
             raise OSError('Invalid Blosc FCH5 chunk')
+        if selected is not None:
+            nbytes, cbytes, blocksize, typesize = (ctypes.c_size_t() for _ in range(4))
+            flags = ctypes.c_int()
+            self.codec.blosc_cbuffer_sizes(
+                source,
+                ctypes.byref(nbytes),
+                ctypes.byref(cbytes),
+                ctypes.byref(blocksize),
+            )
+            self.codec.blosc_cbuffer_metainfo(
+                source, ctypes.byref(typesize), ctypes.byref(flags)
+            )
+            first, last = selected
+            itemsize = result.dtype.itemsize
+            if not 0 <= first <= last <= result.size:
+                raise ValueError('Selected FCH5 pixels exceed their chunk')
+            # A validated Blosc buffer can contain independently compressed
+            # blocks. Decode only complete blocks covering the requested span.
+            # Other layouts retain the full, validated decoder.
+            if (
+                typesize.value == itemsize
+                and blocksize.value
+                and blocksize.value % itemsize == 0
+            ):
+                begin = first * itemsize // blocksize.value * blocksize.value
+                end = min(
+                    expected,
+                    ((last * itemsize + blocksize.value - 1) // blocksize.value)
+                    * blocksize.value,
+                )
+                if 0 < end - begin < expected * 3 // 4:
+                    count = self.codec.blosc_getitem(
+                        source,
+                        begin // itemsize,
+                        (end - begin) // itemsize,
+                        target + begin,
+                    )
+                    if count != end - begin:
+                        raise OSError('Cannot decompress selected Blosc FCH5 blocks')
+                    # The rest of this private workspace is uninitialized. It
+                    # must NEVER enter the full-chunk cache or escape sampling.
+                    return end - begin
         # One codec thread per job avoids nested thread-pool oversubscription.
         count = self.codec.blosc_decompress_ctx(source, target, expected, 1)
         if count != expected:
             raise OSError('Cannot decompress Blosc FCH5 chunk')
+        return expected
 
-    def chunks(self, dataset, column, indices, cache, reader, kind):
+    def chunks(self, dataset, column, indices, cache, reader, kind, selected=None):
         """Yield requested chunks in order, with a fixed-size rolling queue."""
         pending = {}
         future = None
@@ -243,7 +354,13 @@ class ChunkReader:
                 # Unallocated chunks have the dataset's fill value. Let HDF5
                 # handle them, without making any HDF5 call from a worker.
                 pending[index] = (
-                    self.pool.executor.submit(self._decode, info, shape, dtype)
+                    self.pool.executor.submit(
+                        self._decode,
+                        info,
+                        shape,
+                        dtype,
+                        selected.get(index) if selected is not None else None,
+                    )
                     if info.byte_offset >= 0 and info.size
                     else None
                 )
