@@ -31,7 +31,7 @@ def test_frame_progress_is_reported_before_extraction_completes():
     from hexrd.hedm._image_cache import FrameCache, StreamingView, View
 
     queue = Queue()
-    reporter = FitReporter(queue, lazy=True)
+    reporter = FitReporter(queue)
     reporter.interval = 0
     set_reporter(reporter)
     reporter.grain(7, 'Extracting', 1, 3)
@@ -56,30 +56,24 @@ def test_frame_progress_is_reported_before_extraction_completes():
         snapshots.append(queue.get_nowait())
     assert any(s['batch_done'] == 4 and s['frame_reads'] == 4 for s in snapshots)
     assert snapshots[-1]['batch_done'] == snapshots[-1]['batch_total'] == 8
-    assert snapshots[-1]['reflections'] == 0
-    assert snapshots[-1]['decoded_bytes'] > 0
-    assert snapshots[-1]['cache_bytes'] == 0
-    assert snapshots[-1]['read_seconds'] >= 0
+    assert snapshots[-1]['pass_done'] == 0
 
 
 def test_dropped_updates_recover_cumulative_counts_without_blocking():
     queue = Queue(maxsize=1)
-    reporter = FitReporter(queue, lazy=True)
+    reporter = FitReporter(queue)
     reporter.interval = 0
     reporter.grain(7, 'Extracting', 1, 3)
+    reporter.batch(40)
     for _ in range(40):
-        reporter.reflections(3, 2)
-        reporter.evaluation()
-    reporter.pass_complete(skipped=2)
+        reporter.reflections(3)
+        reporter.sampled_frame()
     assert queue.qsize() == 1
     queue.get_nowait()
     reporter.publish(force=True)
     recovered = queue.get_nowait()
-    assert recovered['reflections'] == 120
-    assert recovered['signals'] == 80
-    assert recovered['evaluations'] == 40
-    assert recovered['passes_done'] == 1
-    assert recovered['passes_skipped'] == 2
+    assert recovered['pass_done'] == 120
+    assert recovered['batch_done'] == 40
 
 
 def test_parent_retains_bounded_grain_details_and_ignores_stale_updates():
@@ -112,9 +106,8 @@ def test_dashboard_shows_grain_progress_without_fit_activity_panel(size, tmp_pat
     def workflow():
         dashboard.start()
         try:
-            dashboard.fit_passes_planned = 39
             with stage('Fit grains'), progress_bar(total=13, unit='grains'):
-                reporter = FitReporter(lazy=True)
+                reporter = FitReporter()
                 reporter.grain(12, 'Extracting', 1, 3)
                 reporter.data.update(
                     pass_total=500,
@@ -122,13 +115,6 @@ def test_dashboard_shows_grain_progress_without_fit_activity_panel(size, tmp_pat
                     batch_total=200,
                     batch_done=71,
                     frame_reads=64,
-                    frame_hits=36,
-                    cache_misses=64,
-                    decoded_bytes=512 * 1024**2,
-                    cache_bytes=1024**3,
-                    cache_limit=4 * 1024**3,
-                    evaluations=32,
-                    read_seconds=5.0,
                 )
                 reporter.publish(force=True)
                 report_grain((12, 'Extracting', 1, 3, None, None))
@@ -171,7 +157,7 @@ def test_final_result_recovers_snapshot_lost_to_a_full_progress_queue(monkeypatc
     dashboard = Dashboard(FIT_STAGES)
     dashboard.start()
     queue = Queue(maxsize=1)
-    reporter = FitReporter(queue, lazy=True)
+    reporter = FitReporter(queue)
     reporter.interval = 0
     set_reporter(reporter)
     reporter.grain(4, 'Extracting', 1, 3)  # Fills the queue.
@@ -179,8 +165,7 @@ def test_final_result_recovers_snapshot_lost_to_a_full_progress_queue(monkeypatc
 
     def fit(grain):
         for _ in range(3):
-            reporter.reflections(100, 80)
-            reporter.pass_complete()
+            reporter.reflections(100)
         reporter.grain(grain, 'Done', 3, 3)  # Last update is dropped too.
         return expected
 
@@ -189,20 +174,20 @@ def test_final_result_recovers_snapshot_lost_to_a_full_progress_queue(monkeypatc
         result, snapshot = fitgrains._fit_grain_with_metrics(4)
         assert result is expected
         old = queue.get_nowait()
-        assert old['passes_done'] == 0
+        assert old['pass_done'] == 0
         report_fit_metrics(snapshot)
         final = dashboard.fit_workers[snapshot['worker']]
-        assert final['passes_done'] == 3 and final['reflections'] == 300
+        assert final['pass_done'] == 300
         assert final['state'] == 'Done'
     finally:
         dashboard.close()
 
 
 def test_processing_does_not_double_count_source_reads():
-    from hexrd.hedm._image_cache import FrameCache, ProcessedReader, View, frame_bytes
+    from hexrd.hedm._image_cache import FrameCache, ProcessedReader, View
 
     queue = Queue()
-    reporter = FitReporter(queue, lazy=True)
+    reporter = FitReporter(queue)
     set_reporter(reporter)
 
     class Source:
@@ -217,12 +202,8 @@ def test_processing_does_not_double_count_source_reads():
     cache = FrameCache(100000)
     np.testing.assert_array_equal(cache.frame(processed, 0), 2)
     assert reporter.data['frame_reads'] == 1
-    assert reporter.data['cache_misses'] == 2
-    assert reporter.data['decoded_bytes'] == frame_bytes(
-        np.ones((3, 4), dtype='uint16')
-    )
     cache.frame(processed, 0)
-    assert reporter.data['frame_reads'] == 1 and reporter.data['frame_hits'] == 1
+    assert reporter.data['frame_reads'] == 1
     cache.close()
 
 

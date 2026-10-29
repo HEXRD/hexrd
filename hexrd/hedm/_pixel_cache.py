@@ -49,7 +49,7 @@ class PixelCache:
         kind = getattr(native, '_BloscReader', None)
         if self._codec_unavailable:
             return
-        if kind is None or not hasattr(kind, 'pack_pixels'):
+        if kind is None:
             self._codec_unavailable = True
             return
         library = _blosc()
@@ -88,13 +88,12 @@ class PixelCache:
     def query(self, reader, frame, rows, cols):
         from hexrd.core.extensions import transforms as native
 
-        make = getattr(native, '_makePixelQuery', None)
-        if make is None or any(n > np.iinfo('i8').max for n in reader.shape):
+        if any(n > np.iinfo('i8').max for n in reader.shape):
             return None
         key = reader, frame
         stored = self.frames.get(key)
         old = self._arrays(stored) if stored is not None else None
-        query = make(
+        query = native._makePixelQuery(
             np.asarray(rows).ravel(),
             np.asarray(cols).ravel(),
             *reader.shape,
@@ -161,8 +160,7 @@ class PixelCache:
             old_keys, old_values, _ = self._arrays(old)
             from hexrd.core.extensions import transforms as native
 
-            merge = getattr(native, '_mergePixelEntries', None)
-            merged = merge(old_keys, old_values, unique, incoming) if merge else None
+            merged = native._mergePixelEntries(old_keys, old_values, unique, incoming)
             if merged is not None:
                 joined, output = merged
             else:

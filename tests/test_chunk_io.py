@@ -45,7 +45,7 @@ def test_parallel_chunks_match_hdf5_bits(tmp_path, direct, dtype, shuffle):
                 handle['data'], column, range(10), cache, object(), 'test'
             )
             try:
-                for index, actual, _ in chunks:
+                for index, actual in chunks:
                     expected = data[index * 7 : min(index * 7 + 7, len(data)), column]
                     # Check bytes as well as values: NaNs, endian and signed zero.
                     assert actual[: len(expected), 0].tobytes() == expected.tobytes()
@@ -131,8 +131,7 @@ def test_cancel_joins_active_reads_and_does_not_launch_unbounded_work(
             cache.close()
 
 
-@pytest.mark.parametrize('native_api', [False, True])
-def test_codec_rejects_corrupt_or_wrong_size_payload(tmp_path, native_api):
+def test_codec_rejects_corrupt_or_wrong_size_payload(tmp_path):
     from types import SimpleNamespace
     from hexrd.core.extensions import transforms as native
 
@@ -140,9 +139,9 @@ def test_codec_rejects_corrupt_or_wrong_size_payload(tmp_path, native_api):
     path.write_bytes(b'!' * 80)
     backend = object.__new__(ChunkReader)
     backend.fd = os.open(path, os.O_RDONLY)
-    backend.direct, backend.codec = False, _blosc()
+    backend.direct = False
     backend.pool = SimpleNamespace(
-        native_reader=native._BloscReader(backend.codec) if native_api else None,
+        native_reader=native._BloscReader(_blosc()),
         local=threading.local(),
         max_chunk=1024**2,
     )
@@ -252,10 +251,9 @@ def test_native_pixel_positions_match_sparse_coordinates(dtype, start):
 
 
 @pytest.mark.parametrize('direct', [False, True])
-@pytest.mark.parametrize('native_api', [False, True])
 @pytest.mark.parametrize('dtype', ['u2', 'f4', 'f8', '>f8'])
 def test_selected_blocks_preserve_bits_without_entering_full_chunk_cache(
-    tmp_path, direct, native_api, dtype
+    tmp_path, direct, dtype
 ):
     from hexrd.hedm._direct_io import open_direct_hdf5
     from hexrd.hedm._chunk_io import SelectedChunk
@@ -280,8 +278,6 @@ def test_selected_blocks_preserve_bits_without_entering_full_chunk_cache(
     handle = open_direct_hdf5(path) if direct else h5py.File(path, 'r')
     try:
         reader = ChunkReader.create(handle, cache)
-        if not native_api:
-            reader.pool.native_reader = None
         for start, stop in [
             (0, 20),
             (length - 123, length - 1),
@@ -291,7 +287,7 @@ def test_selected_blocks_preserve_bits_without_entering_full_chunk_cache(
                 handle['data'], 0, [0], cache, object(), 'test', {0: (start, stop)}
             )
             try:
-                _, actual, _ = next(stream)
+                _, actual = next(stream)
                 assert isinstance(actual, SelectedChunk) and not actual.complete
                 assert actual.decoded_bytes < actual.array.nbytes
                 assert (
@@ -305,7 +301,7 @@ def test_selected_blocks_preserve_bits_without_entering_full_chunk_cache(
             handle['data'], 0, [1], cache, object(), 'test', {1: (0, 17)}
         )
         try:
-            _, actual, _ = next(stream)
+            _, actual = next(stream)
             assert actual.array[:17, 0].tobytes() == values[length:].tobytes()
         finally:
             stream.close()

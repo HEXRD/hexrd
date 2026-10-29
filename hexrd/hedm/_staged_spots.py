@@ -5,9 +5,8 @@ retained until an omega window is complete; the unchanged native spot-statistics
 kernel then produces its measurements. Global detector centroids are not used.
 """
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-import hashlib
 
 import numpy as np
 from scipy import sparse
@@ -39,21 +38,6 @@ def _compact(array):
     return array.astype(dtype, copy=True)
 
 
-def _signature(view, arrays, threshold):
-    digest = hashlib.sha256()
-    source = getattr(view, 'view', None)
-    scope = (
-        id(view) if source is None else (id(source.reader), source.roi, source.dense)
-    )
-    if source is not None and source.mapping is not None:
-        arrays = (*arrays, np.asarray(source.mapping))
-    for array in arrays:
-        array = np.ascontiguousarray(array)
-        digest.update(repr((array.dtype.str, array.shape)).encode())
-        digest.update(memoryview(array).cast('B'))
-    return scope, repr(threshold), digest.digest()
-
-
 @dataclass
 class Batch:
     view: StreamingView
@@ -63,7 +47,6 @@ class Batch:
     cols: np.ndarray
     shapes: np.ndarray
     threshold: object
-    signature: tuple
     stats: tuple
     source_coordinates: bool = False
 
@@ -97,19 +80,7 @@ class _DeferredView:
 
     def extract(self, frames, offsets, rows, cols, shapes, threshold):
         check_cancelled()
-        arrays = (frames, offsets, rows, cols, shapes)
-        signature = _signature(self.original, arrays, threshold)
         context = self.context
-        if context.replaying:
-            if context.position >= len(context.batches):
-                raise RuntimeError('Unplanned staged spot window')
-            batch = context.batches[context.position]
-            context.position += 1
-            if signature != batch.signature:
-                raise RuntimeError(
-                    'Staged spot window changed; refusing measurement reuse'
-                )
-            return batch.stats
         n = len(shapes)
         sum_dtype = np.empty(0, dtype=self.dtype).sum().dtype
         stats = (
@@ -126,7 +97,6 @@ class _DeferredView:
             _compact(cols),
             shapes.copy(),
             threshold,
-            signature,
             stats,
         )
         if (
@@ -145,8 +115,6 @@ class MeasurementPlan:
     def __init__(self, instrument, request, max_bytes=None):
         self.instrument, self.request = instrument, request
         self.batches = []
-        self.replaying = False
-        self.position = 0
         self.max_bytes, self.bytes = max_bytes, 0
 
     def wrap(self, view):
@@ -222,15 +190,7 @@ class MeasurementPlan:
                     output[name] = records
             self.fallback_result = None
             return signal, output
-        if not self.batches:
-            return self.fallback_result
-        self.fallback_result = None
-        self.replaying, self.position = True, 0
-        with self._context():
-            result = self.instrument.pull_spots(*self.request[0], **self.request[1])
-        if self.position != len(self.batches):
-            raise RuntimeError('Staged measurement replay omitted windows')
-        return result
+        return self.fallback_result
 
 
 @dataclass
@@ -240,8 +200,6 @@ class Patch:
     frames: np.ndarray
     rows: np.ndarray
     cols: np.ndarray
-    pixels: object = None
-    remaining: int = 0
 
     @property
     def reader(self):
@@ -283,7 +241,6 @@ def patches(plan):
                     actual,
                     batch.rows[first:last],
                     batch.cols[first:last],
-                    remaining=len(actual),
                 )
             )
     return result
@@ -353,14 +310,9 @@ class MeasurementGroup:
         try:
             self._measure(cache, cancel)
         finally:
-            for patch in self.patches:
-                patch.pixels = None
             cache.clear_payload()
 
     def _measure(self, cache, cancel):
-        from hexrd.core.extensions import transforms as native
-        from hexrd.core.imageseries._sparse import sample_pixels
-
         readers = {}
         for p in self.patches:
             readers.setdefault(p.reader, []).append(p)
@@ -383,119 +335,17 @@ class MeasurementGroup:
             edges = np.r_[0, np.flatnonzero(np.diff(events[:, 0])) + 1, len(events)]
             if reporter is not None:
                 reporter.batch(len(edges) - 1)
-            from contextlib import nullcontext
-
             prefetch = getattr(reader, 'prefetch_frame_indexes', None)
             with prefetch(events[edges[:-1], 0], cache) if prefetch else nullcontext():
-                measured = self._measure_native(
+                self.frame_visits += self._measure_windows(
                     reader, items, events, cache, cancel, reporter
                 )
-                if measured is not None:
-                    self.frame_visits += measured
-                    for patch in items:
-                        patch.remaining = 0
-                    continue
-                for first, last in zip(edges[:-1], edges[1:]):
-                    cancel()
-                    occurrences = events[first:last]
-                    row_parts, col_parts = [], []
-                    for _, patch_index, _ in occurrences:
-                        p = items[patch_index]
-                        row_parts.append(p.rows)
-                        col_parts.append(p.cols)
-                    counts = np.array([len(x) for x in row_parts])
-                    sparse_query = counts.sum() <= 65536
-                    combined = None
-                    self.frame_visits += 1
-                    cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
-                    cache.metadata_limit = cache.max_bytes // 2
-                    if sparse_query and hasattr(reader, 'sample_pixels'):
-                        combined = reader.sample_pixels(
-                            int(events[first, 0]),
-                            np.concatenate(row_parts),
-                            np.concatenate(col_parts),
-                            cache,
-                        )
-                    frame = frame_view = None
-                    if combined is None:
-                        frame = cache.frame(reader, int(events[first, 0]))
-                        frame_view = (
-                            native._SparseFrames([frame])
-                            if sparse.issparse(frame) and frame.has_sorted_indices
-                            else None
-                        )
-                    cursor = 0
-                    for event, rows, cols in zip(occurrences, row_parts, col_parts):
-                        cancel()
-                        _, patch_index, omega_index = event
-                        p = items[patch_index]
-                        view = p.batch.view.view
-                        if combined is not None:
-                            values = combined[cursor : cursor + len(rows)]
-                            cursor += len(rows)
-                        elif frame_view is not None:
-                            values = frame_view.gather(
-                                np.zeros((1, 1), dtype='i8'),
-                                np.array([0, len(rows)], dtype='i8'),
-                                rows,
-                                cols,
-                            )
-                        else:
-                            values = (
-                                sample_pixels(frame, rows, cols)
-                                if sparse.issparse(frame)
-                                else frame[rows, cols]
-                            )
-                            if not view.dense and not sparse.issparse(frame):
-                                values = values.copy()
-                                values[values == 0] = 0
-                        if p.pixels is None:
-                            p.pixels = np.empty(
-                                (len(p.frames), len(rows)), dtype=p.batch.view.dtype
-                            )
-                        p.pixels[omega_index] = values
-                        p.remaining -= 1
-                        if not p.remaining:
-                            if reporter is not None:
-                                reporter.phase('Segmenting peak windows')
-                            shape = p.batch.shapes[p.index : p.index + 1]
-                            stats = native._spotStats(
-                                p.pixels.ravel(),
-                                np.array([0, p.pixels.size], dtype='i8'),
-                                shape,
-                                p.batch.threshold,
-                            )
-                            for dest, source in zip(p.batch.stats, stats):
-                                dest[p.index] = source[0]
-                            p.pixels = None
-                    del (
-                        frame_view,
-                        frame,
-                        combined,
-                        row_parts,
-                        col_parts,
-                        rows,
-                        cols,
-                        values,
-                    )
-                    if reporter is not None:
-                        reporter.cache(cache)
-                        reporter.sampled_frame()
-        if any(p.remaining for p in self.patches):
-            raise RuntimeError('Incomplete staged pixel support')
 
-    def _measure_native(self, reader, items, events, cache, cancel, reporter):
+    def _measure_windows(self, reader, items, events, cache, cancel, reporter):
         from hexrd.core.extensions import transforms as native
         from hexrd.core.imageseries._sparse import sample_pixels
 
-        measure = getattr(native, '_measureWindows', None)
         dtype = items[0].batch.view.dtype
-        if (
-            measure is None
-            or not dtype.isnative
-            or any(p.batch.view.dtype != dtype for p in items)
-        ):
-            return None
         requests = [
             (
                 p.rows,
@@ -543,10 +393,9 @@ class MeasurementGroup:
             if reporter is not None:
                 if completed:
                     reporter.phase('Segmenting peak windows')
-                reporter.cache(cache)
                 reporter.sampled_frame()
 
-        return measure(requests, events, dtype, sample, cancel, tick)
+        return native._measureWindows(requests, events, dtype, sample, cancel, tick)
 
 
 def fit_staged(params, bar, cancel_callback=None):

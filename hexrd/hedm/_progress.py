@@ -220,8 +220,6 @@ class Dashboard(logging.Handler):
         self.peaks = {}
         self.fit_workers = {}
         self.fit_grain_metrics = {}
-        self.fit_started = 0.0
-        self.fit_passes_planned = 0
         self.grains = {}
         self.finished_grains = set()
         self.events = deque(maxlen=500)

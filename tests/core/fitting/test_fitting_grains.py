@@ -10,9 +10,7 @@ from hexrd.hedm.fitting.grains import fitGrain, objFuncFitGrain, matchOmegas
 def env():
     """Consolidated environment fixture."""
     instr = MagicMock()
-    instr.beam_vector, instr.eta_vector = np.array([0, 0, 1]), np.array(
-        [1, 0, 0]
-    )
+    instr.beam_vector, instr.eta_vector = np.array([0, 0, 1]), np.array([1, 0, 0])
     det1 = MagicMock(distortion=None)
     instr.detectors = {'det1': det1}
     instr.detector_parameters = {'det1': MagicMock()}
@@ -32,11 +30,7 @@ def env():
                     __getitem__=lambda s, i: (
                         np.array([1, 1, 1])
                         if i == 2
-                        else (
-                            np.array([10.0, 10.0])
-                            if i == 7
-                            else np.array([0, 0, 0])
-                        )
+                        else (np.array([10.0, 10.0]) if i == 7 else np.array([0, 0, 0]))
                     )
                 )
             ]
@@ -55,19 +49,47 @@ def test_fitGrain(mock_lsq, env):
     np.testing.assert_array_equal(res, np.ones(12))
 
     with pytest.raises(RuntimeError):
-        fitGrain(
-            env['g'], env['inst'], {}, env['B'], env['wl'], omePeriod=[0, 360]
-        )
+        fitGrain(env['g'], env['inst'], {}, env['B'], env['wl'], omePeriod=[0, 360])
 
 
 # --- matchOmegas Tests ---
 
 
+@patch('hexrd.hedm.fitting.grains.objFuncFitGrain', return_value=np.zeros(12))
+@patch('hexrd.hedm.fitting.grains.optimize.leastsq')
+def test_solver_keeps_live_activity_without_evaluation_counters(
+    mock_lsq, mock_obj, env
+):
+    from queue import Queue
+    from hexrd.hedm._fit_progress import FitReporter, set_reporter
+
+    queue = Queue()
+    reporter = FitReporter(queue)
+    reporter.interval = 0
+    reporter.phase('Fitting')
+
+    def solve(objective, parameters, **kwargs):
+        previous = queue.get_nowait()
+        for _ in range(2):
+            objective(parameters, *kwargs['args'])
+            current = queue.get_nowait()
+            assert current['phase'] == 'Fitting'
+            assert current['sequence'] > previous['sequence']
+            assert current['updated'] >= previous['updated']
+            previous = current
+        return parameters, None
+
+    mock_lsq.side_effect = solve
+    set_reporter(reporter)
+    try:
+        fitGrain(env['g'], env['inst'], {}, env['B'], env['wl'])
+    finally:
+        set_reporter(None)
+
+
 @pytest.mark.parametrize("case", ["success", "period", "error"])
 @patch('hexrd.hedm.fitting.grains.xfcapi.oscill_angles_of_hkls')
-@patch(
-    'hexrd.hedm.fitting.grains.rotations.mapAngle', return_value=np.array([0])
-)
+@patch('hexrd.hedm.fitting.grains.rotations.mapAngle', return_value=np.array([0]))
 def test_matchOmegas(mock_map, mock_os, case, env):
     xyo = np.array([[0, 0, 0]])
 
@@ -96,12 +118,20 @@ def test_matchOmegas(mock_map, mock_os, case, env):
 def test_match_omegas_two_branch_selection_keeps_sort_ties_and_nans(monkeypatch):
     from hexrd.hedm.fitting import grains
 
-    differences = np.array([[np.nan, 1., 1., np.nan, 0.], [0., np.nan, 1., np.nan, -0.]])
-    first = np.column_stack((np.ones((5, 2)), np.arange(5)+.1))
-    second = np.column_stack((np.ones((5, 2)), np.arange(5)+.2))
-    monkeypatch.setattr(grains.xfcapi, 'oscill_angles_of_hkls', lambda *args, **kwargs: (first, second))
-    monkeypatch.setattr(grains.rotations, 'angularDifference', lambda *args: differences)
-    match, actual = grains.matchOmegas(np.zeros((5, 3)), np.ones((3, 5)), 0., np.eye(3), np.eye(3), .5)
+    differences = np.array(
+        [[np.nan, 1.0, 1.0, np.nan, 0.0], [0.0, np.nan, 1.0, np.nan, -0.0]]
+    )
+    first = np.column_stack((np.ones((5, 2)), np.arange(5) + 0.1))
+    second = np.column_stack((np.ones((5, 2)), np.arange(5) + 0.2))
+    monkeypatch.setattr(
+        grains.xfcapi, 'oscill_angles_of_hkls', lambda *args, **kwargs: (first, second)
+    )
+    monkeypatch.setattr(
+        grains.rotations, 'angularDifference', lambda *args: differences
+    )
+    match, actual = grains.matchOmegas(
+        np.zeros((5, 3)), np.ones((3, 5)), 0.0, np.eye(3), np.eye(3), 0.5
+    )
     expected_match = np.argsort(differences, axis=0) == 0
     candidates = np.vstack((first[:, 2], second[:, 2]))
     expected = candidates.T.flatten()[expected_match.T.flatten()]
@@ -226,9 +256,7 @@ def test_objFunc_mixed_empty(mock_g2xy, mock_ext, mock_mat, env):
     assert res.size == 3
 
 
-@patch(
-    'hexrd.hedm.fitting.grains.matchOmegas', return_value=(None, np.array([0]))
-)
+@patch('hexrd.hedm.fitting.grains.matchOmegas', return_value=(None, np.array([0])))
 @patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
 @patch(
     'hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy',

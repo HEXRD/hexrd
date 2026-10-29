@@ -3,7 +3,6 @@
 from concurrent.futures import CancelledError, TimeoutError
 from collections import namedtuple
 from contextlib import contextmanager
-import threading
 import os
 
 import numpy as np
@@ -24,9 +23,6 @@ def wait_index(future):
 
 
 def _build(reader, spec, start, stop, height, cancelled):
-    from hexrd.core.extensions import transforms as native
-
-    update = getattr(native, '_fch5RowOffsets', None)
     shape, dtype, addresses, sizes, masks = spec
     pool = reader.pool
     source = getattr(pool.local, 'buffer', None)
@@ -39,85 +35,28 @@ def _build(reader, spec, start, stop, height, cancelled):
         pixels = pool.local.row_buffer = np.empty(shape, dtype=dtype)
     result = np.full(height + 1, stop - start, dtype='i4')
     invalid = np.array([-1], dtype='i8')
-    token = getattr(cancelled, '_hexrd_native', None)
-    batch = getattr(pool.native_reader, 'read_rows', None)
-    if token is not None and batch is not None:
-        if cancelled.is_set():
-            raise CancelledError()
-        status, decoded_bytes = batch(
-            reader.fd,
-            addresses,
-            sizes,
-            masks,
-            start,
-            stop,
-            source,
-            pixels,
-            result,
-            reader.direct,
-            token,
-        )
-        if status == -4:
-            raise CancelledError()
-        if status < 0:
-            if status <= -1000:
-                error = -1000 - status
-                raise OSError(error, os.strerror(error))
-            raise OSError('Cannot read FCH5 row-coordinate chunk')
-        result.flags.writeable = False
-        return IndexResult(result if status else invalid, decoded_bytes)
-    first, previous, next_row = start, -1, 0
-    decoded_bytes = 0
-    while first < stop:
-        if cancelled.is_set():
-            raise CancelledError()
-        chunk, offset = divmod(first, shape[0])
-        count = pool.native_reader.read(
-            reader.fd,
-            int(addresses[chunk, 0]),
-            int(sizes[chunk, 0]),
-            source,
-            pixels,
-            int(masks[chunk, 0]),
-            -1,
-            -1,
-            reader.direct,
-        )
-        if count < 0:
-            if count <= -1000:
-                error = -1000 - count
-                raise OSError(error, os.strerror(error))
-            raise OSError('Cannot read FCH5 row-coordinate chunk')
-        decoded_bytes += count
-        end = min(stop, (chunk + 1) * shape[0])
-        if update is not None:
-            next_row, previous = update(
-                pixels[:, 0],
-                offset,
-                offset + end - first,
-                result,
-                first - start,
-                previous,
-                next_row,
-            )
-            if next_row < 0:
-                return IndexResult(invalid, decoded_bytes)
-            first = end
-            continue
-        rows = pixels[offset : offset + end - first, 0]
-        if rows[0] < previous or rows[-1] >= height or np.any(rows[1:] < rows[:-1]):
-            return IndexResult(invalid, decoded_bytes)
-        last = int(rows[-1]) + 1
-        if last > next_row:
-            result[next_row:last] = (
-                first
-                - start
-                + np.searchsorted(rows, np.arange(next_row, last, dtype=dtype))
-            )
-            next_row = last
-        previous, first = int(rows[-1]), end
+    status, decoded_bytes = pool.native_reader.read_rows(
+        reader.fd,
+        addresses,
+        sizes,
+        masks,
+        start,
+        stop,
+        source,
+        pixels,
+        result,
+        reader.direct,
+        cancelled,
+    )
+    if status == -4:
+        raise CancelledError()
+    if status < 0:
+        if status <= -1000:
+            error = -1000 - status
+            raise OSError(error, os.strerror(error))
+        raise OSError('Cannot read FCH5 row-coordinate chunk')
     result.flags.writeable = False
-    return IndexResult(result, decoded_bytes)
+    return IndexResult(result if status else invalid, decoded_bytes)
 
 
 class IndexQueue:
@@ -127,12 +66,9 @@ class IndexQueue:
         self.pending = {}
         self.current = None
         self.last_frame = None
-        self.cancelled = threading.Event()
         from hexrd.core.extensions import transforms as native
 
-        token = getattr(native, '_ReadCancellation', None)
-        if token is not None:
-            self.cancelled._hexrd_native = token()
+        self.cancelled = native._ReadCancellation()
 
     def _submit(self):
         check_cancelled()
@@ -190,10 +126,7 @@ class IndexQueue:
         return None
 
     def close(self):
-        token = getattr(self.cancelled, '_hexrd_native', None)
-        if token is not None:
-            token.cancel()
-        self.cancelled.set()
+        self.cancelled.cancel()
         pending = [self.current, *self.pending.values()]
         for future in pending:
             if future is not None:
@@ -219,7 +152,6 @@ def prefetch_rows(sampler, frames, cache):
     try:
         if (
             reader is not None
-            and reader.pool.native_reader is not None
             and sampler.indices.dtype == np.dtype('u2')
             and sampler.reader.shape[0] <= 32767
             and reader.supported(sampler.indices)

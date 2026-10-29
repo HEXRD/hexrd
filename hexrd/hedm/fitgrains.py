@@ -74,11 +74,7 @@ def fit_grain_FF_init(params):
 
     queue = params.get('progress_queue')
     set_reporter(
-        FitReporter(
-            queue,
-            lazy=params.get('lazy_images', False),
-            cache_limit=params.get('image_cache_limit', 0),
-        )
+        FitReporter(queue)
         if params.get('collect_metrics', current_dashboard() is not None)
         else None
     )
@@ -299,8 +295,6 @@ def _fit_grain_steps(grain_id):
         # ======= DO LEASTSQ FIT =======
 
         if num_refl_valid <= 12:  # not enough reflections to fit... exit
-            if reporter is not None:
-                reporter.pass_complete(skipped=passes - pass_index)
             warnings.warn(
                 f'Not enough valid reflections ({num_refl_valid}) to fit, ' f'exiting',
                 RuntimeWarning,
@@ -332,8 +326,6 @@ def _fit_grain_steps(grain_id):
                 simOnly=False,
                 return_value_flag=2,
             )
-            if reporter is not None:
-                reporter.pass_complete()
 
     if refit is not None:
         _grain_event(grain_id, 'Refitting', passes, passes, completeness, chisq)
@@ -379,8 +371,6 @@ def _fit_grain_steps(grain_id):
                 simOnly=False,
                 return_value_flag=2,
             )
-        if reporter is not None:
-            reporter.refit_complete()
     result = (grain_id, completeness, chisq, grain_params)
     if return_pull_spots_data:
         result += ((complvec, results),)
@@ -687,8 +677,6 @@ def _fit_grains(
             spots_filename=spots_filename,
             return_pull_spots_data=return_pull_spots_data,
             collect_metrics=current_dashboard() is not None,
-            lazy_images=image_plan.lazy,
-            image_cache_limit=image_plan.cache.max_bytes if image_plan.lazy else 0,
         )
         if staged:
             params['staged_workspace'] = min(
@@ -700,7 +688,6 @@ def _fit_grains(
             image_plan.cache.metadata_limit = temporary_cache // 2
             image_plan.cache.chunk_workers = settings.read_workers
             params['reuse_pixels'] = settings.reuse_pixels
-            params['image_cache_limit'] = temporary_cache
             diagnostic('Measurement mode', 'Segment and measure before each fit pass')
             diagnostic('Maximum chunk read workers', settings.read_workers)
             diagnostic(
@@ -750,10 +737,6 @@ def _fit_grains(
             dashboard.grains.clear()
             dashboard.fit_workers.clear()
             dashboard.fit_grain_metrics.clear()
-            dashboard.fit_started = timeit.default_timer()
-            dashboard.fit_passes_planned = len(grains_table) * min(
-                len(params[key]) for key in ('tth_tol', 'eta_tol', 'ome_tol')
-            )
             dashboard.finished_grains.clear()
             dashboard.diagnostics['Grains finished'] = '0'
             dashboard.diagnostics['Insufficient reflections'] = '0'

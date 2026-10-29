@@ -13,7 +13,6 @@ import mmap
 import os
 from pathlib import Path
 import threading
-from time import monotonic
 
 import numpy as np
 
@@ -33,39 +32,14 @@ def _blosc():
     for path in Path(hdf5plugin.PLUGINS_PATH).glob('*blosc.*'):
         try:
             lib = ctypes.CDLL(str(path))
-            lib.blosc_cbuffer_validate.argtypes = (
-                ctypes.c_void_p,
-                ctypes.c_size_t,
-                ctypes.POINTER(ctypes.c_size_t),
-            )
-            lib.blosc_cbuffer_validate.restype = ctypes.c_int
-            lib.blosc_decompress_ctx.argtypes = (
-                ctypes.c_void_p,
-                ctypes.c_void_p,
-                ctypes.c_size_t,
-                ctypes.c_int,
-            )
-            lib.blosc_decompress_ctx.restype = ctypes.c_int
-            lib.blosc_cbuffer_sizes.argtypes = (
-                ctypes.c_void_p,
-                ctypes.POINTER(ctypes.c_size_t),
-                ctypes.POINTER(ctypes.c_size_t),
-                ctypes.POINTER(ctypes.c_size_t),
-            )
-            lib.blosc_cbuffer_sizes.restype = None
-            lib.blosc_cbuffer_metainfo.argtypes = (
-                ctypes.c_void_p,
-                ctypes.POINTER(ctypes.c_size_t),
-                ctypes.POINTER(ctypes.c_int),
-            )
-            lib.blosc_cbuffer_metainfo.restype = None
-            lib.blosc_getitem.argtypes = (
-                ctypes.c_void_p,
-                ctypes.c_int,
-                ctypes.c_int,
-                ctypes.c_void_p,
-            )
-            lib.blosc_getitem.restype = ctypes.c_int
+            for symbol in (
+                'blosc_cbuffer_validate',
+                'blosc_decompress_ctx',
+                'blosc_cbuffer_sizes',
+                'blosc_cbuffer_metainfo',
+                'blosc_getitem',
+            ):
+                getattr(lib, symbol)
             return lib
         except (OSError, AttributeError):
             continue
@@ -95,32 +69,24 @@ class ChunkPool:
         self.reserved_bytes = fixed + self.workers * per_worker
         self.directory_bytes = 0
         self.local = threading.local()
-        self.native_reader = None
+        from hexrd.core.extensions import transforms as native
+
+        self.native_reader = native._BloscReader(_blosc())
+        self.native_reader.configure(self.workers)
         cache.reserved_bytes += self.reserved_bytes
-        cache._evict(0, None)
+        cache._evict(0)
         self.executor = ThreadPoolExecutor(
             max_workers=self.workers, thread_name_prefix='hexrd-chunk'
         )
 
     def close(self):
         self.executor.shutdown(wait=True, cancel_futures=True)
-        close = getattr(self.native_reader, 'close', None)
-        if close is not None:
-            close()
+        self.native_reader.close()
 
 
 class ChunkReader:
-    def __init__(self, handle, pool, codec):
-        self.pool, self.codec = pool, codec
-        if pool.native_reader is None:
-            from hexrd.core.extensions import transforms as native
-
-            reader = getattr(native, '_BloscReader', None)
-            if reader is not None:
-                pool.native_reader = reader(codec)
-                configure = getattr(pool.native_reader, 'configure', None)
-                if configure is not None:
-                    configure(pool.workers)
+    def __init__(self, handle, pool):
+        self.pool = pool
         self.specs = {}
         direct = getattr(handle, '_hexrd_direct_file', None)
         self.direct = direct is not None
@@ -129,7 +95,7 @@ class ChunkReader:
     @classmethod
     def create(cls, handle, cache):
         workers = cache.chunk_workers
-        if workers < 2 or cache.max_bytes < 32 * _MIB:
+        if os.name != 'posix' or workers < 2 or cache.max_bytes < 32 * _MIB:
             return None
         if handle.driver not in ('sec2', 'fileobj') or handle.userblock_size:
             return None
@@ -140,7 +106,7 @@ class ChunkReader:
             return None
         if cache.chunk_pool is None:
             cache.chunk_pool = ChunkPool(cache, workers)
-        return cls(handle, cache.chunk_pool, codec)
+        return cls(handle, cache.chunk_pool)
 
     def _spec(self, dataset):
         if dataset.name in self.specs:
@@ -206,7 +172,6 @@ class ChunkReader:
 
     def _decode(self, info, shape, dtype, selected=None):
         """No HDF5 calls, mutable file position, or Python callback in workers."""
-        started = monotonic()
         expected = shape[0] * shape[1] * dtype.itemsize
         if (
             selected is not None
@@ -217,128 +182,35 @@ class ChunkReader:
         if size <= 0 or size > expected + 16:
             raise OSError('Invalid FCH5 compressed chunk size')
         result = np.empty(shape, dtype=dtype)
-        if self.pool.native_reader is not None:
-            source = getattr(self.pool.local, 'buffer', None)
-            if source is None:
-                source = self.pool.local.buffer = mmap.mmap(
-                    -1, self.pool.max_chunk + 8192
-                )
-            first, last = selected if selected is not None else (-1, -1)
-            decoded_bytes = self.pool.native_reader.read(
-                self.fd,
-                offset,
-                size,
-                source,
-                result,
-                info.filter_mask,
-                first,
-                last,
-                self.direct,
-            )
-            if decoded_bytes < 0:
-                if decoded_bytes <= -1000:
-                    error = -1000 - decoded_bytes
-                    raise OSError(error, os.strerror(error))
-                message = {
-                    -1: 'Truncated FCH5 chunk',
-                    -2: 'Invalid Blosc FCH5 chunk',
-                    -3: 'Cannot decompress Blosc FCH5 chunk',
-                }[decoded_bytes]
-                raise OSError(message)
-        elif self.direct:
-            first = offset // 4096 * 4096
-            skip = offset - first
-            allocated = ((skip + size + 4095) // 4096) * 4096
-            source = getattr(self.pool.local, 'buffer', None)
-            if source is None:
-                source = self.pool.local.buffer = mmap.mmap(
-                    -1, self.pool.max_chunk + 8192
-                )
-            # Reuse one aligned input buffer per worker. Limit each preadv to
-            # the actual compressed extent, even when the buffer is larger.
-            with memoryview(source)[:allocated] as target:
-                count = os.preadv(self.fd, [target], first)
-            if count < skip + size:
-                raise OSError('Truncated FCH5 chunk')
-            address = ctypes.addressof(ctypes.c_char.from_buffer(source, skip))
-            decoded_bytes = self._decompress(
-                address, size, expected, info.filter_mask, result, selected
-            )
-        else:
-            source = os.pread(self.fd, size, offset)
-            if len(source) != size:
-                raise OSError('Truncated FCH5 chunk')
-            address = ctypes.cast(ctypes.c_char_p(source), ctypes.c_void_p)
-            decoded_bytes = self._decompress(
-                address, size, expected, info.filter_mask, result, selected
-            )
+        source = getattr(self.pool.local, 'buffer', None)
+        if source is None:
+            source = self.pool.local.buffer = mmap.mmap(-1, self.pool.max_chunk + 8192)
+        first, last = selected if selected is not None else (-1, -1)
+        decoded_bytes = self.pool.native_reader.read(
+            self.fd,
+            offset,
+            size,
+            source,
+            result,
+            info.filter_mask,
+            first,
+            last,
+            self.direct,
+        )
+        if decoded_bytes < 0:
+            if decoded_bytes <= -1000:
+                error = -1000 - decoded_bytes
+                raise OSError(error, os.strerror(error))
+            message = {
+                -1: 'Truncated FCH5 chunk',
+                -2: 'Invalid Blosc FCH5 chunk',
+                -3: 'Cannot decompress Blosc FCH5 chunk',
+            }[decoded_bytes]
+            raise OSError(message)
         result.flags.writeable = False
         if selected is not None:
             result = SelectedChunk(result, decoded_bytes == expected, decoded_bytes)
-        return result, monotonic() - started
-
-    def _decompress(self, source, size, expected, mask, result, selected=None):
-        target = result.ctypes.data
-        if mask == 1:  # HDF5 explicitly skipped its only filter.
-            if size != expected:
-                raise OSError('Invalid unfiltered FCH5 chunk size')
-            ctypes.memmove(target, source, expected)
-            return expected
-        if mask != 0:
-            raise OSError('Invalid FCH5 filter mask')
-        decoded = ctypes.c_size_t()
-        if (
-            self.codec.blosc_cbuffer_validate(source, size, ctypes.byref(decoded))
-            or decoded.value != expected
-        ):
-            raise OSError('Invalid Blosc FCH5 chunk')
-        if selected is not None:
-            nbytes, cbytes, blocksize, typesize = (ctypes.c_size_t() for _ in range(4))
-            flags = ctypes.c_int()
-            self.codec.blosc_cbuffer_sizes(
-                source,
-                ctypes.byref(nbytes),
-                ctypes.byref(cbytes),
-                ctypes.byref(blocksize),
-            )
-            self.codec.blosc_cbuffer_metainfo(
-                source, ctypes.byref(typesize), ctypes.byref(flags)
-            )
-            first, last = selected
-            itemsize = result.dtype.itemsize
-            if not 0 <= first <= last <= result.size:
-                raise ValueError('Selected FCH5 pixels exceed their chunk')
-            # A validated Blosc buffer can contain independently compressed
-            # blocks. Decode only complete blocks covering the requested span.
-            # Other layouts retain the full, validated decoder.
-            if (
-                typesize.value == itemsize
-                and blocksize.value
-                and blocksize.value % itemsize == 0
-            ):
-                begin = first * itemsize // blocksize.value * blocksize.value
-                end = min(
-                    expected,
-                    ((last * itemsize + blocksize.value - 1) // blocksize.value)
-                    * blocksize.value,
-                )
-                if 0 < end - begin < expected * 3 // 4:
-                    count = self.codec.blosc_getitem(
-                        source,
-                        begin // itemsize,
-                        (end - begin) // itemsize,
-                        target + begin,
-                    )
-                    if count != end - begin:
-                        raise OSError('Cannot decompress selected Blosc FCH5 blocks')
-                    # The rest of this private workspace is uninitialized. It
-                    # must NEVER enter the full-chunk cache or escape sampling.
-                    return end - begin
-        # One codec thread per job avoids nested thread-pool oversubscription.
-        count = self.codec.blosc_decompress_ctx(source, target, expected, 1)
-        if count != expected:
-            raise OSError('Cannot decompress Blosc FCH5 chunk')
-        return expected
+        return result
 
     def chunks(self, dataset, column, indices, cache, reader, kind, selected=None):
         """Yield requested chunks in order, with a fixed-size rolling queue."""
@@ -384,19 +256,19 @@ class ChunkReader:
                 check_cancelled()
                 index = next(iter(pending))
                 future = pending.pop(index)
-                value, seconds = None, 0.0
+                value = None
                 if future is not None:
                     while True:
                         check_cancelled()
                         try:
-                            value, seconds = future.result(timeout=0.025)
+                            value = future.result(timeout=0.025)
                             break
                         except TimeoutError:
                             if future.done():
                                 raise
                             continue
                 submit()
-                yield index, value, seconds
+                yield index, value
                 # Do not retain the previously yielded result while waiting.
                 value = future = None
         finally:

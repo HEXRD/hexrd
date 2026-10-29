@@ -115,7 +115,7 @@ def test_cancellation_drains_native_jobs_and_reader_can_be_reused(tmp_path):
     try:
         sampler = reader._chunk_reader(cache)
         sampler.reporter = None
-        sampler.read_bytes = sampler.read_seconds = 0
+        sampler.read_bytes = 0
         ptr = sampler._offsets(0, cache)
         backend = ChunkReader.create(sampler.handle(), cache)
         coordinates, values = backend._spec(sampler.indices), backend._spec(
@@ -203,7 +203,7 @@ def test_corrupt_native_chunk_drains_jobs_and_restored_source_can_be_read(
     try:
         sampler = reader._chunk_reader(cache)
         sampler.reporter = None
-        sampler.read_bytes = sampler.read_seconds = 0
+        sampler.read_bytes = 0
         sampler._offsets(0, cache)
         backend = ChunkReader.create(sampler.handle(), cache)
         sampler.chunk_reader = backend

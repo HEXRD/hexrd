@@ -217,7 +217,7 @@ def _finish_spot_batches(
     for ids, edges, omega_start, stats in batches:
         centers, sums, maxima, valid = stats
         if reporter is not None:
-            reporter.reflections(len(ids), np.count_nonzero(valid))
+            reporter.reflections(len(ids))
         angles = np.full((len(ids), 3), np.nan)
         angles[valid, :2] = (
             edges[valid, :2] + (0.5 + centers[valid, :0:-1]) * edges[valid, 2:]

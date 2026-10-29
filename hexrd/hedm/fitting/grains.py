@@ -180,20 +180,16 @@ def fitGrain(
         wavelength,
         omePeriod,
     )
+    from hexrd.hedm._progress import check_cancelled
     from hexrd.hedm._fit_progress import current_reporter
 
     reporter = current_reporter()
-    from hexrd.hedm._progress import check_cancelled, _cancellation_check
 
-    objective = objFuncFitGrain
-    if reporter is not None or _cancellation_check.get() is not None:
-
-        def objective(*args):
-            check_cancelled()
-            result = objFuncFitGrain(*args)
-            if reporter is not None:
-                reporter.evaluation()
-            return result
+    def objective(*args):
+        check_cancelled()
+        if reporter is not None:
+            reporter.publish()
+        return objFuncFitGrain(*args)
 
     results = optimize.leastsq(
         objective,

@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import multiprocessing
 import os
 import zipfile
-from time import monotonic
 
 from hexrd.hedm._fit_progress import current_reporter
 
@@ -81,15 +80,13 @@ class FrameCache:
         self.files[reader] = handle
         return handle
 
-    def _evict(self, size, reporter):
+    def _evict(self, size):
         while self.bytes + size + self.reserved_bytes > self.max_bytes:
             store = self.frames if self.frames else self.metadata
             _, (_, old_size) = store.popitem(last=False)
             self.bytes -= old_size
             if store is self.metadata:
                 self.metadata_bytes -= old_size
-            if reporter is not None:
-                reporter.data['evictions'] += 1
 
     def array(self, reader, kind, index, load, *, metadata=False):
         """Cache decoded chunks and compact indexes under one byte allowance.
@@ -100,17 +97,12 @@ class FrameCache:
         self._process()
         store = self.metadata if metadata else self.frames
         key = (reader, kind, int(index))
-        reporter = current_reporter()
         item = store.pop(key, None)
         if item is not None:
             self.hits += 1
             store[key] = item
-            if reporter is not None:
-                reporter.cache_hit()
             return item[0]
         self.misses += 1
-        if reporter is not None:
-            reporter.data['cache_misses'] += 1
         value = load()
         value.flags.writeable = False
         size = frame_bytes(value)
@@ -130,9 +122,7 @@ class FrameCache:
                     _, (_, old_size) = store.popitem(last=False)
                     self.bytes -= old_size
                     self.metadata_bytes -= old_size
-                    if reporter is not None:
-                        reporter.data['evictions'] += 1
-            self._evict(size, reporter)
+            self._evict(size)
             store[key] = (value, size)
             self.bytes += size
             if metadata:
@@ -153,9 +143,6 @@ class FrameCache:
         if item is not None:
             self.hits += 1
             self.frames[key] = item
-            if reporter is not None:
-                reporter.cache_hit()
-                reporter.cache(self)
             return item[0]
         self.misses += 1
         # Processed frames may recursively load their source. Count source
@@ -165,24 +152,17 @@ class FrameCache:
             and not reader.resident
             and not isinstance(reader, ProcessedReader)
         )
-        if reporter is not None and not reader.resident:
-            reporter.data['cache_misses'] += 1
         if track_read:
             reporter.read_started()
-            started = monotonic()
         frame = reader.read(index, self)
         if tuple(frame.shape) != tuple(reader.shape) or frame.dtype != reader.dtype:
             raise ValueError('image frame shape/dtype differs from its metadata')
         size = frame_bytes(frame)
         if not reader.resident and size <= self.max_bytes - self.reserved_bytes:
-            self._evict(size, reporter)
+            self._evict(size)
             self.frames[key] = (frame, size)
             self.bytes += size
             self.peak_bytes = max(self.peak_bytes, self.bytes)
-        if track_read:
-            reporter.read_finished(size, monotonic() - started)
-        if reporter is not None:
-            reporter.cache(self)
         return frame
 
     def clear_payload(self):

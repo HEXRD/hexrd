@@ -75,15 +75,14 @@ def test_staging_is_exact_and_reads_each_shared_frame_once(
         for plan, reference in zip(plans, expected):
             for actual, wanted in zip(plan.result(), reference):
                 np.testing.assert_array_equal(actual, wanted, strict=True)
-        assert calls == before, 'measurement replay read image pixels'
+        assert calls == before, 'finishing a captured plan read image pixels'
         assert cache.bytes == 0 and cache.max_bytes <= group.max_bytes // 4
-        assert all(p.pixels is None for p in group.patches)
     finally:
         cache.close()
         clear_sparse_frame_views()
 
 
-def test_planning_without_native_windows_uses_existing_result():
+def test_planning_without_windows_uses_existing_result():
     result = ([], {})
 
     class Instrument:
@@ -169,7 +168,6 @@ def test_source_coordinates_are_prepared_once_even_after_rejected_group():
     clear_sparse_frame_views()
     try:
         plan = MeasurementPlan(Instrument(), ((), {})).prepare()
-        signature = plan.batches[0].signature
         assert not MeasurementGroup(1).add(plan)
         (first,) = patches(plan)
         (second,) = patches(plan)
@@ -179,7 +177,6 @@ def test_source_coordinates_are_prepared_once_even_after_rejected_group():
         assert np.shares_memory(first.rows, second.rows)
         assert np.shares_memory(first.cols, second.cols)
         assert not first.rows.flags.writeable and not first.cols.flags.writeable
-        assert signature == plan.batches[0].signature
         np.testing.assert_array_equal(rows, [-1, 0, 10])
     finally:
         cache.close()
@@ -206,7 +203,6 @@ def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
         np.tile([0, 1, 0, 1], 2),
         np.array([[2, 2, 2], [2, 2, 2]]),
         0,
-        (),
         (np.zeros((2, 3)), np.zeros(2), np.zeros(2), np.zeros(2, bool)),
     )
     plan = MeasurementPlan(None, None)
@@ -277,7 +273,6 @@ def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
             np.tile(np.arange(3), 3),
             np.array([[3, 3, 3]]),
             0.5,
-            (),
             (np.zeros((1, 3)), np.zeros(1), np.zeros(1), np.zeros(1, dtype=bool)),
         )
     ]
@@ -295,33 +290,32 @@ def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
     try:
         with pytest.raises(KeyboardInterrupt):
             group.measure(cache, cancel)
-        assert all(p.pixels is None for p in group.patches)
         assert cache.bytes == 0 and cache.max_bytes <= group.max_bytes // 4
     finally:
         cache.close()
 
 
-def test_changed_window_refuses_replay():
+def test_planning_copies_window_coordinates_without_replaying_extraction():
     from hexrd.hedm._staged_spots import _DeferredView
 
     class ViewStub:
         dtype = np.dtype('f8')
 
-    view = ViewStub()
     plan = MeasurementPlan(None, None)
-    deferred = _DeferredView(plan, view)
-    args = [
+    deferred = _DeferredView(plan, ViewStub())
+    rows = np.array([0])
+    stats = deferred.extract(
         np.array([[0, 1]]),
         np.array([0, 1]),
-        np.array([0]),
+        rows,
         np.array([0]),
         np.array([[2, 1, 1]]),
-    ]
-    deferred.extract(*args, 10.0)
-    plan.replaying = True
-    args[2][0] = 1
-    with pytest.raises(RuntimeError, match='window changed'):
-        deferred.extract(*args, 10.0)
+        10.0,
+    )
+    rows[0] = 1
+    assert plan.batches[0].rows[0] == 0
+    plan.fallback_result = stats
+    assert plan.result() is stats
 
 
 @pytest.mark.parametrize('cancel_run', [False, 1, 2])
@@ -427,7 +421,7 @@ def test_staged_driver_prepares_pass_before_fitting_and_restores_grain_state(
         clear_sparse_frame_views()
 
 
-def test_recreated_shared_panel_roi_has_stable_exact_measurement_scope():
+def test_captured_shared_panel_roi_matches_original_measurement():
     from hexrd.core.imageseries.process import ProcessedImageSeries
 
     class Reader:

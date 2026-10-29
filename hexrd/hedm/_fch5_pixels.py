@@ -7,7 +7,6 @@ Unsorted coordinates or duplicates use the existing full-frame CSR path so
 that its coalescing order and numerical results are preserved.
 """
 
-from time import monotonic
 from contextlib import contextmanager
 import weakref
 
@@ -47,7 +46,7 @@ class Fch5Pixels:
                 dataset, column, indices, cache, self.reader, kind, selected
             )
             if parallel is not None and parallel.supported(dataset)
-            else ((int(index), None, 0.0) for index in indices)
+            else ((int(index), None) for index in indices)
         )
         current, value = -1, None
 
@@ -58,9 +57,7 @@ class Fch5Pixels:
                 return value
             while current < index:
                 check_cancelled()
-                started = monotonic()
-                current, decoded, _ = next(stream)
-                self.read_seconds += monotonic() - started
+                current, decoded = next(stream)
                 first = current * chunk
                 complete = True
                 decoded_bytes = None
@@ -86,8 +83,6 @@ class Fch5Pixels:
                 # query must never mistake them for fully decoded cache data.
                 if not complete:
                     cache.misses += 1
-                    if self.reporter is not None:
-                        self.reporter.data['cache_misses'] += 1
                 value = (
                     cache.array(self.reader, kind, current, load)
                     if complete
@@ -105,9 +100,7 @@ class Fch5Pixels:
     def _read(self, dataset, first, last, column):
         if self.reporter is not None and not self.read_bytes:
             self.reporter.read_started()
-        started = monotonic()
         result = dataset[first:last, column]
-        self.read_seconds += monotonic() - started
         self.read_bytes += result.nbytes
         return result
 
@@ -120,9 +113,7 @@ class Fch5Pixels:
 
                 if self.reporter is not None and not self.read_bytes:
                     self.reporter.read_started()
-                started = monotonic()
                 result = wait_index(future)
-                self.read_seconds += monotonic() - started
                 self.read_bytes += result.decoded_bytes
                 return result.array
             start, stop = map(int, self.bounds[frame])
@@ -206,19 +197,19 @@ class Fch5Pixels:
     def _positions(self, ptr, start, rows, cols, needed, cache, selected=None):
         from hexrd.core.extensions import transforms as native
 
-        lookup = getattr(native, '_fch5Positions', None)
+        lookup = native._fch5Positions
         # Pin at most 16 MiB of coordinate chunks during one native call. This
         # allowance is deducted from the same cache while the arrays are live.
         # A compressed edge chunk owns its full decoded allocation even when
         # only a short slice lies inside the dataset's logical extent.
         size = len(needed) * (1024 + self.coord_chunk * self.indices.dtype.itemsize)
-        if lookup is None or size > min(
+        if size > min(
             16 * 1024**2, cache.max_bytes // 4, cache.max_bytes - cache.reserved_bytes
         ):
             return NotImplemented
         arrays = []
         cache.reserved_bytes += size
-        cache._evict(0, self.reporter)
+        cache._evict(0)
         try:
             with self._sequence('columns', needed, cache, selected) as get:
                 arrays = [get(index) for index in needed]
@@ -238,108 +229,99 @@ class Fch5Pixels:
 
     def sample(self, frame, rows, cols, cache):
         self.reporter = current_reporter()
-        self.read_bytes = self.read_seconds = 0
-        try:
-            rows, cols = np.asarray(rows).ravel(), np.asarray(cols).ravel()
-            if not rows.size:
-                return np.zeros(rows.size, dtype=self.reader.dtype)
-            ptr = self._offsets(frame, cache)
-            if ptr[0] < 0:
-                return None
-            result = self._sample_native(frame, ptr, rows, cols, cache)
-            if result is not NotImplemented:
-                return result
-            output = np.zeros(rows.size, dtype=self.reader.dtype)
-            start = int(self.bounds[frame, 0])
-            order = np.argsort(rows, kind='stable')
-            edges = np.r_[0, np.flatnonzero(np.diff(rows[order])) + 1, len(rows)]
-            queries, positions = [], []
-            requested_rows = rows[order[edges[:-1]]]
-            needed = set()
-            column_spans = {}
-            for row in requested_rows:
-                first, last = start + int(ptr[row]), start + int(ptr[row + 1])
-                needed.update(
-                    range(
-                        first // self.coord_chunk,
-                        (last + self.coord_chunk - 1) // self.coord_chunk,
-                    )
-                    if first < last
-                    else ()
+        self.read_bytes = 0
+        rows, cols = np.asarray(rows).ravel(), np.asarray(cols).ravel()
+        if not rows.size:
+            return np.zeros(rows.size, dtype=self.reader.dtype)
+        ptr = self._offsets(frame, cache)
+        if ptr[0] < 0:
+            return None
+        result = self._sample_native(frame, ptr, rows, cols, cache)
+        if result is not NotImplemented:
+            return result
+        output = np.zeros(rows.size, dtype=self.reader.dtype)
+        start = int(self.bounds[frame, 0])
+        order = np.argsort(rows, kind='stable')
+        edges = np.r_[0, np.flatnonzero(np.diff(rows[order])) + 1, len(rows)]
+        queries, positions = [], []
+        requested_rows = rows[order[edges[:-1]]]
+        needed = set()
+        column_spans = {}
+        for row in requested_rows:
+            first, last = start + int(ptr[row]), start + int(ptr[row + 1])
+            needed.update(
+                range(
+                    first // self.coord_chunk,
+                    (last + self.coord_chunk - 1) // self.coord_chunk,
                 )
-                while first < last:
-                    index, offset = divmod(first, self.coord_chunk)
-                    end = min(last, (index + 1) * self.coord_chunk)
-                    previous = column_spans.get(index, (offset, offset + end - first))
-                    column_spans[index] = (
-                        min(offset, previous[0]),
-                        max(offset + end - first, previous[1]),
-                    )
-                    first = end
-            needed = sorted(needed)
-            found = self._positions(
-                ptr, start, rows[order], cols[order], needed, cache, column_spans
+                if first < last
+                else ()
             )
-            if found is None:
-                return None
-            if found is not NotImplemented:
-                valid = found >= 0
-                queries, positions = [order[valid]], [found[valid]]
-            else:
-                with self._sequence('columns', needed, cache, column_spans) as get:
-                    for left, right in zip(edges[:-1], edges[1:]):
-                        check_cancelled()
-                        selected = order[left:right]
-                        row = int(rows[selected[0]])
-                        first, last = start + int(ptr[row]), start + int(ptr[row + 1])
-                        if first == last:
-                            continue
-                        columns = self._columns(first, last, cache, get)
-                        if (
-                            columns[0] < 0
-                            or columns[-1] >= self.reader.shape[1]
-                            or np.any(columns[1:] <= columns[:-1])
-                        ):
-                            return None
-                        indices = np.searchsorted(columns, cols[selected])
-                        valid = indices < len(columns)
-                        valid[valid] &= columns[indices[valid]] == cols[selected[valid]]
-                        queries.append(selected[valid])
-                        positions.append(first + indices[valid])
-            if not positions:
-                return output
-            queries = np.concatenate(queries)
-            positions, inverse = np.unique(
-                np.concatenate(positions), return_inverse=True
-            )
-            if not positions.size:
-                return output
-            values = np.empty(len(positions), dtype=self.reader.dtype)
-            chunks = positions // self.value_chunk
-            edges = np.r_[0, np.flatnonzero(np.diff(chunks)) + 1, len(chunks)]
-            value_spans = {
-                int(chunks[left]): (
-                    int(positions[left] % self.value_chunk),
-                    int(positions[right - 1] % self.value_chunk) + 1,
+            while first < last:
+                index, offset = divmod(first, self.coord_chunk)
+                end = min(last, (index + 1) * self.coord_chunk)
+                previous = column_spans.get(index, (offset, offset + end - first))
+                column_spans[index] = (
+                    min(offset, previous[0]),
+                    max(offset + end - first, previous[1]),
                 )
-                for left, right in zip(edges[:-1], edges[1:])
-                if left < right
-            }
-            with self._sequence(
-                'values', chunks[edges[:-1]], cache, value_spans
-            ) as get:
+                first = end
+        needed = sorted(needed)
+        found = self._positions(
+            ptr, start, rows[order], cols[order], needed, cache, column_spans
+        )
+        if found is None:
+            return None
+        if found is not NotImplemented:
+            valid = found >= 0
+            queries, positions = [order[valid]], [found[valid]]
+        else:
+            with self._sequence('columns', needed, cache, column_spans) as get:
                 for left, right in zip(edges[:-1], edges[1:]):
-                    if left == right:
+                    check_cancelled()
+                    selected = order[left:right]
+                    row = int(rows[selected[0]])
+                    first, last = start + int(ptr[row]), start + int(ptr[row + 1])
+                    if first == last:
                         continue
-                    chunk = get(chunks[left])
-                    values[left:right] = chunk[positions[left:right] % self.value_chunk]
-            # CSR sampling adds into zero, including for stored negative zero.
-            output[queries] += values[inverse]
+                    columns = self._columns(first, last, cache, get)
+                    if (
+                        columns[0] < 0
+                        or columns[-1] >= self.reader.shape[1]
+                        or np.any(columns[1:] <= columns[:-1])
+                    ):
+                        return None
+                    indices = np.searchsorted(columns, cols[selected])
+                    valid = indices < len(columns)
+                    valid[valid] &= columns[indices[valid]] == cols[selected[valid]]
+                    queries.append(selected[valid])
+                    positions.append(first + indices[valid])
+        if not positions:
             return output
-        finally:
-            if self.reporter is not None:
-                self.reporter.read_finished(self.read_bytes, self.read_seconds)
-                self.reporter.cache(cache)
+        queries = np.concatenate(queries)
+        positions, inverse = np.unique(np.concatenate(positions), return_inverse=True)
+        if not positions.size:
+            return output
+        values = np.empty(len(positions), dtype=self.reader.dtype)
+        chunks = positions // self.value_chunk
+        edges = np.r_[0, np.flatnonzero(np.diff(chunks)) + 1, len(chunks)]
+        value_spans = {
+            int(chunks[left]): (
+                int(positions[left] % self.value_chunk),
+                int(positions[right - 1] % self.value_chunk) + 1,
+            )
+            for left, right in zip(edges[:-1], edges[1:])
+            if left < right
+        }
+        with self._sequence('values', chunks[edges[:-1]], cache, value_spans) as get:
+            for left, right in zip(edges[:-1], edges[1:]):
+                if left == right:
+                    continue
+                chunk = get(chunks[left])
+                values[left:right] = chunk[positions[left:right] % self.value_chunk]
+        # CSR sampling adds into zero, including for stored negative zero.
+        output[queries] += values[inverse]
+        return output
 
     def _sample_native(self, frame, ptr, rows, cols, cache):
         from hexrd.hedm._chunk_io import ChunkReader
@@ -349,12 +331,7 @@ class Fch5Pixels:
         if self.chunk_reader is None:
             self.chunk_reader = ChunkReader.create(self.handle(), cache)
         backend = self.chunk_reader
-        read = (
-            getattr(backend.pool.native_reader, 'read_pixels', None)
-            if backend
-            else None
-        )
-        if read is None:
+        if backend is None:
             return NotImplemented
         coordinates, values = backend._spec(self.indices), backend._spec(self.values)
         if coordinates is None or values is None:
@@ -365,12 +342,11 @@ class Fch5Pixels:
         if workspace < 65536:
             return NotImplemented
         cache.reserved_bytes += workspace
-        cache._evict(0, self.reporter)
-        started = monotonic()
+        cache._evict(0)
         try:
             if self.reporter is not None and not self.read_bytes:
                 self.reporter.read_started()
-            result, status, decoded, reads = read(
+            result, status, decoded, reads = backend.pool.native_reader.read_pixels(
                 backend.fd,
                 coordinates,
                 values,
@@ -385,8 +361,6 @@ class Fch5Pixels:
             )
             self.read_bytes += decoded
             cache.misses += reads
-            if self.reporter is not None:
-                self.reporter.data['cache_misses'] += reads
             if status == 2:
                 return NotImplemented
             if status < 0:
@@ -398,5 +372,4 @@ class Fch5Pixels:
                 raise OSError('Cannot read native FCH5 pixel chunks')
             return result
         finally:
-            self.read_seconds += monotonic() - started
             cache.reserved_bytes -= workspace

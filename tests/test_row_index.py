@@ -160,18 +160,12 @@ def test_batched_native_read_indexes_partial_chunks_and_retains_validation(
 
 @pytest.mark.parametrize('direct', [False, True])
 @pytest.mark.parametrize('malformed', [None, 'rows', 'columns', 'duplicate'])
-@pytest.mark.parametrize('native_batch', [False, True])
 def test_prefetched_indexes_match_existing_row_validation(
-    tmp_path, direct, malformed, native_batch, monkeypatch
+    tmp_path, direct, malformed, monkeypatch
 ):
     import os
     from test_fch5_pixels import make_reader
 
-    if not native_batch:
-        from hexrd.core.extensions import transforms as native
-
-        # Existing installations can have the previous per-chunk native API.
-        monkeypatch.delattr(native, '_ReadCancellation')
     if direct:
         if not hasattr(os, 'O_DIRECT'):
             pytest.skip('Linux direct I/O')

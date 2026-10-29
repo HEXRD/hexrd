@@ -1,0 +1,207 @@
+{
+  "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+  "last_performance_measurement": {
+    "before_commit": "e968097b03ca8823060d9dc8cf5a7939be4c6d53",
+    "after_commit": "42f7623e",
+    "note": "Historical measurements before code simplification; no new performance claim.",
+    "settings": {
+      "dataset_job_address_space_limit_mib": 4096,
+      "dataset_runs_sequential": true,
+      "fitting_processes": 1,
+      "blas_threads": 1,
+      "direct_fch5_reads": true,
+      "image_scratch": false,
+      "staged_workspace_mib": 512,
+      "read_workers": 4
+    },
+    "measurements": {
+      "4": {
+        "before_median_seconds": 13.37930850799603,
+        "after_median_seconds": 12.060832369999844,
+        "speedup": 1.10931883451724,
+        "time_reduction_percent": 9.85459104413513,
+        "before_seconds": [
+          13.409394861999317,
+          13.37930850799603,
+          13.13531012799649
+        ],
+        "after_seconds": [
+          12.060832369999844,
+          12.140627614993718,
+          12.00783347900142
+        ],
+        "after_peak_rss_bytes": 861384704
+      },
+      "13": {
+        "before_median_seconds": 26.95550853399618,
+        "after_median_seconds": 22.148358470003586,
+        "speedup": 1.2170431759312146,
+        "time_reduction_percent": 17.833646350725807,
+        "before_seconds": [
+          26.795012778995442,
+          27.932600727996032,
+          26.95550853399618
+        ],
+        "after_seconds": [
+          22.36347330299759,
+          22.148358470003586,
+          21.50160096500622
+        ],
+        "after_peak_rss_bytes": 1052454912
+      },
+      "52": {
+        "before_median_seconds": 92.28341844749957,
+        "after_median_seconds": 62.3165626259979,
+        "speedup": 1.4808810781389243,
+        "time_reduction_percent": 32.47263303163172,
+        "before_seconds": [
+          93.09078352800134,
+          91.4760533669978
+        ],
+        "after_seconds": [
+          62.2383681479987,
+          62.39475710399711
+        ],
+        "after_peak_rss_bytes": 1168089088
+      }
+    },
+    "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+    "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+    "dataset": {
+      "path": "sven_dataset/data/images_median_and_25_counts_removed_eiger.fch5",
+      "file_bytes": 44303807671,
+      "image_file_hashed": false
+    }
+  },
+  "scientific_contract": {
+    "exact_numerical_comparison": true,
+    "spot_files_byte_identical": true,
+    "examples_master": "Unmodified master, nine studies in staged and grain modes.",
+    "sven_master": "First four grains, master scientific algorithms with bounded pixel input; eager master decodes 322 GiB.",
+    "larger_sven_reference": "Starting branch e968097b."
+  },
+  "cleanup": {
+    "before_commit": "42f7623e",
+    "runtime_and_experiment_python_lines_removed_net": 896,
+    "changes": [
+      "Remove unused detector-centroid experiments and request-replay prototypes.",
+      "Use the native measurement coordinator without the older Python coordinator/replay paths.",
+      "Use current native chunk/row APIs; retain HDF5, format, numerical and oversized-grain fallbacks.",
+      "Keep live grain work/phase/age and cancellation, remove unused Fit Activity telemetry.",
+      "Consolidate dated reports; detailed historical data remains in git history."
+    ],
+    "cpp_kernels_changed": false,
+    "tests": {
+      "passed": 529,
+      "address_space_limit_mib": 1536,
+      "blas_and_numba_threads": 1,
+      "scope": "Fit-grains/native sampling, geometry/objectives, memory, dashboard/cancellation, experiment/configuration and shared progress. Includes a solver activity-heartbeat regression check."
+    },
+    "examples": {
+      "reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+      "comparison": "Exact fits and extracted spots, no numerical tolerance.",
+      "studies": {
+        "staged": [
+          "ruby-0",
+          "ruby-1",
+          "ruby-2",
+          "ruby-3",
+          "ruby-4",
+          "ruby-5",
+          "dexelas",
+          "dexelas-roi",
+          "zirconium"
+        ],
+        "grain": [
+          "ruby-0",
+          "ruby-1",
+          "ruby-2",
+          "ruby-3",
+          "ruby-4",
+          "ruby-5",
+          "dexelas",
+          "dexelas-roi",
+          "zirconium"
+        ]
+      }
+    },
+    "sven": [
+      {
+        "grains": 4,
+        "mode": "staged",
+        "reference": "master scientific algorithms, bounded input",
+        "fits_and_spots_exact": true,
+        "spot_files_byte_identical": 4,
+        "memory": {
+          "rss": 860188672,
+          "pss": 853332992,
+          "uss": 850964480
+        }
+      },
+      {
+        "grains": 4,
+        "mode": "grain",
+        "reference": "master scientific algorithms, bounded input",
+        "fits_and_spots_exact": true,
+        "spot_files_byte_identical": 4,
+        "memory": {
+          "rss": 1294663680,
+          "pss": 1286985728,
+          "uss": 1284583424
+        }
+      },
+      {
+        "grains": 52,
+        "mode": "staged",
+        "reference": "42f7623e",
+        "fits_and_spots_exact": true,
+        "spot_files_byte_identical": 52,
+        "memory": {
+          "rss": 1161527296,
+          "pss": 1154064384,
+          "uss": 1151680512
+        }
+      }
+    ],
+    "dataset_policy": {
+      "address_space_limit_mib": 4096,
+      "fitting_processes": 1,
+      "blas_threads": 1,
+      "direct_fch5_reads": true,
+      "sequential": true,
+      "image_scratch": false
+    },
+    "cancellation": {
+      "runs": [
+        {
+          "method": "button",
+          "seconds_from_cancel_request_to_cleanup": 0.004445539001608267,
+          "seconds_including_simulated_ui_dispatch": 3.2096954389999155,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "method": "ctrl+c",
+          "seconds_from_cancel_request_to_cleanup": 0.004624305001925677,
+          "seconds_including_simulated_ui_dispatch": 0.06996315899596084,
+          "cancelled_during_real_fch5_reads": true
+        }
+      ],
+      "address_limit_mib": 4096,
+      "peak_rss_mib": 1032.60546875
+    },
+    "source_sha256": {
+      "hexrd/core/instrument/_spotutils.py": "3ede0828b7f9fd8acc44e94785e6bb006367d296e62f6e1c073fdf18684d1140",
+      "hexrd/hedm/_chunk_io.py": "b2649675e6c52332d73135a20f4de20ac8479987f2a5225e6b5473a66ef999e1",
+      "hexrd/hedm/_fch5_pixels.py": "8a693d330561a5fba547bc02c4fd39caa9a273d3613f8ec8ce3825108fb1673c",
+      "hexrd/hedm/_fit_progress.py": "9bddd515d874431ed9f215e566b2a2c62d518ae4565b2e4c292d6e6e4c8c54a3",
+      "hexrd/hedm/_image_cache.py": "42e29e51d55d0a01978b1ab9b7bf44de4cfd52e03bc0f3a92b0d22d5d2c659b3",
+      "hexrd/hedm/_pixel_cache.py": "79996b78581eda78c7147ba27208458c0fa2c824030ed55e3775b3331c9b604a",
+      "hexrd/hedm/_progress.py": "b810cce5a2855322b30880bcb76e7c1d2bf5b0a864b42ea8cad71be86eb1b89d",
+      "hexrd/hedm/_row_index.py": "2caf7cdfd6a0e6cde34be50d31c5035a9a1dc34d78b4dd0c9f0743283c492748",
+      "hexrd/hedm/_staged_spots.py": "2aa2f7aa20b648d4f885df7fae6521c9bb1f9a0a9590d2ea9c8d6e594c2efdbb",
+      "hexrd/hedm/fitgrains.py": "f3c833194f60723371306a0b6cd9ebbc333a9ec8cacb167d123eb04d8fb16af9",
+      "hexrd/hedm/fitting/grains.py": "3b3db338781789a578e62e5e5eb5c33eb31a8039e6639dbf713f9d5b66f07842"
+    },
+    "native_extension_sha256": "77d7e8914e55669d81ffd1a5b38fa8475efb285743a586a95bc3b13c3ae8845f"
+  }
+}
