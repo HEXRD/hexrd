@@ -698,8 +698,10 @@ def _fit_grains(
             temporary_cache = min(128 * 1024**2, params['staged_workspace'] // 4)
             image_plan.cache.max_bytes = temporary_cache
             image_plan.cache.metadata_limit = temporary_cache // 2
+            image_plan.cache.chunk_workers = settings.read_workers
             params['image_cache_limit'] = temporary_cache
             diagnostic('Measurement mode', 'Segment and measure before each fit pass')
+            diagnostic('Maximum chunk read workers', settings.read_workers)
             diagnostic(
                 'Staged workspace', f"{params['staged_workspace'] / 1024**2:.0f} MiB"
             )

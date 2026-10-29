@@ -366,8 +366,15 @@ class ImageCacheSettings:
 
     mode: str = 'auto'
     max_size_mb: float | None = None
+    read_workers: int = 4
 
     def __post_init__(self):
+        if (isinstance(self.read_workers, bool)
+                or not isinstance(self.read_workers, int)
+                or not 1 <= self.read_workers <= 8):
+            raise ValueError(
+                'fit_grains:image_cache:read_workers must be an integer from 1 to 8'
+            )
         if self.mode not in ('auto', 'eager', 'lazy'):
             raise ValueError('fit_grains:image_cache:mode must be auto, eager, or lazy')
         if self.max_size_mb is not None and (

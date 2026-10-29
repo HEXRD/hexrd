@@ -34,18 +34,21 @@ original window:
 5. Regenerate windows after the grain parameters change, and repeat for the next
    configured tolerance pass. Refitting keeps its existing behavior.
 
-The existing `pull_spots` entry point currently performs geometry planning and
-conversion of the completed statistics into reflection records. Geometry is
-replayed and its pixel inputs are checked exactly before reusing any statistics;
-the replay performs no native image extraction. This is a first-run shared-read
+The existing `pull_spots` entry point performs geometry planning and conversion
+of completed statistics into reflection records. Native panel results retain
+their planned geometry and statistics, so result assembly needs no second
+prediction or image extraction. Custom extractors retain the checked replay
+fallback. This is a first-run shared-read
 pipeline, not a cache populated by running the full fit beforehand. It does not
 add a different peak model or reuse stale measurements across changed windows.
 
 ## Memory and cancellation
 
-The first implementation uses one coordinator/fitting process, including when
+The staged implementation uses one coordinator/fitting process, including when
 `multiprocessing` requests more workers. The dashboard reports the effective
-worker count. It forces lazy image access.
+worker count. It forces lazy image access. Large compatible FCH5 inputs also use
+a bounded native decoder thread pool; see the [throughput guide](fit-grains-throughput.md)
+for the `image_cache.read_workers` setting and updated measurements.
 
 The preparation workspace derives from the image-cache allowance and is clamped
 to 16–512 MiB. It accounts for compressed geometry, event tables, compact statistics

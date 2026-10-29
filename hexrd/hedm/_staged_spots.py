@@ -85,6 +85,15 @@ class _DeferredView:
     def __init__(self, context, original):
         self.context, self.original, self.dtype = context, original, original.dtype
 
+    def defer_result(self, finish, size):
+        from hexrd.core.instrument._spotutils import _DeferredSpotData
+
+        context = self.context
+        if context.max_bytes is not None and context.bytes + size > context.max_bytes:
+            raise _PlanTooLarge()
+        context.bytes += size
+        return _DeferredSpotData(finish)
+
     def extract(self, frames, offsets, rows, cols, shapes, threshold):
         check_cancelled()
         arrays = (frames, offsets, rows, cols, shapes)
@@ -173,6 +182,45 @@ class MeasurementPlan:
         return self
 
     def result(self):
+        from hexrd.core.instrument._spotutils import _DeferredSpotData, _SpotData
+
+        if (
+            isinstance(self.fallback_result, tuple)
+            and len(self.fallback_result) == 2
+            and isinstance(self.fallback_result[1], dict)
+            and any(
+                isinstance(x, _DeferredSpotData)
+                for x in self.fallback_result[1].values()
+            )
+        ):
+            # Resolve captured geometry without simulating the grain or making
+            # its resampling grids again. Normalize invalid IDs across panels
+            # only after all panels' real validity masks have been measured.
+            signal, output, invalid_id = [], {}, -100
+            for name, records in self.fallback_result[1].items():
+                packed = True
+                if isinstance(records, _DeferredSpotData):
+                    packed = records.packed
+                    records, _ = records.finish()
+                    if records is None:
+                        records = []
+                if isinstance(records, _SpotData):
+                    bad = records.peak_id < 0
+                    count = int(np.count_nonzero(bad))
+                    records.peak_id[bad] = invalid_id - np.arange(count)
+                    invalid_id -= count
+                    signal.extend(~bad)
+                    output[name] = records if packed else list(records)
+                else:
+                    for record in records:
+                        valid = record[0] >= 0
+                        signal.append(valid)
+                        if not valid:
+                            record[0] = invalid_id
+                            invalid_id -= 1
+                    output[name] = records
+            self.fallback_result = None
+            return signal, output
         if not self.batches:
             return self.fallback_result
         self.fallback_result = None
@@ -240,7 +288,7 @@ class MeasurementGroup:
 
     def add(self, plan):
         incoming = patches(plan)
-        cost = sum(b.bytes for b in plan.batches) + sum(
+        cost = max(plan.bytes, sum(b.bytes for b in plan.batches)) + sum(
             1024 + 64 * len(p.frames) for p in incoming
         )
         frontiers = {r: x.copy() for r, x in self.frontiers.items()}

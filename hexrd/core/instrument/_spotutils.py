@@ -118,8 +118,6 @@ def pull_spots_batched(
     invalid_id,
 ):
     """Bounded extraction batches, preserving the historical spot record order."""
-    from hexrd.core.extensions import transforms as native
-    from hexrd.core.rotations import mapAngle
     import logging
 
     from hexrd.hedm._fit_progress import current_reporter
@@ -146,23 +144,86 @@ def pull_spots_batched(
         packed=True,
         max_points=max(1, 524288 // len(ome_grid)),
     )
-    chunks = []
-
+    batches = []
     for start, edges, patch_shapes, offsets, rows, cols in patches:
         ids = valid_ids[start : start + len(patch_shapes)]
         shapes = np.column_stack((np.full(len(ids), len(ome_grid)), patch_shapes))
-        centers, sums, maxima, valid = view.extract(
-            frame_ids[ids], offsets, rows, cols, shapes, threshold
+        stats = view.extract(frame_ids[ids], offsets, rows, cols, shapes, threshold)
+        omega_start = series.omega[frame_ids[ids, 0], 0]
+        batches.append((ids, edges, omega_start, stats))
+
+    def finish():
+        return _finish_spot_batches(
+            instrument,
+            panel,
+            batches,
+            hkl_ids,
+            hkls,
+            predicted,
+            predicted_xy,
+            delta_omega,
+            ome_period,
+            rmat_c,
+            tvec_c,
+            invalid_id,
         )
+
+    defer = getattr(view, 'defer_result', None)
+    if defer is not None:
+        size = 2048 + sum(a.nbytes for a in (hkl_ids, hkls, predicted, predicted_xy))
+        size += sum(
+            256 + ids.nbytes + edges.nbytes + omega.nbytes
+            for ids, edges, omega, _ in batches
+        )
+
+        def deferred_finish():
+            active_reporter = current_reporter()
+            if active_reporter is not None:
+                active_reporter.panel(sum(len(ids) for ids, _, _, _ in batches))
+            return finish()
+
+        return defer(deferred_finish, size), invalid_id
+    return finish()
+
+
+class _DeferredSpotData:
+    """A planned panel whose measured statistics will be filled in-place."""
+
+    def __init__(self, finish):
+        self.finish = finish
+        self.packed = True
+
+
+def _finish_spot_batches(
+    instrument,
+    panel,
+    batches,
+    hkl_ids,
+    hkls,
+    predicted,
+    predicted_xy,
+    delta_omega,
+    ome_period,
+    rmat_c,
+    tvec_c,
+    invalid_id,
+):
+    from hexrd.core.extensions import transforms as native
+    from hexrd.core.rotations import mapAngle
+    from hexrd.hedm._fit_progress import current_reporter
+
+    reporter = current_reporter()
+    chunks = []
+    for ids, edges, omega_start, stats in batches:
+        centers, sums, maxima, valid = stats
         if reporter is not None:
             reporter.reflections(len(ids), np.count_nonzero(valid))
         angles = np.full((len(ids), 3), np.nan)
         angles[valid, :2] = (
             edges[valid, :2] + (0.5 + centers[valid, :0:-1]) * edges[valid, 2:]
         )
-        omega_start = series.omega[frame_ids[ids[valid], 0], 0]
         angles[valid, 2] = np.radians(
-            omega_start + (0.5 + centers[valid, 0]) * delta_omega
+            omega_start[valid] + (0.5 + centers[valid, 0]) * delta_omega
         )
         xy = np.full((len(ids), 2), np.nan)
         peak_ids = ids.copy()

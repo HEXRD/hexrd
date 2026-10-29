@@ -10,7 +10,9 @@ import pytest
 from hexrd.hedm._image_cache import FileReader, FrameCache, StreamingView, View
 
 
-def make_reader(path, dtype='float64', malformed=None, large_offset=False):
+def make_reader(
+    path, dtype='float64', malformed=None, large_offset=False, compression=None
+):
     shape = (14, 18)
     row, col = np.meshgrid([1, 4, 8, 12], [2, 5, 9, 13], indexing='ij')
     indices = np.column_stack((row.ravel(), col.ravel())).astype('uint16')
@@ -38,10 +40,18 @@ def make_reader(path, dtype='float64', malformed=None, large_offset=False):
         group = handle.create_group('scan')
         group['frame_ids'] = bounds.ravel()
         coordinates = group.create_dataset(
-            'indices', shape=(offset + cursor, 2), dtype='u2', chunks=(7, 1)
+            'indices',
+            shape=(offset + cursor, 2),
+            dtype='u2',
+            chunks=(7, 1),
+            **(compression or {}),
         )
         intensities_dataset = group.create_dataset(
-            'data', shape=(offset + cursor, 1), dtype=dtype, chunks=(5, 1)
+            'data',
+            shape=(offset + cursor, 1),
+            dtype=dtype,
+            chunks=(5, 1),
+            **(compression or {}),
         )
         coordinates[offset:] = np.concatenate(coords)
         intensities_dataset[offset:] = np.concatenate(intensities)[:, None]
@@ -238,3 +248,42 @@ def test_direct_reader_fails_if_direct_io_is_unavailable(tmp_path, monkeypatch):
     monkeypatch.delattr(os, 'O_DIRECT', raising=False)
     with pytest.raises(OSError, match='require Linux'):
         DirectFile(tmp_path / 'input')
+
+
+@pytest.mark.parametrize('direct', [False, True])
+@pytest.mark.parametrize('malformed', [None, 'rows', 'columns', 'duplicate'])
+def test_parallel_pixel_queries_preserve_csr_and_fallback(
+    tmp_path, direct, malformed, monkeypatch
+):
+    import hdf5plugin
+    from hexrd.core.extensions import transforms as native
+    from hexrd.core.imageseries._sparse import sample_pixels
+
+    if direct:
+        if not hasattr(os, 'O_DIRECT'):
+            pytest.skip('Linux direct I/O')
+        monkeypatch.setenv('HEXRD_FIT_GRAINS_DIRECT_IO', '1')
+    reader = make_reader(
+        tmp_path / 'parallel.h5',
+        malformed=malformed,
+        compression=hdf5plugin.Blosc(cname='zstd'),
+    )
+    cache, reference = FrameCache(32 * 1024**2), FrameCache(0)
+    cache.chunk_workers = 4
+    rows, cols = np.indices(reader.shape)
+    rows, cols = rows.ravel(), cols.ravel()
+    try:
+        for frame in [0, 4, 3, 0]:
+            actual = reader.sample_pixels(frame, rows, cols, cache)
+            if malformed and frame != 4:
+                assert actual is None
+            else:
+                expected = StreamingView(View(reader), reference)._sample_frame(
+                    frame, rows, cols, native, sample_pixels
+                )
+                assert actual.tobytes() == expected.tobytes()
+            assert cache.chunk_pool is not None
+            assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
+    finally:
+        cache.close()
+        reference.close()

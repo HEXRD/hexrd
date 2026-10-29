@@ -213,12 +213,14 @@ def run(args):
     setup_seconds = time.perf_counter() - started
 
     timings = []
+    parent_cpu_seconds = []
     reference = None
     for repetition in range(args.repeat):
         profiler = cProfile.Profile() if args.profile else None
         if profiler:
             profiler.enable()
         started = time.perf_counter()
+        cpu_started = time.process_time()
         result = fit_grains(
             experiment,
             original_grains.copy(),
@@ -226,6 +228,7 @@ def run(args):
             return_pull_spots_data=not args.no_return_spots,
         )
         timings.append(time.perf_counter() - started)
+        parent_cpu_seconds.append(time.process_time() - cpu_started)
         if profiler:
             profiler.disable()
             profiler.dump_stats(str(output) + f'-{repetition}.prof')
@@ -255,6 +258,10 @@ def run(args):
         'image_cache': settings.get('fit_grains', {}).get('image_cache', {}),
         'setup_seconds': setup_seconds,
         'seconds': timings,
+        'parent_process_cpu_seconds': parent_cpu_seconds,
+        'effective_parent_cpu_cores': [
+            cpu / wall for cpu, wall in zip(parent_cpu_seconds, timings)
+        ],
         'median_seconds': float(np.median(timings)),
         'profiled': args.profile,
         'write_spots': args.write_spots,

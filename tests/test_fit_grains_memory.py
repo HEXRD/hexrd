@@ -228,7 +228,16 @@ def test_auto_keeps_small_scan_fast_and_honors_resident_edits(sources):
 
 
 @pytest.mark.parametrize(
-    'kwargs', [{'mode': 'typo'}, {'max_size_mb': -1}, {'max_size_mb': float('inf')}]
+    'kwargs',
+    [
+        {'mode': 'typo'},
+        {'max_size_mb': -1},
+        {'max_size_mb': float('inf')},
+        {'read_workers': 0},
+        {'read_workers': 9},
+        {'read_workers': 2.5},
+        {'read_workers': True},
+    ],
 )
 def test_invalid_cache_policy_rejected(kwargs):
     with pytest.raises(ValueError, match='image_cache'):

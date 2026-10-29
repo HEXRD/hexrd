@@ -90,6 +90,43 @@ def test_planning_without_native_windows_uses_existing_result():
     assert group.add(plan)
 
 
+@pytest.mark.parametrize('packed', [False, True])
+def test_captured_panel_results_do_not_repeat_geometry_and_number_bad_peaks(packed):
+    from hexrd.core.instrument._spotutils import _DeferredSpotData, _SpotData
+
+    calls = []
+
+    def records(ids):
+        n = len(ids)
+        return _SpotData(
+            np.array(ids),
+            np.arange(n),
+            np.ones((n, 3), 'i8'),
+            np.ones(n),
+            np.ones(n),
+            np.ones((n, 3)),
+            np.ones((n, 3)),
+            np.ones((n, 2)),
+            np.ones((n, 2)),
+        )
+
+    class Instrument:
+        def pull_spots(self):
+            calls.append('predict')
+            first = _DeferredSpotData(lambda: (records([-100, 1, -101]), -102))
+            second = _DeferredSpotData(lambda: (records([-100, 1]), -101))
+            first.packed = second.packed = packed
+            return [], {'first': first, 'second': second}
+
+    plan = MeasurementPlan(Instrument(), ((), {})).prepare()
+    signal, result = plan.result()
+    assert calls == ['predict']
+    assert signal == [False, True, False, False, True]
+    assert [record[0] for record in result['first']] == [-100, 1, -101]
+    assert [record[0] for record in result['second']] == [-102, 1]
+    assert isinstance(result['first'], _SpotData if packed else list)
+
+
 def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
     from hexrd.hedm._staged_spots import Batch
     from hexrd.hedm._image_cache import StreamingView

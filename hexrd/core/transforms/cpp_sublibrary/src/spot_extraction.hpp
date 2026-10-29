@@ -99,6 +99,148 @@ static py::object csrIndices(py::array rows, py::array columns, Index height,
   return py::none();
 }
 
+template <typename T>
+static py::object fch5PositionsTyped(
+    CArray<int64_t> ptr, int64_t frame_start, py::list arrays,
+    CArray<int64_t> chunk_ids, int64_t chunk_size,
+    CArray<int64_t> rows, CArray<int64_t> cols, int64_t width) {
+  const Index count = rows.size(), nchunks = chunk_ids.size();
+  py::array_t<int64_t> output(count);
+  auto out = output.mutable_data();
+  std::fill(out, out + count, int64_t(-1));
+  if (!nchunks)
+    return output;
+  const int64_t first_chunk = chunk_ids.data()[0];
+  const int64_t last_chunk = chunk_ids.data()[nchunks - 1];
+  if (first_chunk < 0 || last_chunk < first_chunk ||
+      last_chunk - first_chunk > 4096)
+    return py::none();
+  std::vector<CArray<T>> owners;
+  std::vector<const T *> chunks(last_chunk - first_chunk + 1, nullptr);
+  std::vector<int64_t> lengths(chunks.size(), 0);
+  for (Index i = 0; i < nchunks; ++i) {
+    int64_t id = chunk_ids.data()[i];
+    if (id < first_chunk || id > last_chunk ||
+        (i && id <= chunk_ids.data()[i - 1]))
+      throw py::value_error("chunk IDs must be strictly increasing");
+    owners.push_back(py::cast<CArray<T>>(arrays[i]));
+    if (owners.back().ndim() != 1 || owners.back().size() > chunk_size)
+      throw py::value_error("invalid coordinate chunk shape");
+    chunks[id - first_chunk] = owners.back().data();
+    lengths[id - first_chunk] = owners.back().size();
+  }
+  const auto offsets = ptr.data(), query_rows = rows.data(), query_cols = cols.data();
+  const int64_t height = ptr.size() - 1;
+  bool canonical = true;
+  {
+    py::gil_scoped_release release;
+    auto column = [&](int64_t position, T &value) {
+      int64_t index = position / chunk_size - first_chunk;
+      int64_t offset = position % chunk_size;
+      if (position < 0 || index < 0 || index >= int64_t(chunks.size()) ||
+          !chunks[index] || offset >= lengths[index])
+        return false;
+      value = chunks[index][offset];
+      return true;
+    };
+    int64_t previous_row = -1, first = 0, last = 0;
+    for (Index i = 0; i < count && canonical; ++i) {
+      const int64_t row = query_rows[i];
+      if (row < 0 || row >= height || row < previous_row) {
+        canonical = false;
+        break;
+      }
+      if (row != previous_row) {
+        if (offsets[row] < 0 || offsets[row + 1] < offsets[row] ||
+            offsets[row + 1] > INT64_MAX - frame_start) {
+          canonical = false;
+          break;
+        }
+        first = frame_start + offsets[row];
+        last = frame_start + offsets[row + 1];
+        T previous = 0;
+        for (int64_t p = first; p < last;) {
+          const int64_t index = p / chunk_size - first_chunk;
+          const int64_t offset = p % chunk_size;
+          if (p < 0 || index < 0 || index >= int64_t(chunks.size()) ||
+              !chunks[index] || offset >= lengths[index]) {
+            canonical = false;
+            break;
+          }
+          const int64_t n = std::min(last - p, lengths[index] - offset);
+          const T *begin = chunks[index] + offset, *end = begin + n;
+          if (*begin < 0 || uint64_t(end[-1]) >= uint64_t(width) ||
+              (p != first && *begin <= previous) ||
+              std::adjacent_find(begin, end, [](T a, T b) { return a >= b; }) != end) {
+            canonical = false;
+            break;
+          }
+          previous = end[-1];
+          p += n;
+        }
+        previous_row = row;
+      }
+      if (!canonical || first == last || query_cols[i] < 0 || query_cols[i] >= width)
+        continue;
+      if (first / chunk_size == (last - 1) / chunk_size) {
+        const T *begin = chunks[first / chunk_size - first_chunk] + first % chunk_size;
+        const T *end = begin + (last - first);
+        const T *found = std::lower_bound(begin, end, query_cols[i],
+            [](T a, int64_t b) { return uint64_t(a) < uint64_t(b); });
+        if (found != end && uint64_t(*found) == uint64_t(query_cols[i]))
+          out[i] = first + (found - begin);
+        continue;
+      }
+      int64_t left = first, right = last;
+      while (left < right) {
+        int64_t mid = left + (right - left) / 2;
+        T value = 0;
+        column(mid, value); // Full row was validated above.
+        if (uint64_t(value) < uint64_t(query_cols[i]))
+          left = mid + 1;
+        else
+          right = mid;
+      }
+      T value;
+      if (left < last && column(left, value) && uint64_t(value) == uint64_t(query_cols[i]))
+        out[i] = left;
+    }
+  }
+  return canonical ? py::object(output) : py::object(py::none());
+}
+
+static py::object fch5Positions(
+    CArray<int64_t> ptr, int64_t frame_start, py::list arrays,
+    CArray<int64_t> chunk_ids, int64_t chunk_size,
+    CArray<int64_t> rows, CArray<int64_t> cols, int64_t width) {
+  checkShape(ptr, {-1});
+  checkShape(chunk_ids, {Index(arrays.size())});
+  checkShape(rows, {-1});
+  checkShape(cols, {rows.size()});
+  if (!ptr.size() || frame_start < 0 || chunk_size <= 0 || width < 0)
+    throw py::value_error("invalid sparse frame dimensions");
+  if (!arrays.size()) {
+    py::array_t<int64_t> output(rows.size());
+    std::fill(output.mutable_data(), output.mutable_data() + rows.size(), int64_t(-1));
+    return output;
+  }
+  auto dtype = py::cast<py::array>(arrays[0]).dtype();
+  for (auto array : arrays)
+    if (!sameDtype(py::cast<py::array>(array).dtype(), dtype))
+      return py::none();
+#define FCH5_TYPE(T) \
+  if (sameDtype(dtype, py::dtype::of<T>())) \
+    return fch5PositionsTyped<T>(ptr, frame_start, arrays, chunk_ids, chunk_size, rows, cols, width)
+  FCH5_TYPE(uint16_t);
+  FCH5_TYPE(int16_t);
+  FCH5_TYPE(uint32_t);
+  FCH5_TYPE(int32_t);
+  FCH5_TYPE(uint64_t);
+  FCH5_TYPE(int64_t);
+#undef FCH5_TYPE
+  return py::none();
+}
+
 static py::tuple patchGrid(CArray<double> angles, CArray<int64_t> shapes,
                            py::list grids) {
   checkShape(angles, {-1, 3});
@@ -1683,6 +1825,7 @@ static void bind(py::module_ &m) {
   m.def("_projectSpotGrid", &projectGrid<true>);
   m.def("_spotMeasuredXY", &measuredXY);
   m.def("_csrFrameIndices", &csrIndices);
+  m.def("_fch5Positions", &fch5Positions);
   m.attr("_simd_size") = xsimd::simd_traits<double>::size;
 }
 

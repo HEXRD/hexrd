@@ -59,6 +59,9 @@ class FrameCache:
         self.metadata_bytes = 0
         self.metadata_limit = None
         self.files = OrderedDict()
+        self.chunk_workers = 0
+        self.chunk_pool = None
+        self.reserved_bytes = 0
         self.bytes = self.peak_bytes = self.hits = self.misses = 0
 
     def _process(self):
@@ -78,7 +81,7 @@ class FrameCache:
         return handle
 
     def _evict(self, size, reporter):
-        while self.bytes + size > self.max_bytes:
+        while self.bytes + size + self.reserved_bytes > self.max_bytes:
             store = self.frames if self.frames else self.metadata
             _, (_, old_size) = store.popitem(last=False)
             self.bytes -= old_size
@@ -110,10 +113,15 @@ class FrameCache:
         value = load()
         value.flags.writeable = False
         size = frame_bytes(value)
-        quota = (
-            min(self.max_bytes, self.metadata_limit)
-            if metadata and self.metadata_limit is not None
-            else min(128 * _MIB, self.max_bytes // 4) if metadata else self.max_bytes
+        quota = min(
+            self.max_bytes - self.reserved_bytes,
+            (
+                min(self.max_bytes, self.metadata_limit)
+                if metadata and self.metadata_limit is not None
+                else (
+                    min(128 * _MIB, self.max_bytes // 4) if metadata else self.max_bytes
+                )
+            ),
         )
         if size <= quota:
             if metadata:
@@ -165,7 +173,7 @@ class FrameCache:
         if tuple(frame.shape) != tuple(reader.shape) or frame.dtype != reader.dtype:
             raise ValueError('image frame shape/dtype differs from its metadata')
         size = frame_bytes(frame)
-        if not reader.resident and size <= self.max_bytes:
+        if not reader.resident and size <= self.max_bytes - self.reserved_bytes:
             self._evict(size, reporter)
             self.frames[key] = (frame, size)
             self.bytes += size
@@ -187,6 +195,10 @@ class FrameCache:
         self.bytes = 0
 
     def close(self):
+        if self.chunk_pool is not None:
+            self.chunk_pool.close()
+            self.chunk_pool = None
+        self.reserved_bytes = 0
         self.clear_frames()
         for file in self.files.values():
             file.close()

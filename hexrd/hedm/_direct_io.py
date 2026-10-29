@@ -84,7 +84,9 @@ def open_direct_hdf5(filename, **kwargs):
 
     raw = DirectFile(filename)
     try:
-        return DirectHdf5(raw, 'r', driver='fileobj', **kwargs)
+        handle = DirectHdf5(raw, 'r', driver='fileobj', **kwargs)
+        handle._hexrd_direct_file = raw
+        return handle
     except BaseException:
         raw.close()
         raise

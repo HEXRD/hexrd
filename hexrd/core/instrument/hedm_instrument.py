@@ -59,6 +59,7 @@ from ._spotutils import (
     pull_spots_batched,
     clear_sparse_frame_views,
     native_threshold_supported,
+    _DeferredSpotData,
 )
 
 from hexrd.core import constants
@@ -1894,6 +1895,12 @@ class HEDMInstrument(object):
                     eta_tol, npdiv, ome_grid, delta_omega, ome_period,
                     threshold, rMat_c, tVec_c, next_invalid_peak_id,
                 )
+                if isinstance(records, _DeferredSpotData):
+                    if write_text:
+                        raise RuntimeError('Deferred spot measurements cannot write during planning')
+                    records.packed = _packed
+                    output[detector_id] = records
+                    continue
                 if write_text:
                     output_dir = Path(dirname) / detector_id
                     output_dir.mkdir(parents=True, exist_ok=True)
