@@ -1,7 +1,4 @@
-"""Frame-index read-ahead must be exact, bounded and cancellable."""
-
-import threading
-import time
+"""Compact row indexes must be exact, bounded and cancellable."""
 
 import hdf5plugin
 import numpy as np
@@ -88,12 +85,10 @@ def test_native_row_index_handles_signed_limit_and_empty_frames(height):
 
 
 @pytest.mark.parametrize('chunk_size', [7, 16, 131])
-def test_batched_native_read_indexes_partial_chunks_and_retains_validation(
+def test_native_index_reads_partial_chunks_and_checks_cancellation(
     tmp_path, chunk_size
 ):
     import h5py
-    import mmap
-    from hexrd.core.extensions import transforms as native
     from hexrd.hedm._chunk_io import ChunkReader
 
     rng = np.random.default_rng(813)
@@ -105,62 +100,51 @@ def test_batched_native_read_indexes_partial_chunks_and_retains_validation(
             'rows',
             data=stored[:, None],
             chunks=(chunk_size, 1),
-            **hdf5plugin.Blosc(cname='zstd'),
+            **hdf5plugin.Blosc(cname='zstd')
         )
     cache = FrameCache(32 * 1024**2)
     cache.chunk_workers = 4
     try:
-        with h5py.File(path, 'r') as handle, mmap.mmap(-1, 1024**2 + 8192) as raw:
+        with h5py.File(path, 'r') as handle:
             reader = ChunkReader.create(handle, cache)
-            shape, dtype, addresses, sizes, masks = reader._spec(handle['rows'])
-            pixels = np.empty(shape, dtype=dtype)
-            offsets = np.empty(44, dtype='i4')
+            spec = reader._spec(handle['rows'])
 
-            def read(start, stop, output=offsets, token=None):
+            def read(start, stop, check=lambda: None):
                 return reader.pool.native_reader.read_rows(
-                    reader.fd,
-                    addresses,
-                    sizes,
-                    masks,
-                    start,
-                    stop,
-                    raw,
-                    pixels,
-                    output,
-                    False,
-                    token or native._ReadCancellation(),
+                    reader.fd, spec, start, stop, 43, False, check
                 )
 
-            status, decoded = read(5, 5 + len(rows))
+            status, offsets, decoded = read(5, 5 + len(rows))
             assert status == 1 and decoded >= rows.nbytes
             np.testing.assert_array_equal(
-                offsets,
-                np.searchsorted(rows, np.arange(44)).astype('i4'),
-                strict=True,
+                offsets, np.searchsorted(rows, np.arange(44)).astype('i4'), strict=True
             )
-            # The same padding excluded above must reject the fast path if used.
             assert read(0, 5 + len(rows))[0] == 0
-            assert read(5, 5) == (1, 0)
-            assert not offsets.any()
-            token = native._ReadCancellation()
-            token.cancel()
-            assert read(5, 5 + len(rows), token=token) == (-4, 0)
+            status, empty, decoded = read(5, 5)
+            assert status == 1 and decoded == 0 and not empty.any()
+            calls = 0
+
+            def cancel():
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise KeyboardInterrupt
+
+            with pytest.raises(KeyboardInterrupt):
+                read(5, 5 + len(rows), cancel)
+            # Reuse after an interrupted read must release buffers and locks.
+            assert read(5, 5 + len(rows))[0] == 1
             with pytest.raises(ValueError, match='dimensions'):
                 read(-1, 0)
             with pytest.raises(ValueError, match='dimensions'):
-                read(0, len(addresses) * chunk_size + 1)
-            with pytest.raises(ValueError, match='workspaces'):
-                read(5, 6, np.empty(44, dtype='i8'))
-            offsets.flags.writeable = False
-            with pytest.raises(ValueError, match='workspaces'):
-                read(5, 6)
+                read(0, len(spec[2]) * chunk_size + 1)
     finally:
         cache.close()
 
 
 @pytest.mark.parametrize('direct', [False, True])
 @pytest.mark.parametrize('malformed', [None, 'rows', 'columns', 'duplicate'])
-def test_prefetched_indexes_match_existing_row_validation(
+def test_native_indexes_match_hdf5_in_any_frame_order(
     tmp_path, direct, malformed, monkeypatch
 ):
     import os
@@ -175,81 +159,65 @@ def test_prefetched_indexes_match_existing_row_validation(
         malformed=malformed,
         compression=hdf5plugin.Blosc(cname='zstd'),
     )
-    cache, reference = FrameCache(32 * 1024**2), FrameCache(12000)
+    cache, reference = FrameCache(64 * 1024**2), FrameCache(12000)
     cache.chunk_workers = 4
-    frames = np.array([2, 0, 3, 1, 4])
     rows, cols = np.indices(reader.shape)
-    rows, cols = rows.ravel(), cols.ravel()
     try:
-        sampler = reader._chunk_reader(cache)
-        with reader.prefetch_frame_indexes(frames, cache):
-            assert sampler.row_queue is not None
-            for frame in frames:
-                actual = reader.sample_pixels(frame, rows, cols, cache)
-                expected = reader.sample_pixels(frame, rows, cols, reference)
+        with reader.prefetch_frame_indexes(np.array([2, 0, 3, 1, 4]), cache):
+            for frame in [2, 0, 3, 1, 4, 3, 0]:
+                actual = reader.sample_pixels(frame, rows.ravel(), cols.ravel(), cache)
+                expected = reader.sample_pixels(
+                    frame, rows.ravel(), cols.ravel(), reference
+                )
                 if expected is None:
                     assert actual is None
                 else:
                     assert actual.tobytes() == expected.tobytes()
-                assert len(sampler.row_queue.pending) <= cache.chunk_pool.workers
                 assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
-        assert sampler.row_queue is None
     finally:
         cache.close()
         reference.close()
 
 
-def test_skipping_frames_with_reused_pixels_does_not_break_index_order(tmp_path):
+def test_native_prefetch_handles_skipped_frames_and_cancelled_scopes(tmp_path):
     from test_fch5_pixels import make_reader
 
-    reader = make_reader(tmp_path / 'rows.h5', compression=hdf5plugin.Blosc())
-    cache = FrameCache(32 * 1024**2)
+    reader = make_reader(tmp_path / 'scope.h5', compression=hdf5plugin.Blosc())
+    cache = FrameCache(64 * 1024**2)
     cache.chunk_workers = 4
+    frames = np.array([2, 0, 3, 1, 4])
     try:
-        with reader.prefetch_frame_indexes([2, 0, 3, 1, 4], cache):
+        with reader.prefetch_frame_indexes(frames, cache):
             for frame in [3, 4]:
                 actual = reader.sample_pixels(frame, [4], [9], cache)
                 assert actual[0] == (7 if frame == 3 else 0)
-    finally:
-        cache.close()
+        assert reader._chunk_reader(cache).row_indexes is None
+        cache.clear_frames()
 
-
-def test_cancel_joins_index_jobs_before_returning(tmp_path, monkeypatch):
-    from test_fch5_pixels import make_reader
-    from hexrd.hedm import _row_index
-
-    reader = make_reader(tmp_path / 'rows.h5', compression=hdf5plugin.Blosc())
-    cache = FrameCache(32 * 1024**2)
-    cache.chunk_workers = 4
-    active = set()
-    lock, started = threading.Lock(), threading.Event()
-    original = _row_index._build
-
-    def build(*args):
-        with lock:
-            active.add(threading.get_ident())
-            started.set()
-        try:
-            time.sleep(0.03)
-            return original(*args)
-        finally:
-            with lock:
-                active.remove(threading.get_ident())
-
-    monkeypatch.setattr(_row_index, '_build', build)
-
-    def cancel():
-        if started.is_set():
+        def cancel():
             raise KeyboardInterrupt
 
-    token = _cancellation_check.set(cancel)
-    begin = time.monotonic()
-    try:
-        with pytest.raises(KeyboardInterrupt):
-            with reader.prefetch_frame_indexes([0, 1, 2, 3, 4], cache):
-                reader.sample_pixels(0, [4], [9], cache)
-        assert not active and time.monotonic() - begin < 1
-        assert reader._chunk_reader(cache).row_queue is None
+        token = _cancellation_check.set(cancel)
+        try:
+            with pytest.raises(KeyboardInterrupt):
+                with reader.prefetch_frame_indexes(frames, cache):
+                    reader.sample_pixels(0, [4], [9], cache)
+        finally:
+            _cancellation_check.reset(token)
+        assert reader._chunk_reader(cache).row_indexes is None
+        with reader.prefetch_frame_indexes(frames, cache):
+            assert reader.sample_pixels(0, [4], [9], cache)[0] == 7
     finally:
-        _cancellation_check.reset(token)
         cache.close()
+
+
+def test_prefetch_scope_can_be_released_after_its_reader_closes(tmp_path):
+    from test_fch5_pixels import make_reader
+
+    reader = make_reader(tmp_path / 'owner.h5', compression=hdf5plugin.Blosc())
+    cache = FrameCache(64 * 1024**2)
+    cache.chunk_workers = 4
+    with reader.prefetch_frame_indexes(np.array([2, 0, 3, 1, 4]), cache):
+        cache.close()
+    # Native row jobs must already be drained before descriptors are closed.
+    assert not cache.files and cache.chunk_pool is None

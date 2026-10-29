@@ -1,26 +1,15 @@
-"""Bounded parallel reads of immutable, Blosc-compressed FCH5 chunks.
+"""Metadata and budget ownership for the single native FCH5 decoder pool."""
 
-Only the coordinator calls HDF5. Workers use positional reads and Blosc's
-reentrant C context API, so neither HDF5's global lock nor Python's GIL
-serializes disk access and decompression. Unsupported layouts use h5py.
-"""
-
-from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from collections import namedtuple
 import ctypes
 from functools import lru_cache
-import mmap
 import os
 from pathlib import Path
-import threading
 
 import numpy as np
 
 from hexrd.hedm._progress import check_cancelled
 
 _MIB = 1024**2
-ChunkInfo = namedtuple('ChunkInfo', 'byte_offset size filter_mask')
-SelectedChunk = namedtuple('SelectedChunk', 'array complete decoded_bytes')
 
 
 @lru_cache(maxsize=1)
@@ -47,40 +36,30 @@ def _blosc():
 
 
 class ChunkPool:
-    """One small executor shared by all detectors in a coordinator."""
+    """Shared native decoder and its cache reservation."""
 
     max_chunk = _MIB
     directory_budget = 8 * _MIB
 
     def __init__(self, cache, workers):
-        # Leave at least a quarter of the cache for indexes and retained data.
-        # Bound codec scratch as well as inputs/results, without multiplying
-        # this allowance by the number of open detector files.
-        # Native frame jobs and Python row lookahead share their active I/O
-        # limit, but each retains its own reusable aligned source workspace.
-        per_worker = 8 * self.max_chunk + 16384
-        # Also cover the bounded native query's sort/inverse/missing buffers
-        # and the coordinator's borrowed rows, columns and sampled result.
-        fixed = self.directory_budget + 8 * self.max_chunk + 16384
+        # Native readers own one aligned input and one decoded chunk per
+        # worker. Directories, pixel queries and row-index scratch are shared.
+        per_worker = 2 * self.max_chunk + 8192
+        fixed = self.directory_budget + 16 * self.max_chunk
         capacity = max(1, (cache.max_bytes * 3 // 4 - fixed) // per_worker)
         self.workers = min(workers, os.cpu_count() or 1, capacity)
         # Includes decoded results, compressed input, direct-I/O alignment and
         # one result borrowed by the consumer. This is INSIDE the cache budget.
         self.reserved_bytes = fixed + self.workers * per_worker
         self.directory_bytes = 0
-        self.local = threading.local()
         from hexrd.core.extensions import transforms as native
 
         self.native_reader = native._BloscReader(_blosc())
         self.native_reader.configure(self.workers)
         cache.reserved_bytes += self.reserved_bytes
         cache._evict(0)
-        self.executor = ThreadPoolExecutor(
-            max_workers=self.workers, thread_name_prefix='hexrd-chunk'
-        )
 
     def close(self):
-        self.executor.shutdown(wait=True, cancel_futures=True)
         self.native_reader.close()
 
 
@@ -170,118 +149,40 @@ class ChunkReader:
     def supported(self, dataset):
         return self._spec(dataset) is not None
 
-    def _decode(self, info, shape, dtype, selected=None):
-        """No HDF5 calls, mutable file position, or Python callback in workers."""
-        expected = shape[0] * shape[1] * dtype.itemsize
-        if (
-            selected is not None
-            and not 0 <= selected[0] <= selected[1] <= shape[0] * shape[1]
-        ):
-            raise ValueError('Selected FCH5 pixels exceed their chunk')
-        size, offset = int(info.size), int(info.byte_offset)
-        if size <= 0 or size > expected + 16:
-            raise OSError('Invalid FCH5 compressed chunk size')
-        result = np.empty(shape, dtype=dtype)
-        source = getattr(self.pool.local, 'buffer', None)
-        if source is None:
-            source = self.pool.local.buffer = mmap.mmap(-1, self.pool.max_chunk + 8192)
-        first, last = selected if selected is not None else (-1, -1)
-        decoded_bytes = self.pool.native_reader.read(
-            self.fd,
-            offset,
-            size,
-            source,
-            result,
-            info.filter_mask,
-            first,
-            last,
-            self.direct,
+    def row_index(self, dataset, start, stop, height):
+        spec = self._spec(dataset)
+        if spec is None:
+            return 2, None, 0
+        status, offsets, decoded = self.pool.native_reader.read_rows(
+            self.fd, spec, start, stop, height, self.direct, check_cancelled
         )
-        if decoded_bytes < 0:
-            if decoded_bytes <= -1000:
-                error = -1000 - decoded_bytes
-                raise OSError(error, os.strerror(error))
-            message = {
-                -1: 'Truncated FCH5 chunk',
-                -2: 'Invalid Blosc FCH5 chunk',
-                -3: 'Cannot decompress Blosc FCH5 chunk',
-            }[decoded_bytes]
-            raise OSError(message)
-        result.flags.writeable = False
-        if selected is not None:
-            result = SelectedChunk(result, decoded_bytes == expected, decoded_bytes)
-        return result
+        self.check(status)
+        return status, offsets, decoded
 
-    def chunks(self, dataset, column, indices, cache, reader, kind, selected=None):
-        """Yield requested chunks in order, with a fixed-size rolling queue."""
-        pending = {}
-        future = None
-        iterator = iter(indices)
-        shape, dtype, offsets, sizes, masks = self._spec(dataset)
+    def prefetch(self, dataset, bounds, frames, height, cache, reader):
+        spec = self._spec(dataset)
+        if spec is None:
+            return None
+        missing = np.array(
+            [
+                int(f)
+                for f in frames
+                if (reader, 'row-offsets', int(f)) not in cache.metadata
+                and 0 <= int(bounds[f, 0]) <= int(bounds[f, 1]) <= len(dataset)
+                and int(bounds[f, 1]) - int(bounds[f, 0]) <= np.iinfo('i4').max
+            ],
+            dtype='i8',
+        )
+        if not missing.size:
+            return None
+        return self.pool.native_reader.prefetch_rows(
+            self.fd, spec, bounds, missing, height, self.direct
+        )
 
-        def submit():
-            check_cancelled()
-            try:
-                index = int(next(iterator))
-            except StopIteration:
-                return False
-            if (reader, kind, index) in cache.frames:
-                pending[index] = None
-            else:
-                info = ChunkInfo(
-                    int(offsets[index, column]),
-                    int(sizes[index, column]),
-                    int(masks[index, column]),
-                )
-                # Unallocated chunks have the dataset's fill value. Let HDF5
-                # handle them, without making any HDF5 call from a worker.
-                pending[index] = (
-                    self.pool.executor.submit(
-                        self._decode,
-                        info,
-                        shape,
-                        dtype,
-                        selected.get(index) if selected is not None else None,
-                    )
-                    if info.byte_offset >= 0 and info.size
-                    else None
-                )
-            return True
-
-        try:
-            for _ in range(self.pool.workers):
-                if not submit():
-                    break
-            while pending:
-                check_cancelled()
-                index = next(iter(pending))
-                future = pending.pop(index)
-                value = None
-                if future is not None:
-                    while True:
-                        check_cancelled()
-                        try:
-                            value = future.result(timeout=0.025)
-                            break
-                        except TimeoutError:
-                            if future.done():
-                                raise
-                            continue
-                submit()
-                yield index, value
-                # Do not retain the previously yielded result while waiting.
-                value = future = None
-        finally:
-            if future is not None:
-                pending[-1] = future
-            for future in pending.values():
-                if future is not None:
-                    future.cancel()
-            # Running jobs own only one bounded disk read and codec call. Join
-            # them before HDF5/file descriptors can be closed by cancellation.
-            for future in pending.values():
-                if future is not None:
-                    try:
-                        future.result()
-                    except BaseException:
-                        pass
+    @staticmethod
+    def check(status):
+        if status <= -1000:
+            error = -1000 - status
+            raise OSError(error, os.strerror(error))
+        if status < 0:
+            raise OSError('Cannot read native FCH5 image data')

@@ -40,9 +40,10 @@ address-space guard enforces a hard allocation ceiling. An automatic allowance
 is selected when `max_size_mb` is omitted. Zero disables the grain image cache;
 staged execution keeps a minimum bounded workspace of 16 MiB.
 
-`read_workers` accepts 1–8 and defaults to 4. Chunk readers share one concurrency
-allowance across panels and row-index lookahead. One active decoder owns one
-bounded chunk workspace. No image scratch files are created.
+`read_workers` accepts 1–8 and defaults to 4. A single native decoder pool is
+shared across panels, pixel reads, and bounded row-index read-ahead. Each active
+worker owns bounded input and decode buffers. No Python executor or image
+scratch files are created.
 
 On Linux, `HEXRD_FIT_GRAINS_DIRECT_IO=1` uses aligned direct FCH5 reads to avoid
 filling the OS page cache with a large source file. It does not change the pixel
@@ -56,23 +57,30 @@ omega order, 26-neighbor connectivity, component selection, centroid arithmetic
 and optimizer behavior. Detector-space centroids alone are not equivalent to
 these measurements; the unused standalone centroid experiments have been removed.
 
-The current native extension coordinates tiled measurements, sparse sampling,
-source-pixel queries and peak statistics. Compatible NumPy buffers are borrowed.
+The planner captures one immutable set of source coordinates per window, with
+its frame IDs, shape and statistics destinations. The native extension measures
+those windows directly; there are no separate batch and patch models.
+Compatible NumPy buffers are borrowed.
 Fallbacks remain for supported formats, noncanonical sparse data, numerical
 ranges and user-provided geometry that require the reference implementation.
-Rebuild the extension with this checkout; earlier extension APIs are not supported.
+The native I/O API changed in this simplification. Rebuild the extension with
+this checkout; earlier extension APIs are not supported.
 
 Exact source pixels can be reused across fitting passes. A byte-bounded cache
 keys entries by source frame and integer detector coordinates. Under pressure,
 C-Blosc compresses entries losslessly in RAM; each compressed entry decodes to
 at most 1 MiB. Unsupported codecs retain raw entries within the same allowance.
+All pixel-cache requests use the native query path. Unsupported requests bypass
+the cache and use the regular reader. HDF5 fallback sampling uses one chunk
+accessor and releases its borrowed chunk on completion or cancellation.
 
 Integer/half-integer floating counts use native integer moments only when
 range checks prove the required sums and moments exactly representable. Other
 intensities retain the original NumPy/BLAS reductions. Floating-point arithmetic
 is not relaxed.
 
-Native waits check cancellation every 25 ms. Pending work is cancelled and
+Row indexing checks cancellation between chunks; native waits check every
+25 ms. Pending work is cancelled and
 active jobs drain before buffers and file descriptors are released. A running
 OS read must return before its job can finish cancelling. The solver checks
 cancellation at objective evaluations. UI counters are presentation-only.

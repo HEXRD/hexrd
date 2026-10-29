@@ -287,3 +287,72 @@ def test_parallel_pixel_queries_preserve_csr_and_fallback(
     finally:
         cache.close()
         reference.close()
+
+
+@pytest.mark.parametrize('missing', ['rows', 'values'])
+def test_missing_native_chunks_use_hdf5_fill_values(tmp_path, missing):
+    import hdf5plugin
+
+    path = tmp_path / 'fill.h5'
+    with h5py.File(path, 'w') as handle:
+        handle['frame_ids'] = np.array([0, 8], dtype='u8')
+        coords = handle.create_dataset(
+            'indices', shape=(8, 2), dtype='u2', chunks=(8, 1), **hdf5plugin.Blosc()
+        )
+        coords[:, 1] = np.arange(8)
+        if missing != 'rows':
+            coords[:, 0] = 0
+        values = handle.create_dataset(
+            'data',
+            shape=(8, 1),
+            dtype='f8',
+            chunks=(8, 1),
+            fillvalue=42.0,
+            **hdf5plugin.Blosc(),
+        )
+        if missing != 'values':
+            values[:, 0] = np.arange(8)
+    reader = FileReader(
+        str(path), 'fch5', {}, (2, 8), np.dtype('f8'), 1, estimate=1024**3
+    )
+    cache, reference = FrameCache(32 * 1024**2), FrameCache(0)
+    cache.chunk_workers = 4
+    try:
+        expected = reader.sample_pixels(0, np.zeros(8, 'i8'), np.arange(8), reference)
+        actual = reader.sample_pixels(0, np.zeros(8, 'i8'), np.arange(8), cache)
+        assert actual.tobytes() == expected.tobytes()
+        assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
+    finally:
+        cache.close()
+        reference.close()
+
+
+def test_uncached_hdf5_reads_borrow_one_chunk_then_release_it(tmp_path, monkeypatch):
+    from hexrd.hedm._fch5_pixels import Fch5Pixels
+
+    path = tmp_path / 'borrow.h5'
+    reader = make_reader(path)
+    with h5py.File(path, 'a') as handle:
+        for name in ['indices', 'data']:
+            values = handle['scan/' + name][()]
+            del handle['scan/' + name]
+            handle.create_dataset('scan/' + name, data=values, chunks=(64, 1))
+    cache = FrameCache(0)
+    reads = []
+    original = Fch5Pixels._read
+
+    def read(self, dataset, first, last, column):
+        reads.append((dataset.name, column))
+        return original(self, dataset, first, last, column)
+
+    monkeypatch.setattr(Fch5Pixels, '_read', read)
+    rows, cols = np.indices(reader.shape)
+    try:
+        for repeat in range(2):
+            actual = reader.sample_pixels(0, rows.ravel(), cols.ravel(), cache)
+            assert actual.size == rows.size
+            assert len(reads) == (repeat + 1) * 3
+            assert reader._chunk_reader(cache)._borrowed is None
+            assert not cache.frames and not cache.bytes
+    finally:
+        cache.close()

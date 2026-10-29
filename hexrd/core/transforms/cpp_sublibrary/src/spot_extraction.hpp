@@ -42,20 +42,15 @@ static bool sameDtype(const py::dtype &left, const py::dtype &right) {
 static bool updateRowsRaw(const uint16_t *, Index, Index, int32_t *, Index,
                           int64_t, int &, Index &);
 
-class ReadCancellation {
-  std::atomic<bool> stopped{false};
-
-public:
-  void cancel() { stopped.store(true, std::memory_order_relaxed); }
-  bool isCancelled() const { return stopped.load(std::memory_order_relaxed); }
-};
+struct FrameDirectory;
+class RowIndexes;
 
 class BloscReader {
+  friend class RowIndexes;
   friend class PackedPixels;
   friend class FrameSampler;
-  mutable ReadLimiter limiter;
 #ifndef _WIN32
-  std::unique_ptr<NativeChunkExecutor> executor;
+  std::shared_ptr<NativeChunkExecutor> executor;
   std::mutex frameMutex;
   int workers = 1;
 #endif
@@ -80,8 +75,7 @@ class BloscReader {
                int64_t itemsize, int mask, int64_t first, int64_t last,
                const std::atomic<bool> *cancelled = nullptr) const {
 #ifndef _WIN32
-    ReadLimiter::Guard permit(limiter, cancelled);
-    if (!permit)
+    if (cancelled && cancelled->load(std::memory_order_relaxed))
       return -4;
     int result = -1;
     ssize_t read;
@@ -143,37 +137,6 @@ public:
       compress = reinterpret_cast<Compress>(address("blosc_compress_ctx"));
   }
 
-  int read(int fd, int64_t offset, int64_t size, py::buffer workspace,
-           py::array output, int mask, int64_t first, int64_t last,
-           bool direct) const {
-#ifdef _WIN32
-    throw py::value_error("native positional chunk reads require POSIX");
-#else
-    auto buffer = workspace.request();
-    const char kind = output.dtype().kind();
-    if (kind != 'i' && kind != 'u' && kind != 'f')
-      throw py::value_error("chunk output must have a numeric dtype");
-    if (buffer.ndim != 1 || buffer.itemsize != 1 || buffer.strides[0] != 1 ||
-        buffer.readonly || !(output.flags() & py::array::c_style) ||
-        !output.writeable())
-      throw py::value_error("chunk workspaces must be writable and contiguous");
-    const int64_t expected = output.nbytes(), itemsize = output.itemsize();
-    if (offset < 0 || size <= 0 || expected <= 0 || expected > 1024 * 1024 ||
-        size > expected + 16 ||
-        (first != -1 && (first < 0 || last < first || last > output.size())))
-      throw py::value_error("invalid compressed chunk dimensions");
-    const int64_t begin = direct ? offset / 4096 * 4096 : offset;
-    const int64_t skip = offset - begin;
-    const int64_t count = direct ? (skip + size + 4095) / 4096 * 4096 : size;
-    if (count > buffer.size)
-      throw py::value_error("compressed chunk exceeds its input workspace");
-    auto source = static_cast<unsigned char *>(buffer.ptr);
-    auto target = static_cast<unsigned char *>(output.mutable_data());
-    py::gil_scoped_release release;
-    return readData(fd, begin, count, skip, size, source, target, expected,
-                    itemsize, mask, first, last);
-#endif
-  }
 #ifndef _WIN32
   py::object packPixels(py::array keys, py::array values,
                         const std::string &algorithm) const;
@@ -184,7 +147,6 @@ public:
     if (!lock || executor)
       throw py::value_error("cannot reconfigure an active native reader");
     workers = count;
-    limiter.configure(count);
   }
 
   void close() {
@@ -202,86 +164,15 @@ public:
                        int64_t width, bool direct, int64_t workspace,
                        py::function check);
 
-  // Keep the read/decode/index loop off the GIL. Jobs own their workspaces;
-  // cancellation crosses from the UI thread through this atomic token only.
-  py::tuple readRows(int fd, CArray<int64_t> addresses, CArray<uint32_t> sizes,
-                     CArray<uint32_t> masks, int64_t start, int64_t stop,
-                     py::buffer workspace, py::array pixels, py::array output,
-                     bool direct, const ReadCancellation &cancelled) const {
-    checkShape(addresses, {-1, -1});
-    checkShape(sizes, {addresses.shape(0), addresses.shape(1)});
-    checkShape(masks, {addresses.shape(0), addresses.shape(1)});
-    checkShape(pixels, {-1, 1});
-    checkShape(output, {-1});
-    auto buffer = workspace.request();
-    const int64_t chunk = pixels.size(), expected = pixels.nbytes();
-    const Index height = output.size() - 1;
-    auto writable = [](const py::array &a) {
-      return a.writeable() && (a.flags() & py::array::c_style) &&
-             (a.flags() & py::detail::npy_api::NPY_ARRAY_ALIGNED_);
-    };
-    if (buffer.ndim != 1 || buffer.itemsize != 1 || buffer.strides[0] != 1 ||
-        buffer.readonly || !writable(pixels) || !writable(output) ||
-        !sameDtype(pixels.dtype(), py::dtype::of<uint16_t>()) ||
-        !sameDtype(output.dtype(), py::dtype::of<int32_t>()))
-      throw py::value_error("invalid row-index workspaces");
-    if (chunk <= 0 || expected > 1024 * 1024 || addresses.shape(1) <= 0 ||
-        addresses.shape(0) > INT64_MAX / chunk || start < 0 || stop < start ||
-        stop - start > INT32_MAX || stop > addresses.shape(0) * chunk ||
-        height < 0 || height > 32767)
-      throw py::value_error("invalid row-index dimensions");
-    auto raw = static_cast<unsigned char *>(buffer.ptr);
-    auto decoded = static_cast<unsigned char *>(pixels.mutable_data());
-    auto offsets = static_cast<int32_t *>(output.mutable_data());
-    const auto positions = addresses.data();
-    const auto lengths = sizes.data(), filters = masks.data();
-    const Index stride = addresses.shape(1);
-    int status = 1, previous = -1;
-    Index next = 0;
-    int64_t total = 0;
-    {
-      py::gil_scoped_release release;
-      std::fill(offsets, offsets + height + 1, int32_t(stop - start));
-      for (int64_t first = start; first < stop;) {
-        if (cancelled.isCancelled()) {
-          status = -4;
-          break;
-        }
-        const int64_t index = first / chunk, slot = index * stride;
-        const int64_t offset = positions[slot], size = lengths[slot];
-        if (offset < 0 || size <= 0 || size > expected + 16) {
-          status = -2;
-          break;
-        }
-        const int64_t begin = direct ? offset / 4096 * 4096 : offset;
-        const int64_t skip = offset - begin;
-        const int64_t count =
-            direct ? (skip + size + 4095) / 4096 * 4096 : size;
-        if (count > buffer.size) {
-          status = -2;
-          break;
-        }
-        const int got = readData(fd, begin, count, skip, size, raw, decoded,
-                                 expected, 2, filters[slot], -1, -1);
-        if (got < 0) {
-          status = got;
-          break;
-        }
-        total += got;
-        const int64_t end = std::min(stop, (index + 1) * chunk);
-        if (!updateRowsRaw(reinterpret_cast<const uint16_t *>(decoded),
-                           first % chunk, first % chunk + end - first, offsets,
-                           height, first - start, previous, next)) {
-          status = 0;
-          break;
-        }
-        first = end;
-      }
-      if (cancelled.isCancelled())
-        status = -4;
-    }
-    return py::make_tuple(status, total);
-  }
+  int scanRows(int fd, const FrameDirectory &directory, int64_t start,
+               int64_t stop, Index height, bool direct, std::vector<int32_t> &offsets,
+               NativeChunkExecutor::Buffer &source, std::atomic<bool> &cancelled,
+               int64_t &total);
+  py::tuple readRows(int fd, py::tuple coordinates, int64_t start,
+                     int64_t stop, Index height, bool direct, py::function check);
+  py::object prefetchRows(int fd, py::tuple coordinates, CArray<uint64_t> bounds,
+                          CArray<int64_t> frames, Index height, bool direct);
+
 #endif
 };
 
@@ -2165,6 +2056,7 @@ static py::object measureWindows(py::list, CArray<int64_t>, py::dtype,
                                 py::function, py::function, py::function);
 static void bindPixelQuery(py::module_ &);
 static void bindPackedPixels(py::module_ &);
+static void bindRowIndexes(py::module_ &);
 static py::object mergePixelEntries(py::array, py::array, py::array, py::array);
 
 static void bind(py::module_ &m) {
@@ -2180,9 +2072,7 @@ static void bind(py::module_ &m) {
   m.def("_fch5RowOffsets", &updateRowOffsets);
 #ifndef _WIN32
   bindPackedPixels(m);
-  py::class_<ReadCancellation>(m, "_ReadCancellation")
-      .def(py::init<>())
-      .def("cancel", &ReadCancellation::cancel);
+  bindRowIndexes(m);
   py::class_<BloscReader>(m, "_BloscReader")
       .def(py::init<py::object>())
       .def("configure", &BloscReader::configure)
@@ -2190,8 +2080,8 @@ static void bind(py::module_ &m) {
       .def("read_pixels", &BloscReader::readPixels)
       .def("pack_pixels", &BloscReader::packPixels, py::arg("keys"),
            py::arg("values"), py::arg("algorithm") = "zstd")
-      .def("read", &BloscReader::read)
-      .def("read_rows", &BloscReader::readRows);
+      .def("read_rows", &BloscReader::readRows)
+      .def("prefetch_rows", &BloscReader::prefetchRows);
 #endif
   py::class_<SparseFrames>(m, "_SparseFrames")
       .def(py::init<py::list>())

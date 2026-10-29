@@ -12,6 +12,19 @@ def source(dtype='f8', shape=(14, 18)):
     return type('Reader', (), {'dtype': np.dtype(dtype), 'shape': shape})()
 
 
+def read_cached(cache, reader, frame, keys):
+    """Exercise the query API and supply zeros only for unknown source pixels."""
+    keys = np.asarray(keys, dtype='u8')
+    query = cache.query(
+        reader,
+        frame,
+        (keys // reader.shape[1]).astype('i8'),
+        (keys % reader.shape[1]).astype('i8'),
+    )
+    found = ~np.isin(keys, query.missing_keys)
+    return found, query.finish(np.zeros(query.missing_count, dtype=reader.dtype))
+
+
 @pytest.mark.parametrize('dtype', ['i2', 'u2', 'f4', 'f8'])
 def test_pixels_reused_in_original_order_with_exact_float_bits(dtype):
     reader = source(dtype)
@@ -22,33 +35,34 @@ def test_pixels_reused_in_original_order_with_exact_float_bits(dtype):
     values[2] = values[0]
     if reader.dtype.kind == 'f':
         values[:] = [-0.0, np.nan, -0.0, np.inf, -np.inf]
-    cache.remember(reader, 0, keys, values)
+    unique, indices = np.unique(keys, return_index=True)
+    cache.remember(reader, 0, unique, values[indices])
     selected = np.array([3, 7, 2, 1, 7, 9], dtype='u4')
-    found, actual = cache.lookup(reader, 0, selected)
+    found, actual = read_cached(cache, reader, 0, selected)
     np.testing.assert_array_equal(found, [True, True, False, True, True, True])
     expected = values[[4, 0, 1, 0, 3]]
     assert actual[found].tobytes() == expected.tobytes()
     cache.remember(reader, 0, np.array([2], dtype='u4'), np.array([8], dtype=dtype))
-    found, actual = cache.lookup(reader, 0, selected)
+    found, actual = read_cached(cache, reader, 0, selected)
     assert found.all() and actual[2] == 8
     assert cache.bytes <= cache.max_bytes
     assert not cache.frames[reader, 0][0].flags.writeable
     assert not cache.frames[reader, 0][1].flags.writeable
     # Separate source identities and frames can never share measurements.
-    assert not cache.lookup(source(dtype), 0, selected)[0].any()
-    assert not cache.lookup(reader, 1, selected)[0].any()
+    assert not read_cached(cache, source(dtype), 0, selected)[0].any()
+    assert not read_cached(cache, reader, 1, selected)[0].any()
 
 
 def test_packed_coordinates_do_not_round_or_collide_above_float_precision():
     cache = PixelCache()
     reader = source(shape=(2**27, 2**27))
     rows, cols = np.array([2**27 - 1] * 2), np.array([1, 2])
-    keys = cache.keys(reader, rows, cols)
+    keys = cache.query(reader, 0, rows, cols).missing_keys
     assert keys.dtype == np.dtype('u8')
     assert keys[1] - keys[0] == 1
-    assert cache.keys(reader, [-1], [0]) is None
-    assert cache.keys(reader, [0], [2**27]) is None
-    assert cache.keys(source(shape=(2**40, 2**40)), [0], [0]) is None
+    assert cache.query(reader, 0, [-1], [0]) is None
+    assert cache.query(reader, 0, [0], [2**27]) is None
+    assert cache.query(source(shape=(2**40, 2**40)), 0, [0], [0]) is None
 
 
 @pytest.mark.parametrize('dtype', ['u2', 'u8', 'f4', 'f8'])
@@ -61,13 +75,13 @@ def test_native_query_matches_catalogue_bits_with_duplicates_and_missing_pixels(
     cache.set_limit(8192)
     rows = np.array([shape[0] - 1, 0, shape[0] - 1, 1], dtype='i8')
     cols = np.array([2, 1, 3, 4], dtype='i8')
-    keys = cache.keys(reader, rows, cols)
+    keys = cache.query(reader, 0, rows, cols).missing_keys
     values = np.array([7, 8, 9, 10], dtype=dtype)
     if reader.dtype.kind == 'f':
         values[:] = [-0.0, np.nan, np.inf, -np.inf]
     elif dtype == 'u8':
         values[:] = np.array([2**63 + 1, 2**63 + 2, 2**63 + 3, 2**63 + 4], dtype='u8')
-    cache.remember(reader, 0, keys, values)
+    cache.remember(reader, 0, keys, values[np.lexsort((cols, rows))])
     indices = [2, 0, 2, 3, 1, 0]
     selected_rows = np.r_[rows[indices], 2]
     selected_cols = np.r_[cols[indices], 5]
@@ -109,8 +123,8 @@ def test_capacity_does_not_thrash_frames_before_next_tolerance_pass():
     for frame in range(2, 100):
         cache.remember(reader, frame, keys, values)
         assert cache.bytes <= cache.max_bytes
-    assert cache.lookup(reader, 0, keys)[0].all()
-    assert cache.lookup(reader, 1, keys)[0].all()
+    assert read_cached(cache, reader, 0, keys)[0].all()
+    assert read_cached(cache, reader, 1, keys)[0].all()
     cache.set_limit(1100)
     assert len(cache.frames) == 1 and cache.bytes <= 1100
     cache.set_limit(0)

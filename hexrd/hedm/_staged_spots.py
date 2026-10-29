@@ -39,29 +39,31 @@ def _compact(array):
 
 
 @dataclass
-class Batch:
+class Window:
     view: StreamingView
     frames: np.ndarray
-    offsets: np.ndarray
     rows: np.ndarray
     cols: np.ndarray
-    shapes: np.ndarray
+    shape: np.ndarray
     threshold: object
     stats: tuple
-    source_coordinates: bool = False
+
+    @property
+    def reader(self):
+        return self.view.view.reader
 
     @property
     def bytes(self):
-        return 2048 + sum(
-            a.nbytes
-            for a in (
-                self.frames,
-                self.offsets,
-                self.rows,
-                self.cols,
-                self.shapes,
-                *self.stats,
-            )
+        return self.rows.size * self.frames.size * self.view.dtype.itemsize
+
+    def request(self):
+        return (
+            self.rows,
+            self.cols,
+            self.shape,
+            self.threshold,
+            self.stats,
+            self.view.view.dense,
         )
 
 
@@ -89,43 +91,54 @@ class _DeferredView:
             np.zeros(n, dtype=self.dtype),
             np.zeros(n, dtype=bool),
         )
-        batch = Batch(
-            self.original,
-            frames.copy(),
-            offsets.copy(),
-            _compact(rows),
-            _compact(cols),
-            shapes.copy(),
-            threshold,
-            stats,
+        view = self.original.view
+        rows = np.asarray(rows, dtype='i8').clip(0, view.shape[0] - 1)
+        cols = np.asarray(cols, dtype='i8').clip(0, view.shape[1] - 1)
+        if view.roi is not None:
+            rows += view.roi[0]
+            cols += view.roi[1]
+        rows, cols = _compact(rows), _compact(cols)
+        rows.flags.writeable = cols.flags.writeable = False
+        actual = np.array(
+            frames if view.mapping is None else np.asarray(view.mapping)[frames],
+            dtype='i8',
+            copy=True,
         )
-        if (
-            context.max_bytes is not None
-            and context.bytes + batch.bytes > context.max_bytes
-        ):
+        actual[actual < 0] += view.reader.nframes
+        shapes = shapes.copy()
+        size = 2048 + sum(a.nbytes for a in (actual, rows, cols, shapes, *stats))
+        if context.max_bytes is not None and context.bytes + size > context.max_bytes:
             raise _PlanTooLarge()
-        context.bytes += batch.bytes
-        context.batches.append(batch)
-        # Planning does no image processing or fitting. Invalid placeholders
-        # avoid constructing measured positions until the real stats exist.
+        context.bytes += size
+        context.windows.extend(
+            Window(
+                self.original,
+                actual[i],
+                rows[first:last],
+                cols[first:last],
+                shapes[i : i + 1],
+                threshold,
+                tuple(a[i : i + 1] for a in stats),
+            )
+            for i, (first, last) in enumerate(zip(offsets[:-1], offsets[1:]))
+        )
         return stats
 
 
 class MeasurementPlan:
     def __init__(self, instrument, request, max_bytes=None):
         self.instrument, self.request = instrument, request
-        self.batches = []
+        self.windows = []
         self.max_bytes, self.bytes = max_bytes, 0
 
     def wrap(self, view):
         return _DeferredView(self, view) if isinstance(view, StreamingView) else view
 
     @contextmanager
-    def _context(self, *, planning=False):
+    def _context(self):
         token = _extraction_context.set(self)
         reporter = current_reporter()
-        if planning:
-            set_reporter(None)
+        set_reporter(None)
         try:
             yield
         finally:
@@ -136,12 +149,12 @@ class MeasurementPlan:
         check_cancelled()
         overflow = False
         try:
-            with self._context(planning=True):
+            with self._context():
                 self.fallback_result = self.instrument.pull_spots(
                     *self.request[0], **self.request[1]
                 )
         except _PlanTooLarge:
-            self.batches.clear()
+            self.windows.clear()
             self.bytes, overflow = 0, True
         if overflow:
             check_cancelled()
@@ -193,65 +206,12 @@ class MeasurementPlan:
         return self.fallback_result
 
 
-@dataclass
-class Patch:
-    batch: Batch
-    index: int
-    frames: np.ndarray
-    rows: np.ndarray
-    cols: np.ndarray
-
-    @property
-    def reader(self):
-        return self.batch.view.view.reader
-
-    @property
-    def bytes(self):
-        return len(self.rows) * len(self.frames) * self.batch.view.dtype.itemsize
-
-
-def patches(plan):
-    result = []
-    for batch in plan.batches:
-        mapping = batch.view.view.mapping
-        if not batch.source_coordinates:
-            view = batch.view.view
-            rows = batch.rows.astype('i8').clip(0, view.shape[0] - 1)
-            cols = batch.cols.astype('i8').clip(0, view.shape[1] - 1)
-            if view.roi is not None:
-                rows += view.roi[0]
-                cols += view.roi[1]
-            # Reuse the planned coordinate storage rather than retaining a
-            # second int64 copy per patch. Replay checks the original immutable
-            # signature, so it does not need the unconverted coordinate arrays.
-            batch.rows, batch.cols = _compact(rows), _compact(cols)
-            batch.rows.flags.writeable = batch.cols.flags.writeable = False
-            batch.source_coordinates = True
-        for i, frame_ids in enumerate(batch.frames):
-            actual = (
-                np.asarray(mapping)[frame_ids] if mapping is not None else frame_ids
-            )
-            actual = np.asarray(actual, dtype=np.int64).copy()
-            actual[actual < 0] += batch.view.view.reader.nframes
-            first, last = batch.offsets[i : i + 2]
-            result.append(
-                Patch(
-                    batch,
-                    i,
-                    actual,
-                    batch.rows[first:last],
-                    batch.cols[first:last],
-                )
-            )
-    return result
-
-
 class MeasurementGroup:
     """Bound planned geometry, event tables and live pixel windows together."""
 
     def __init__(self, max_bytes):
         self.max_bytes = max_bytes
-        self.plans, self.patches = [], []
+        self.plans, self.windows = [], []
         self.cost = min(128 * 1024**2, max_bytes // 4)
         self.frontiers = {}
         self.frame_ranks = {}
@@ -259,10 +219,8 @@ class MeasurementGroup:
         self.frame_visits = 0
 
     def add(self, plan):
-        incoming = patches(plan)
-        cost = max(plan.bytes, sum(b.bytes for b in plan.batches)) + sum(
-            1024 + 64 * len(p.frames) for p in incoming
-        )
+        incoming = plan.windows
+        cost = plan.bytes + sum(1024 + 64 * len(p.frames) for p in incoming)
         frontiers = {r: x.copy() for r, x in self.frontiers.items()}
         frame_ranks = self.frame_ranks.copy()
         for p in incoming:
@@ -275,7 +233,7 @@ class MeasurementGroup:
                     and p.reader.nframes * 16 <= self.max_bytes // 16
                 ):
                     positions = p.reader.read_positions(
-                        np.arange(p.reader.nframes), p.batch.view.cache
+                        np.arange(p.reader.nframes), p.view.cache
                     )
                     if positions is not None:
                         ranks = np.empty(p.reader.nframes, dtype='i8')
@@ -296,12 +254,12 @@ class MeasurementGroup:
         if self.cost + cost + peak > self.max_bytes:
             return False
         self.plans.append(plan)
-        self.patches.extend(incoming)
+        self.windows.extend(incoming)
         self.cost += cost
         self.frontiers, self.peak_pixels = frontiers, peak
         self.frame_ranks = frame_ranks
-        for batch in plan.batches:
-            pixels = batch.view.cache.pixel_cache
+        for cache in {window.view.cache for window in incoming}:
+            pixels = cache.pixel_cache
             if pixels is not None:
                 pixels.set_limit(max(0, self.max_bytes - self.cost - peak - 1024**2))
         return True
@@ -314,7 +272,7 @@ class MeasurementGroup:
 
     def _measure(self, cache, cancel):
         readers = {}
-        for p in self.patches:
+        for p in self.windows:
             readers.setdefault(p.reader, []).append(p)
         reporter = current_reporter()
         for reader, items in readers.items():
@@ -345,18 +303,8 @@ class MeasurementGroup:
         from hexrd.core.extensions import transforms as native
         from hexrd.core.imageseries._sparse import sample_pixels
 
-        dtype = items[0].batch.view.dtype
-        requests = [
-            (
-                p.rows,
-                p.cols,
-                p.batch.shapes[p.index : p.index + 1],
-                p.batch.threshold,
-                tuple(a[p.index : p.index + 1] for a in p.batch.stats),
-                p.batch.view.view.dense,
-            )
-            for p in items
-        ]
+        dtype = items[0].view.dtype
+        requests = [window.request() for window in items]
 
         borrowed_id = borrowed_frame = borrowed_sparse = None
 
@@ -466,7 +414,7 @@ def fit_staged(params, bar, cancel_callback=None):
             responses[plan.grain] = plan.result()
         groups_done += 1
         frames_done += group.frame_visits
-        windows_done += len(group.patches)
+        windows_done += len(group.windows)
         diagnostic('Staged groups complete', groups_done)
         diagnostic('Staged frame visits', frames_done)
         diagnostic('Peak windows prepared', windows_done)

@@ -429,5 +429,226 @@ py::tuple BloscReader::readPixels(int fd, py::tuple coordinateSpec,
                         status, sampler.decodedBytes, sampler.chunkReads);
 }
 
+// Row and intensity work share the same native executor and source buffers.
+int BloscReader::scanRows(int fd, const FrameDirectory &directory,
+                          int64_t start, int64_t stop, Index height,
+                          bool direct, std::vector<int32_t> &offsets,
+                          NativeChunkExecutor::Buffer &source,
+                          std::atomic<bool> &cancelled, int64_t &total) {
+  offsets.assign(size_t(height + 1), int32_t(stop - start));
+  std::vector<uint16_t> decoded(size_t(directory.chunk));
+  int status = 1, previous = -1;
+  Index next = 0;
+  for (int64_t first = start; first < stop;) {
+    if (cancelled.load(std::memory_order_relaxed))
+      return -4;
+    const int64_t index = first / directory.chunk,
+                  slot = index * directory.stride,
+                  offset = directory.positions[slot],
+                  size = directory.lengths[slot],
+                  expected = directory.chunk * 2;
+    if (offset < 0 || size <= 0 || directory.filters[slot] > 1) {
+      status = 2; // HDF5 handles missing chunks and other filter layouts.
+      break;
+    }
+    if (size > expected + 16) {
+      status = -2;
+      break;
+    }
+    const int64_t begin = direct ? offset / 4096 * 4096 : offset,
+                  skip = offset - begin,
+                  count = direct ? (skip + size + 4095) / 4096 * 4096 : size;
+    const int got =
+        readData(fd, begin, count, skip, size, source.get(),
+                 reinterpret_cast<unsigned char *>(decoded.data()), expected, 2,
+                 directory.filters[slot], -1, -1, &cancelled);
+    if (got < 0) {
+      status = got;
+      break;
+    }
+    total += got;
+    const int64_t end = std::min(stop, (index + 1) * directory.chunk);
+    if (!updateRowsRaw(decoded.data(), first % directory.chunk,
+                       first % directory.chunk + end - first, offsets.data(),
+                       height, first - start, previous, next)) {
+      status = 0;
+      break;
+    }
+    first = end;
+  }
+  return status;
+}
+
+class RowIndexes {
+  struct Data {
+    std::atomic<bool> cancelled{false};
+    std::vector<int32_t> offsets;
+    int64_t decoded = 0;
+  };
+  struct Job {
+    int64_t frame;
+    std::shared_ptr<Data> data;
+    std::future<int> future;
+  };
+  BloscReader &reader;
+  std::shared_ptr<NativeChunkExecutor> executor;
+  py::object owner;
+  FrameDirectory directory;
+  CArray<uint64_t> bounds;
+  CArray<int64_t> frames;
+  int fd;
+  Index height, cursor = 0;
+  bool direct;
+  std::deque<Job> pending;
+
+  void submit() {
+    if (cursor == frames.size())
+      return;
+    const int64_t frame = frames.data()[cursor++];
+    const uint64_t first = bounds.data()[2 * frame],
+                   last = bounds.data()[2 * frame + 1];
+    auto data = std::make_shared<Data>();
+    pending.push_back({frame, data, std::future<int>()});
+    pending.back().future = executor->submit(
+        [this, data, first, last](NativeChunkExecutor::Buffer &source) {
+          return reader.scanRows(fd, directory, int64_t(first), int64_t(last),
+                                 height, direct, data->offsets, source,
+                                 data->cancelled, data->decoded);
+        });
+  }
+
+public:
+  RowIndexes(BloscReader &reader, int fd, py::tuple spec,
+             CArray<uint64_t> bounds, CArray<int64_t> frames, Index height,
+             bool direct)
+      : reader(reader),
+        owner(py::cast(&reader, py::return_value_policy::reference)),
+        directory(spec), bounds(bounds), frames(frames), fd(fd), height(height),
+        direct(direct) {
+    checkShape(bounds, {-1, 2});
+    checkShape(frames, {-1});
+    if (height < 0 || height > 32767)
+      throw py::value_error("invalid row-index dimensions");
+    for (Index i = 0; i < frames.size(); ++i) {
+      int64_t frame = frames.data()[i];
+      if (frame < 0 || frame >= bounds.shape(0) ||
+          bounds.data()[2 * frame] > bounds.data()[2 * frame + 1] ||
+          bounds.data()[2 * frame + 1] >
+              uint64_t(directory.count * directory.chunk) ||
+          bounds.data()[2 * frame + 1] - bounds.data()[2 * frame] > INT32_MAX)
+        throw py::value_error("invalid row-index dimensions");
+    }
+    {
+      py::gil_scoped_release release;
+      std::lock_guard<std::mutex> lock(reader.frameMutex);
+      if (!reader.executor)
+        reader.executor.reset(new NativeChunkExecutor(reader.workers));
+      executor = reader.executor;
+    }
+    try {
+      for (int i = 0; i < reader.workers; ++i)
+        submit();
+    } catch (...) {
+      py::gil_scoped_release release;
+      close();
+      throw;
+    }
+  }
+  void close() noexcept {
+    for (auto &job : pending)
+      job.data->cancelled.store(true, std::memory_order_relaxed);
+    for (auto &job : pending)
+      if (job.future.valid())
+        job.future.wait();
+    pending.clear();
+  }
+  ~RowIndexes() {
+    py::gil_scoped_release release;
+    close();
+  }
+  py::tuple get(int64_t frame, py::function check) {
+    // A cached index may have been evicted after look-ahead was planned.
+    // Let the ordinary reader rebuild frames absent from this sequence.
+    if (pending.empty())
+      return py::make_tuple(2, py::none(), 0);
+    Index first = cursor - Index(pending.size());
+    if (std::find(frames.data() + first, frames.data() + frames.size(),
+                  frame) == frames.data() + frames.size())
+      return py::make_tuple(2, py::none(), 0);
+    try {
+      while (!pending.empty()) {
+        auto &job = pending.front();
+        if (job.frame != frame)
+          job.data->cancelled.store(true, std::memory_order_relaxed);
+        check();
+        {
+          py::gil_scoped_release release;
+          while (job.future.wait_for(std::chrono::milliseconds(25)) !=
+                 std::future_status::ready) {
+            py::gil_scoped_acquire acquire;
+            check();
+          }
+        }
+        check();
+        int status = job.future.get();
+        bool selected = job.frame == frame;
+        py::array_t<int32_t> output(selected && status == 1 ? height + 1 : 0);
+        if (selected && status == 1)
+          std::copy(job.data->offsets.begin(), job.data->offsets.end(),
+                    output.mutable_data());
+        int64_t decoded = job.data->decoded;
+        pending.pop_front();
+        submit();
+        if (selected)
+          return py::make_tuple(
+              status, status == 1 ? py::object(output) : py::object(py::none()),
+              decoded);
+      }
+    } catch (...) {
+      py::gil_scoped_release release;
+      close();
+      throw;
+    }
+    return py::make_tuple(2, py::none(), 0);
+  }
+};
+
+py::object BloscReader::prefetchRows(int fd, py::tuple spec,
+                                     CArray<uint64_t> bounds,
+                                     CArray<int64_t> frames, Index height,
+                                     bool direct) {
+  if (!sameDtype(py::cast<py::dtype>(spec[1]), py::dtype::of<uint16_t>()) ||
+      height > 32767)
+    return py::none();
+  return py::cast(std::make_shared<RowIndexes>(*this, fd, spec, bounds, frames,
+                                               height, direct));
+}
+
+py::tuple BloscReader::readRows(int fd, py::tuple spec, int64_t start,
+                                int64_t stop, Index height, bool direct,
+                                py::function check) {
+  if (start < 0 || stop < start)
+    throw py::value_error("invalid row-index dimensions");
+  if (!sameDtype(py::cast<py::dtype>(spec[1]), py::dtype::of<uint16_t>()) ||
+      stop - start > INT32_MAX || height > 32767)
+    return py::make_tuple(2, py::none(), 0);
+  CArray<uint64_t> bounds({Index(1), Index(2)});
+  bounds.mutable_data()[0] = uint64_t(start);
+  bounds.mutable_data()[1] = uint64_t(stop);
+  CArray<int64_t> frames(1);
+  frames.mutable_data()[0] = 0;
+  RowIndexes queue(*this, fd, spec, bounds, frames, height, direct);
+  return queue.get(0, check);
+}
+
+static void bindRowIndexes(py::module_ &m) {
+  py::class_<RowIndexes, std::shared_ptr<RowIndexes>>(m, "_RowIndexes")
+      .def("get", &RowIndexes::get)
+      .def("close", [](RowIndexes &q) {
+        py::gil_scoped_release release;
+        q.close();
+      });
+}
+
 } // namespace
 } // namespace spot_extraction

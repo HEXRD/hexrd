@@ -135,7 +135,8 @@ def test_tiled_dense_sampling_borrows_one_frame_larger_than_the_cache():
             np.array([[1, 1, 40000]], dtype='i8'),
             0,
         )
-        for actual, wanted in zip(plan.batches[0].stats, expected):
+        for k, wanted in enumerate(expected):
+            actual = np.concatenate([w.stats[k] for w in plan.windows])
             np.testing.assert_array_equal(
                 actual, np.repeat(wanted, 2, axis=0), strict=True
             )
@@ -145,8 +146,6 @@ def test_tiled_dense_sampling_borrows_one_frame_larger_than_the_cache():
 
 
 def test_source_coordinates_are_prepared_once_even_after_rejected_group():
-    from hexrd.hedm._staged_spots import patches
-
     class Reader:
         shape, nframes, dtype, resident = (80000, 80000), 1, np.dtype('u2'), False
 
@@ -169,8 +168,9 @@ def test_source_coordinates_are_prepared_once_even_after_rejected_group():
     try:
         plan = MeasurementPlan(Instrument(), ((), {})).prepare()
         assert not MeasurementGroup(1).add(plan)
-        (first,) = patches(plan)
-        (second,) = patches(plan)
+        (first,) = plan.windows
+        assert not MeasurementGroup(1).add(plan)
+        (second,) = plan.windows
         np.testing.assert_array_equal(first.rows, [40000, 40000, 40001])
         np.testing.assert_array_equal(first.cols, [50000, 50001, 50002])
         assert first.rows.dtype == first.cols.dtype == np.dtype('i4')
@@ -184,7 +184,7 @@ def test_source_coordinates_are_prepared_once_even_after_rejected_group():
 
 
 def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
-    from hexrd.hedm._staged_spots import Batch
+    from hexrd.hedm._staged_spots import _DeferredView
     from hexrd.hedm._image_cache import StreamingView
 
     class Reader:
@@ -195,18 +195,15 @@ def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
 
     cache = FrameCache(0)
     reader = Reader()
-    batch = Batch(
-        StreamingView(View(reader), cache),
+    plan = MeasurementPlan(None, None)
+    _DeferredView(plan, StreamingView(View(reader), cache)).extract(
         np.array([[0, 1], [2, 3]]),
         np.array([0, 4, 8]),
         np.tile([0, 0, 1, 1], 2),
         np.tile([0, 1, 0, 1], 2),
         np.array([[2, 2, 2], [2, 2, 2]]),
         0,
-        (np.zeros((2, 3)), np.zeros(2), np.zeros(2), np.zeros(2, bool)),
     )
-    plan = MeasurementPlan(None, None)
-    plan.batches = [batch]
     group = MeasurementGroup(16 * 1024**2)
     assert group.add(plan)
     # The windows are disjoint in omega order, but overlap in file order.
@@ -252,7 +249,7 @@ def test_captured_panel_results_do_not_repeat_geometry_and_number_bad_peaks(pack
 
 
 def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
-    from hexrd.hedm._staged_spots import Batch
+    from hexrd.hedm._staged_spots import _DeferredView
     from hexrd.hedm._image_cache import StreamingView
 
     class Reader:
@@ -264,18 +261,14 @@ def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
     cache = FrameCache(0)
     view = StreamingView(View(Reader(), dense=True), cache)
     plan = MeasurementPlan(None, None)
-    plan.batches = [
-        Batch(
-            view,
-            np.array([[0, 1, 2]]),
-            np.array([0, 9]),
-            np.repeat(np.arange(3), 3),
-            np.tile(np.arange(3), 3),
-            np.array([[3, 3, 3]]),
-            0.5,
-            (np.zeros((1, 3)), np.zeros(1), np.zeros(1), np.zeros(1, dtype=bool)),
-        )
-    ]
+    _DeferredView(plan, view).extract(
+        np.array([[0, 1, 2]]),
+        np.array([0, 9]),
+        np.repeat(np.arange(3), 3),
+        np.tile(np.arange(3), 3),
+        np.array([[3, 3, 3]]),
+        0.5,
+    )
     assert not MeasurementGroup(100).add(plan)
     group = MeasurementGroup(1024**2)
     assert group.add(plan)
@@ -298,11 +291,13 @@ def test_workspace_rejection_and_cancellation_do_not_retain_pixels():
 def test_planning_copies_window_coordinates_without_replaying_extraction():
     from hexrd.hedm._staged_spots import _DeferredView
 
-    class ViewStub:
-        dtype = np.dtype('f8')
+    class Reader:
+        dtype, shape, nframes = np.dtype('f8'), (2, 2), 2
+
+    from hexrd.hedm._image_cache import StreamingView
 
     plan = MeasurementPlan(None, None)
-    deferred = _DeferredView(plan, ViewStub())
+    deferred = _DeferredView(plan, StreamingView(View(Reader()), FrameCache(0)))
     rows = np.array([0])
     stats = deferred.extract(
         np.array([[0, 1]]),
@@ -313,7 +308,7 @@ def test_planning_copies_window_coordinates_without_replaying_extraction():
         10.0,
     )
     rows[0] = 1
-    assert plan.batches[0].rows[0] == 0
+    assert plan.windows[0].rows[0] == 0
     plan.fallback_result = stats
     assert plan.result() is stats
 
@@ -459,7 +454,7 @@ def test_captured_shared_panel_roi_matches_original_measurement():
     try:
         expected = instrument.pull_spots()
         plan = MeasurementPlan(instrument, ((), {})).prepare()
-        assert plan.batches, 'shared panel ROI unexpectedly used image fallback'
+        assert plan.windows, 'shared panel ROI unexpectedly used image fallback'
         group = MeasurementGroup(1024**2)
         assert group.add(plan)
         group.measure(cache)
@@ -489,9 +484,10 @@ def test_invalid_measurement_mode_is_rejected():
 
 def test_single_grain_geometry_overflow_uses_exact_bounded_fallback():
     from hexrd.hedm._staged_spots import _DeferredView
+    from hexrd.hedm._image_cache import StreamingView
 
     class Source:
-        dtype = np.dtype('f8')
+        dtype, shape, nframes = np.dtype('f8'), (2, 2), 2
 
         def extract(self, *args):
             return ('actual measurements',)
@@ -503,7 +499,11 @@ def test_single_grain_geometry_overflow_uses_exact_bounded_fallback():
             from hexrd.core.instrument._spotutils import _extraction_context
 
             context = _extraction_context.get()
-            view = _DeferredView(context, source) if context is not None else source
+            view = (
+                _DeferredView(context, StreamingView(View(source), FrameCache(0)))
+                if context is not None
+                else source
+            )
             return view.extract(
                 np.array([[0, 1]]),
                 np.array([0, 1]),
@@ -514,7 +514,7 @@ def test_single_grain_geometry_overflow_uses_exact_bounded_fallback():
             )
 
     plan = MeasurementPlan(Instrument(), ((), {}), max_bytes=1).prepare()
-    assert not plan.batches and plan.bytes == 0
+    assert not plan.windows and plan.bytes == 0
     assert plan.result() == ('actual measurements',)
 
 

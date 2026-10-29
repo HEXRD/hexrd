@@ -15,54 +15,6 @@
 namespace spot_extraction {
 namespace {
 
-// Share the concurrency allowance between native frame work and row-index
-// lookahead. There can be no more active reads/codecs than configured workers.
-class ReadLimiter {
-  std::mutex mutex;
-  std::condition_variable ready;
-  int limit = 1, active = 0;
-
-public:
-  void configure(int count) {
-    std::lock_guard<std::mutex> lock(mutex);
-    if (active)
-      throw std::logic_error("cannot reconfigure active native reads");
-    limit = count;
-  }
-  bool acquire(const std::atomic<bool> *cancelled) {
-    std::unique_lock<std::mutex> lock(mutex);
-    while (active >= limit) {
-      if (cancelled && cancelled->load(std::memory_order_relaxed))
-        return false;
-      ready.wait_for(lock, std::chrono::milliseconds(25));
-    }
-    if (cancelled && cancelled->load(std::memory_order_relaxed))
-      return false;
-    ++active;
-    return true;
-  }
-  void release() {
-    std::lock_guard<std::mutex> lock(mutex);
-    --active;
-    ready.notify_one();
-  }
-  class Guard {
-    ReadLimiter &owner;
-    bool held;
-
-  public:
-    Guard(ReadLimiter &owner, const std::atomic<bool> *cancelled)
-        : owner(owner), held(owner.acquire(cancelled)) {}
-    ~Guard() {
-      if (held)
-        owner.release();
-    }
-    explicit operator bool() const { return held; }
-    Guard(const Guard &) = delete;
-    Guard &operator=(const Guard &) = delete;
-  };
-};
-
 #ifndef _WIN32
 class NativeChunkExecutor {
 public:

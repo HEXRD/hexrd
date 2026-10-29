@@ -203,5 +203,117 @@
       "hexrd/hedm/fitting/grains.py": "3b3db338781789a578e62e5e5eb5c33eb31a8039e6639dbf713f9d5b66f07842"
     },
     "native_extension_sha256": "77d7e8914e55669d81ffd1a5b38fa8475efb285743a586a95bc3b13c3ae8845f"
+  },
+  "simplification": {
+    "before_commit": "5b9514697d72d2964142354fd83b379ce2874071",
+    "runtime_python_lines_removed_net": 445,
+    "changes": [
+      "Replace the Python chunk and row executors with bounded read-ahead on the existing native decoder pool.",
+      "Remove the separate read limiter, cancellation token, raw chunk API, and Python row-index module.",
+      "Use one window model instead of converting batches into patches; remove duplicate pixel-cache fallback paths.",
+      "Keep numerical measurement kernels and scientific settings unchanged; native I/O implementation changed."
+    ],
+    "native_extension_rebuild_required": true,
+    "tests": {
+      "passed": 530,
+      "address_space_limit_mib": 1536,
+      "blas_and_numba_threads": 1
+    },
+    "examples": {
+      "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+      "runs": 18,
+      "all_fits_and_extracted_spots_exact": true,
+      "modes": [
+        "staged",
+        "grain"
+      ],
+      "studies": [
+        "ruby-0",
+        "ruby-1",
+        "ruby-2",
+        "ruby-3",
+        "ruby-4",
+        "ruby-5",
+        "dexelas",
+        "dexelas-roi",
+        "zirconium"
+      ]
+    },
+    "sven": {
+      "runs": [
+        {
+          "grains": 4,
+          "mode": "staged",
+          "reference": "master scientific algorithms, bounded input",
+          "fits_and_spots_exact": true,
+          "spot_files_byte_identical": 4,
+          "memory": {
+            "rss": 866988032,
+            "pss": 859525120,
+            "uss": 857133056
+          }
+        },
+        {
+          "grains": 4,
+          "mode": "grain",
+          "reference": "master scientific algorithms, bounded input",
+          "fits_and_spots_exact": true,
+          "spot_files_byte_identical": 4,
+          "memory": {
+            "rss": 1294684160,
+            "pss": 1287049216,
+            "uss": 1284661248
+          }
+        },
+        {
+          "grains": 52,
+          "mode": "staged",
+          "reference": "5b951469",
+          "fits_and_spots_exact": true,
+          "spot_files_byte_identical": 52,
+          "memory": {
+            "rss": 1173155840,
+            "pss": 1165691904,
+            "uss": 1163276288
+          }
+        }
+      ],
+      "comparison": "Exact fit results; each listed spot file is byte-identical.",
+      "address_space_limit_mib": 4096,
+      "fitting_processes": 1,
+      "runs_sequentially": true,
+      "direct_fch5_reads": true,
+      "image_scratch": false
+    },
+    "cancellation": {
+      "runs": [
+        {
+          "method": "button",
+          "seconds_from_cancel_request_to_cleanup": 0.003830105997622013,
+          "seconds_including_simulated_ui_dispatch": 3.18515988800209,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "method": "ctrl+c",
+          "seconds_from_cancel_request_to_cleanup": 0.0018549350061221048,
+          "seconds_including_simulated_ui_dispatch": 0.19149351099622436,
+          "cancelled_during_real_fch5_reads": true
+        }
+      ],
+      "address_limit_mib": 4096,
+      "peak_rss_mib": 994.828125
+    },
+    "source_sha256": {
+      "docs/fit-grains.md": "eac4597d9d93ae2953abf0d70dacc69dd19a970262f0cc949fc449caabda9ef3",
+      "hexrd/core/transforms/cpp_sublibrary/src/chunk_executor.hpp": "0c23d94401109fad0b297312dbbd50a18e44fed4be5ede92f0a8daafbb3a4019",
+      "hexrd/core/transforms/cpp_sublibrary/src/native_frame.hpp": "740669c0e07997961f1fd16ab6ea2b4965e60c0078ef5148ebc20781fe1ac728",
+      "hexrd/core/transforms/cpp_sublibrary/src/spot_extraction.hpp": "a0d41a13952c4905249ca82296d85ab076d638a5a8500c22351b4b56a8cfb166",
+      "hexrd/hedm/_chunk_io.py": "23397bdd9ed4c0b92f9f6573e8ea4e174bc4e0f72566ebd73e3c83e7f2296af7",
+      "hexrd/hedm/_fch5_pixels.py": "4d9a74e185582e85be2d610008f7f3e83736d9a280676ba44860ce5712ddf00a",
+      "hexrd/hedm/_image_cache.py": "ae6dd66d381bd8d261f248c45af5e84e121eb1a7c96789ea0a3847e33fa6dd72",
+      "hexrd/hedm/_pixel_cache.py": "98198ebfe17c8fe23d3acd4e7b95b17cf0bfdb195aa390d2f325abc9fa8ae560",
+      "hexrd/hedm/_staged_spots.py": "40c92a8d042f751f416c7160d9a7cb9b9f693f0cd3ce6add2f603ecb539b9c98"
+    },
+    "native_extension_sha256": "30dcfedb450178adb7ae2d043b9cf67e70c94af1aa9753338a8f7fe02e809889"
   }
 }

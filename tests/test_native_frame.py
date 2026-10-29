@@ -16,8 +16,9 @@ from hexrd.hedm._fch5_pixels import Fch5Pixels
     'dtype', ['u1', 'i1', 'u2', 'i2', 'u4', 'i4', 'u8', 'i8', 'f4', 'f8']
 )
 @pytest.mark.parametrize('direct', [False, True])
+@pytest.mark.parametrize('shuffle', [0, 1, 2])
 def test_native_frame_preserves_pixel_bits_and_original_query_order(
-    tmp_path, monkeypatch, dtype, direct
+    tmp_path, monkeypatch, dtype, direct, shuffle
 ):
     from test_fch5_pixels import make_reader
 
@@ -26,7 +27,9 @@ def test_native_frame_preserves_pixel_bits_and_original_query_order(
             pytest.skip('Linux direct I/O')
         monkeypatch.setenv('HEXRD_FIT_GRAINS_DIRECT_IO', '1')
     reader = make_reader(
-        tmp_path / 'frame.h5', dtype=dtype, compression=hdf5plugin.Blosc(cname='zstd')
+        tmp_path / 'frame.h5',
+        dtype=dtype,
+        compression=hdf5plugin.Blosc(cname='zstd', shuffle=shuffle),
     )
     cache, reference = FrameCache(32 * 1024**2), FrameCache(12000)
     cache.chunk_workers = 4

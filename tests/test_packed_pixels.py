@@ -1,5 +1,6 @@
 """Lossless catalogue compression must preserve bits and the byte budget."""
 
+from test_pixel_cache import read_cached
 from types import SimpleNamespace
 
 import numpy as np
@@ -19,7 +20,7 @@ def test_packing_unavailable_keeps_original_bounded_cache(monkeypatch, missing):
         monkeypatch.delattr(native, '_BloscReader')
     else:
         monkeypatch.setattr(_chunk_io, '_blosc', lambda: None)
-    reader = type('Reader', (), {'dtype': np.dtype('f8')})()
+    reader = type('Reader', (), {'dtype': np.dtype('f8'), 'shape': (1, 65536)})()
     cache = PixelCache(compression_min_bytes=0)
     cache.set_limit(60000)
     keys = np.arange(4096, dtype='u4')
@@ -28,7 +29,7 @@ def test_packing_unavailable_keeps_original_bounded_cache(monkeypatch, missing):
     cache.remember(reader, 1, keys, values)
     assert not cache.packing and cache.bytes <= cache.max_bytes
     assert len(cache.frames) == 1
-    found, actual = cache.lookup(reader, 0, keys)
+    found, actual = read_cached(cache, reader, 0, keys)
     assert found.all() and actual.tobytes() == values.tobytes()
 
 
@@ -70,30 +71,29 @@ def test_packed_frame_limit_is_checked_before_encoding():
 
 @pytest.mark.parametrize('compress', [False, True])
 def test_sorted_admission_owns_buffers_and_matches_generic_merge(compress):
-    reader = type('Reader', (), {'dtype': np.dtype('f8')})()
+    reader = type('Reader', (), {'dtype': np.dtype('f8'), 'shape': (1, 65536)})()
     cache = PixelCache(compress=compress, compression_min_bytes=0)
     cache.set_limit(60000)
     keys = np.arange(4096, dtype='u4')
     values = keys.astype('f8')
     expected = values.copy()
-    cache.remember(reader, 0, keys, values, sorted_unique=True)
+    cache.remember(reader, 0, keys, values)
     if compress:
         cache._enable_packing()
         assert cache.packing
     keys[:] = 0
     values[:] = -1
-    found, actual = cache.lookup(reader, 0, np.arange(4096, dtype='u4'))
+    found, actual = read_cached(cache, reader, 0, np.arange(4096, dtype='u4'))
     assert found.all() and actual.tobytes() == expected.tobytes()
     cache.remember(
         reader,
         0,
         np.array([42, 4096], dtype='u4'),
         np.array([-0.0, np.nan]),
-        sorted_unique=True,
     )
     expected[42] = -0.0
     expected = np.r_[expected, np.nan]
-    found, actual = cache.lookup(reader, 0, np.arange(4097, dtype='u4'))
+    found, actual = read_cached(cache, reader, 0, np.arange(4097, dtype='u4'))
     assert found.all() and actual.tobytes() == expected.tobytes()
     assert cache.bytes <= cache.max_bytes
 
@@ -113,7 +113,7 @@ def test_pressure_compresses_existing_frames_before_rejecting_new_frames():
         assert cache.packing and len(cache.frames) == 20
         assert all(item[1] is None for item in cache.frames.values())
         for frame in range(20):
-            found, actual = cache.lookup(reader, frame, keys[::-1])
+            found, actual = read_cached(cache, reader, frame, keys[::-1])
             assert found.all() and actual.tobytes() == values[::-1].tobytes()
         # A query and its subsequent merge share one decoded old entry.
         query = cache.query(reader, 0, [0, 32], [0, 0])
@@ -131,7 +131,7 @@ def test_pressure_compresses_existing_frames_before_rejecting_new_frames():
 
 
 def test_cancelling_catalogue_migration_preserves_entries_and_byte_counts():
-    reader = type('Reader', (), {'dtype': np.dtype('f8')})()
+    reader = type('Reader', (), {'dtype': np.dtype('f8'), 'shape': (1, 65536)})()
     cache = PixelCache(compression_min_bytes=0)
     cache.set_limit(1000000)
     keys, values = np.arange(4096, dtype='u4'), np.arange(4096, dtype='f8')
@@ -150,7 +150,7 @@ def test_cancelling_catalogue_migration_preserves_entries_and_byte_counts():
         _cancellation_check.reset(token)
     assert cache.bytes == sum(item[2] for item in cache.frames.values())
     for frame in range(10):
-        found, actual = cache.lookup(reader, frame, keys)
+        found, actual = read_cached(cache, reader, frame, keys)
         assert found.all() and actual.tobytes() == values.tobytes()
     cache.clear()
 

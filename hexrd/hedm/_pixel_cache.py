@@ -107,49 +107,12 @@ class PixelCache:
             self.hits += query.unique_count - query.missing_count
         return query
 
-    def keys(self, reader, rows, cols):
-        rows, cols = np.asarray(rows).ravel(), np.asarray(cols).ravel()
-        # Callers supply clipped source coordinates. Reject anything else
-        # rather than allowing packed-key collisions across different rows.
-        if (
-            np.any(rows < 0)
-            or np.any(rows >= reader.shape[0])
-            or np.any(cols < 0)
-            or np.any(cols >= reader.shape[1])
-        ):
-            return None
-        cells = reader.shape[0] * reader.shape[1]
-        if cells > 2**64:
-            return None
-        dtype = 'u4' if cells <= 2**32 else 'u8'
-        return (rows.astype('u8') * reader.shape[1] + cols.astype('u8')).astype(dtype)
-
-    def lookup(self, reader, frame, keys):
-        self.queries += len(keys)
-        found = np.zeros(len(keys), dtype=bool)
-        values = np.empty(len(keys), dtype=reader.dtype)
-        item = self.frames.pop((reader, frame), None)
-        if item is not None:
-            self.frames[reader, frame] = item
-            stored_keys, stored_values, _ = self._arrays(item)
-            indices = np.searchsorted(stored_keys, keys)
-            found = indices < len(stored_keys)
-            found[found] &= stored_keys[indices[found]] == keys[found]
-            values[found] = stored_values[indices[found]]
-            self.hits += int(np.count_nonzero(found))
-        return found, values
-
-    def remember(self, reader, frame, keys, values, *, sorted_unique=False):
+    def remember(self, reader, frame, keys, values):
         if not len(keys) or not self.max_bytes:
             return
         key = reader, frame
-        if sorted_unique:
-            # Native queries and the generic lookup already produce sorted,
-            # unique keys. Keep private ownership without sorting them again.
-            unique, incoming = keys, values
-        else:
-            unique, indices = np.unique(keys, return_index=True)
-            incoming = values[indices]
+        # Entries come from the native query's sorted, unique missing keys.
+        unique, incoming = keys, values
         if incoming.dtype != reader.dtype:
             incoming = incoming.astype(reader.dtype)
         if self.bytes + unique.nbytes + incoming.nbytes + 1024 > self.max_bytes:
@@ -160,20 +123,11 @@ class PixelCache:
             old_keys, old_values, _ = self._arrays(old)
             from hexrd.core.extensions import transforms as native
 
-            merged = native._mergePixelEntries(old_keys, old_values, unique, incoming)
-            if merged is not None:
-                joined, output = merged
-            else:
-                joined = np.union1d(old_keys, unique)
-                output = np.empty(len(joined), dtype=reader.dtype)
-                output[np.searchsorted(joined, old_keys)] = old_values
-                output[np.searchsorted(joined, unique)] = incoming
-        else:
-            joined, output = (
-                (unique.copy(), incoming.copy())
-                if sorted_unique
-                else (unique, incoming)
+            joined, output = native._mergePixelEntries(
+                old_keys, old_values, unique, incoming
             )
+        else:
+            joined, output = unique.copy(), incoming.copy()
         joined.flags.writeable = output.flags.writeable = False
         size = 1024 + joined.nbytes + len(joined) * reader.dtype.itemsize
         item = joined, output, size
