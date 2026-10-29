@@ -96,6 +96,47 @@ def test_planning_without_native_windows_uses_existing_result():
     assert group.add(plan)
 
 
+def test_source_coordinates_are_prepared_once_even_after_rejected_group():
+    from hexrd.hedm._staged_spots import patches
+
+    class Reader:
+        shape, nframes, dtype, resident = (80000, 80000), 1, np.dtype('u2'), False
+
+    cache = FrameCache(0)
+    series = BoundedSeries(View(Reader(), roi=(40000, 50000, 2, 3)), cache, {}, 1)
+    rows, cols = np.array([-1, 0, 10]), np.array([-2, 1, 20])
+
+    class Instrument:
+        def pull_spots(self):
+            return sparse_frame_view(series).extract(
+                np.array([[0]]),
+                np.array([0, 3]),
+                rows,
+                cols,
+                np.array([[1, 1, 3]]),
+                0,
+            )
+
+    clear_sparse_frame_views()
+    try:
+        plan = MeasurementPlan(Instrument(), ((), {})).prepare()
+        signature = plan.batches[0].signature
+        assert not MeasurementGroup(1).add(plan)
+        (first,) = patches(plan)
+        (second,) = patches(plan)
+        np.testing.assert_array_equal(first.rows, [40000, 40000, 40001])
+        np.testing.assert_array_equal(first.cols, [50000, 50001, 50002])
+        assert first.rows.dtype == first.cols.dtype == np.dtype('i4')
+        assert np.shares_memory(first.rows, second.rows)
+        assert np.shares_memory(first.cols, second.cols)
+        assert not first.rows.flags.writeable and not first.cols.flags.writeable
+        assert signature == plan.batches[0].signature
+        np.testing.assert_array_equal(rows, [-1, 0, 10])
+    finally:
+        cache.close()
+        clear_sparse_frame_views()
+
+
 def test_workspace_accounts_for_window_overlap_in_physical_frame_order():
     from hexrd.hedm._staged_spots import Batch
     from hexrd.hedm._image_cache import StreamingView

@@ -87,14 +87,91 @@ def test_native_row_index_handles_signed_limit_and_empty_frames(height):
     assert not empty.any()
 
 
+@pytest.mark.parametrize('chunk_size', [7, 16, 131])
+def test_batched_native_read_indexes_partial_chunks_and_retains_validation(
+    tmp_path, chunk_size
+):
+    import h5py
+    import mmap
+    from hexrd.core.extensions import transforms as native
+    from hexrd.hedm._chunk_io import ChunkReader
+
+    rng = np.random.default_rng(813)
+    rows = np.repeat(np.arange(43, dtype='u2'), rng.integers(0, 60, 43))
+    stored = np.r_[np.full(5, 65535, dtype='u2'), rows, np.zeros(11, dtype='u2')]
+    path = tmp_path / 'batch.h5'
+    with h5py.File(path, 'w') as handle:
+        handle.create_dataset(
+            'rows',
+            data=stored[:, None],
+            chunks=(chunk_size, 1),
+            **hdf5plugin.Blosc(cname='zstd'),
+        )
+    cache = FrameCache(32 * 1024**2)
+    cache.chunk_workers = 4
+    try:
+        with h5py.File(path, 'r') as handle, mmap.mmap(-1, 1024**2 + 8192) as raw:
+            reader = ChunkReader.create(handle, cache)
+            shape, dtype, addresses, sizes, masks = reader._spec(handle['rows'])
+            pixels = np.empty(shape, dtype=dtype)
+            offsets = np.empty(44, dtype='i4')
+
+            def read(start, stop, output=offsets, token=None):
+                return reader.pool.native_reader.read_rows(
+                    reader.fd,
+                    addresses,
+                    sizes,
+                    masks,
+                    start,
+                    stop,
+                    raw,
+                    pixels,
+                    output,
+                    False,
+                    token or native._ReadCancellation(),
+                )
+
+            status, decoded = read(5, 5 + len(rows))
+            assert status == 1 and decoded >= rows.nbytes
+            np.testing.assert_array_equal(
+                offsets,
+                np.searchsorted(rows, np.arange(44)).astype('i4'),
+                strict=True,
+            )
+            # The same padding excluded above must reject the fast path if used.
+            assert read(0, 5 + len(rows))[0] == 0
+            assert read(5, 5) == (1, 0)
+            assert not offsets.any()
+            token = native._ReadCancellation()
+            token.cancel()
+            assert read(5, 5 + len(rows), token=token) == (-4, 0)
+            with pytest.raises(ValueError, match='dimensions'):
+                read(-1, 0)
+            with pytest.raises(ValueError, match='dimensions'):
+                read(0, len(addresses) * chunk_size + 1)
+            with pytest.raises(ValueError, match='workspaces'):
+                read(5, 6, np.empty(44, dtype='i8'))
+            offsets.flags.writeable = False
+            with pytest.raises(ValueError, match='workspaces'):
+                read(5, 6)
+    finally:
+        cache.close()
+
+
 @pytest.mark.parametrize('direct', [False, True])
 @pytest.mark.parametrize('malformed', [None, 'rows', 'columns', 'duplicate'])
+@pytest.mark.parametrize('native_batch', [False, True])
 def test_prefetched_indexes_match_existing_row_validation(
-    tmp_path, direct, malformed, monkeypatch
+    tmp_path, direct, malformed, native_batch, monkeypatch
 ):
     import os
     from test_fch5_pixels import make_reader
 
+    if not native_batch:
+        from hexrd.core.extensions import transforms as native
+
+        # Existing installations can have the previous per-chunk native API.
+        monkeypatch.delattr(native, '_ReadCancellation')
     if direct:
         if not hasattr(os, 'O_DIRECT'):
             pytest.skip('Linux direct I/O')

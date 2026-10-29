@@ -65,6 +65,7 @@ class Batch:
     threshold: object
     signature: tuple
     stats: tuple
+    source_coordinates: bool = False
 
     @property
     def bytes(self):
@@ -255,6 +256,19 @@ def patches(plan):
     result = []
     for batch in plan.batches:
         mapping = batch.view.view.mapping
+        if not batch.source_coordinates:
+            view = batch.view.view
+            rows = batch.rows.astype('i8').clip(0, view.shape[0] - 1)
+            cols = batch.cols.astype('i8').clip(0, view.shape[1] - 1)
+            if view.roi is not None:
+                rows += view.roi[0]
+                cols += view.roi[1]
+            # Reuse the planned coordinate storage rather than retaining a
+            # second int64 copy per patch. Replay checks the original immutable
+            # signature, so it does not need the unconverted coordinate arrays.
+            batch.rows, batch.cols = _compact(rows), _compact(cols)
+            batch.rows.flags.writeable = batch.cols.flags.writeable = False
+            batch.source_coordinates = True
         for i, frame_ids in enumerate(batch.frames):
             actual = (
                 np.asarray(mapping)[frame_ids] if mapping is not None else frame_ids
@@ -379,14 +393,8 @@ class MeasurementGroup:
                     row_parts, col_parts = [], []
                     for _, patch_index, _ in occurrences:
                         p = items[patch_index]
-                        view = p.batch.view.view
-                        rows = p.rows.astype('i8').clip(0, view.shape[0] - 1)
-                        cols = p.cols.astype('i8').clip(0, view.shape[1] - 1)
-                        if view.roi is not None:
-                            rows += view.roi[0]
-                            cols += view.roi[1]
-                        row_parts.append(rows)
-                        col_parts.append(cols)
+                        row_parts.append(p.rows)
+                        col_parts.append(p.cols)
                     counts = np.array([len(x) for x in row_parts])
                     sparse_query = counts.sum() <= 65536
                     combined = None

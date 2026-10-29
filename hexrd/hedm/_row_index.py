@@ -39,6 +39,33 @@ def _build(reader, spec, start, stop, height, cancelled):
         pixels = pool.local.row_buffer = np.empty(shape, dtype=dtype)
     result = np.full(height + 1, stop - start, dtype='i4')
     invalid = np.array([-1], dtype='i8')
+    token = getattr(cancelled, '_hexrd_native', None)
+    batch = getattr(pool.native_reader, 'read_rows', None)
+    if token is not None and batch is not None:
+        if cancelled.is_set():
+            raise CancelledError()
+        status, decoded_bytes = batch(
+            reader.fd,
+            addresses,
+            sizes,
+            masks,
+            start,
+            stop,
+            source,
+            pixels,
+            result,
+            reader.direct,
+            token,
+        )
+        if status == -4:
+            raise CancelledError()
+        if status < 0:
+            if status <= -1000:
+                error = -1000 - status
+                raise OSError(error, os.strerror(error))
+            raise OSError('Cannot read FCH5 row-coordinate chunk')
+        result.flags.writeable = False
+        return IndexResult(result if status else invalid, decoded_bytes)
     first, previous, next_row = start, -1, 0
     decoded_bytes = 0
     while first < stop:
@@ -101,6 +128,11 @@ class IndexQueue:
         self.current = None
         self.last_frame = None
         self.cancelled = threading.Event()
+        from hexrd.core.extensions import transforms as native
+
+        token = getattr(native, '_ReadCancellation', None)
+        if token is not None:
+            self.cancelled._hexrd_native = token()
 
     def _submit(self):
         check_cancelled()
@@ -158,6 +190,9 @@ class IndexQueue:
         return None
 
     def close(self):
+        token = getattr(self.cancelled, '_hexrd_native', None)
+        if token is not None:
+            token.cancel()
         self.cancelled.set()
         pending = [self.current, *self.pending.values()]
         for future in pending:

@@ -4,6 +4,9 @@ This is an incremental improvement over `b0d81b4d`, the pixel-reuse and batched
 index reader. It changes integer index construction rather than peak or fitting
 arithmetic.
 
+The subsequent [native frame-index loop](fit-grains-native-index-loop.md)
+removes further Python dispatch and repeated coordinate preparation.
+
 The interrupted prototype had a C++ declaration error and had not produced a
 speed measurement. That error is fixed. The retained implementation validates
 row coordinates and fills row offsets in one SIMD scan using the existing
