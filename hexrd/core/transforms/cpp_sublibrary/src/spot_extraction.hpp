@@ -120,6 +120,64 @@ class BloscReader {
   }
 };
 
+static py::tuple updateRowOffsets(CArray<uint16_t> rows, Index first, Index last,
+                                 py::array offsets, int64_t relative,
+                                 int previous, Index next) {
+  checkShape(rows, {-1});
+  checkShape(offsets, {-1});
+  if (!sameDtype(offsets.dtype(), py::dtype::of<int32_t>()) ||
+      !(offsets.flags() & py::array::c_style) ||
+      !(offsets.flags() & py::detail::npy_api::NPY_ARRAY_ALIGNED_) || !offsets.writeable())
+    throw py::value_error("row offsets must be writable contiguous int32");
+  const Index height = offsets.size() - 1;
+  auto output = static_cast<int32_t *>(offsets.mutable_data());
+  if (first < 0 || last < first || last > rows.size() || height < 0 ||
+      height > 32767 || next < 0 || next > height || previous < -1 || previous >= height ||
+      relative < 0 || relative > INT32_MAX - (last - first))
+    throw py::value_error("invalid sparse row-index bounds");
+  const auto input = reinterpret_cast<const int16_t *>(rows.data());
+  bool valid = true;
+  {
+    py::gil_scoped_release release;
+    auto append = [&](Index index) {
+      const int value = input[index];
+      if (value < 0 || value >= height || value < previous) {
+        valid = false;
+        return;
+      }
+      if (next <= value) {
+        std::fill(output + next, output + value + 1,
+                  int32_t(relative + index - first));
+        next = value + 1;
+      }
+      previous = value;
+    };
+    Index index = first;
+    if (index < last)
+      append(index++);
+    using Batch = xsimd::batch<int16_t>;
+    constexpr Index lanes = Batch::size;
+    const Batch zero(int16_t(0));
+    const Batch limit{int16_t(height)};
+    for (; valid && index + lanes <= last; index += lanes) {
+      const auto values = Batch::load_unaligned(input + index);
+      const auto before = Batch::load_unaligned(input + index - 1);
+      if (xsimd::any((values < before) | (values < zero) | (values >= limit))) {
+        valid = false;
+        break;
+      }
+      // Most detector rows are long constant runs. Only packs crossing a
+      // row boundary need scalar work; no full-sized boolean array is made.
+      if (xsimd::any(values != before))
+        for (Index j = 0; j < lanes; ++j)
+          append(index + j);
+    }
+    for (; valid && index < last; ++index)
+      append(index);
+  }
+  return py::make_tuple(valid ? next : Index(-1), previous);
+}
+
 template <typename COO, typename CSR>
 static py::object csrIndicesTyped(CArray<COO> rows, CArray<COO> columns,
                                   Index height, Index width) {
@@ -1896,6 +1954,7 @@ static py::array measuredXY(CArray<double> angles, CArray<double> rd,
 }
 
 static void bind(py::module_ &m) {
+  m.def("_fch5RowOffsets", &updateRowOffsets);
 #ifndef _WIN32
   py::class_<BloscReader>(m, "_BloscReader")
       .def(py::init<py::object>())

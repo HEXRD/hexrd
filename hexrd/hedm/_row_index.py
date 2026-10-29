@@ -24,6 +24,9 @@ def wait_index(future):
 
 
 def _build(reader, spec, start, stop, height, cancelled):
+    from hexrd.core.extensions import transforms as native
+
+    update = getattr(native, '_fch5RowOffsets', None)
     shape, dtype, addresses, sizes, masks = spec
     pool = reader.pool
     source = getattr(pool.local, 'buffer', None)
@@ -60,6 +63,20 @@ def _build(reader, spec, start, stop, height, cancelled):
             raise OSError('Cannot read FCH5 row-coordinate chunk')
         decoded_bytes += count
         end = min(stop, (chunk + 1) * shape[0])
+        if update is not None:
+            next_row, previous = update(
+                pixels[:, 0],
+                offset,
+                offset + end - first,
+                result,
+                first - start,
+                previous,
+                next_row,
+            )
+            if next_row < 0:
+                return IndexResult(invalid, decoded_bytes)
+            first = end
+            continue
         rows = pixels[offset : offset + end - first, 0]
         if rows[0] < previous or rows[-1] >= height or np.any(rows[1:] < rows[:-1]):
             return IndexResult(invalid, decoded_bytes)

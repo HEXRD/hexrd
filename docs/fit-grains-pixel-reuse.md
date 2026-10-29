@@ -1,5 +1,9 @@
 # Reusing exact pixels and feeding the first fitting pass
 
+These measurements describe commit `b0d81b4d`. A subsequent
+[SIMD row-index optimization](fit-grains-row-index.md) reduces first-pass work
+further.
+
 This builds on `f33fd58f`, the previous bounded parallel decoder. It retains
 master's grain-dependent windows, resampling order, pixel intensities, peak
 selection and optimizer. It does not replace those windows with global peak
