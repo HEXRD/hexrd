@@ -3,6 +3,10 @@
 This change builds on `51b6a370`. It removes repeated coordinate preparation
 and per-chunk Python dispatch from the existing staged measurement pipeline.
 
+The subsequent [native measurement pipeline](fit-grains-native-pipeline.md)
+moves the window loop and pixel queries into C++ and removes a large-frame
+performance cliff with bounded query tiles.
+
 Each planned patch now clips its coordinates and applies the detector ROI once,
 then reuses compact, immutable source coordinates across all its omega frames.
 The original window signature remains available for exact replay validation.

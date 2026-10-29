@@ -51,6 +51,54 @@ def test_packed_coordinates_do_not_round_or_collide_above_float_precision():
     assert cache.keys(source(shape=(2**40, 2**40)), [0], [0]) is None
 
 
+@pytest.mark.parametrize('dtype', ['u2', 'u8', 'f4', 'f8'])
+@pytest.mark.parametrize('shape', [(14, 18), (2**27, 2**27)])
+def test_native_query_matches_catalogue_bits_with_duplicates_and_missing_pixels(
+    dtype, shape
+):
+    reader = source(dtype, shape)
+    cache = PixelCache()
+    cache.set_limit(8192)
+    rows = np.array([shape[0] - 1, 0, shape[0] - 1, 1], dtype='i8')
+    cols = np.array([2, 1, 3, 4], dtype='i8')
+    keys = cache.keys(reader, rows, cols)
+    values = np.array([7, 8, 9, 10], dtype=dtype)
+    if reader.dtype.kind == 'f':
+        values[:] = [-0.0, np.nan, np.inf, -np.inf]
+    elif dtype == 'u8':
+        values[:] = np.array([2**63 + 1, 2**63 + 2, 2**63 + 3, 2**63 + 4], dtype='u8')
+    cache.remember(reader, 0, keys, values)
+    indices = [2, 0, 2, 3, 1, 0]
+    selected_rows = np.r_[rows[indices], 2]
+    selected_cols = np.r_[cols[indices], 5]
+    query = cache.query(reader, 0, selected_rows, selected_cols)
+    assert query is not None and query.unique_count == 5 and query.missing_count == 1
+    np.testing.assert_array_equal(query.rows, [2])
+    np.testing.assert_array_equal(query.cols, [5])
+    missing = np.array([11], dtype=dtype)
+    actual = query.finish(missing)
+    expected = np.r_[values[indices], missing]
+    assert actual.dtype == expected.dtype and actual.tobytes() == expected.tobytes()
+    cache.remember(reader, 0, query.missing_keys, missing)
+    cached = cache.query(reader, 0, selected_rows, selected_cols)
+    assert cached.missing_count == 0
+    assert cached.finish().tobytes() == expected.tobytes()
+    assert cache.bytes <= cache.max_bytes
+
+
+def test_native_query_rejects_invalid_coordinates_and_handles_empty_input():
+    cache = PixelCache()
+    reader = source()
+    assert cache.query(reader, 0, [-1], [0]) is None
+    assert cache.query(reader, 0, [0], [18]) is None
+    assert cache.query(source(shape=(2**40, 2**40)), 0, [0], [0]) is None
+    # Keep the established floating-input behavior in the generic fallback.
+    assert cache.query(reader, 0, [0.5], [0.5]) is None
+    query = cache.query(reader, 0, np.array([], dtype='i8'), np.array([], dtype='i8'))
+    assert query.unique_count == query.missing_count == 0
+    assert query.finish().shape == (0,)
+
+
 def test_capacity_does_not_thrash_frames_before_next_tolerance_pass():
     reader = source()
     cache = PixelCache()

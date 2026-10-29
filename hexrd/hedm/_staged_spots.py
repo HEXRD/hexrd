@@ -387,6 +387,14 @@ class MeasurementGroup:
 
             prefetch = getattr(reader, 'prefetch_frame_indexes', None)
             with prefetch(events[edges[:-1], 0], cache) if prefetch else nullcontext():
+                measured = self._measure_native(
+                    reader, items, events, cache, cancel, reporter
+                )
+                if measured is not None:
+                    self.frame_visits += measured
+                    for patch in items:
+                        patch.remaining = 0
+                    continue
                 for first, last in zip(edges[:-1], edges[1:]):
                     cancel()
                     occurrences = events[first:last]
@@ -475,6 +483,70 @@ class MeasurementGroup:
                         reporter.sampled_frame()
         if any(p.remaining for p in self.patches):
             raise RuntimeError('Incomplete staged pixel support')
+
+    def _measure_native(self, reader, items, events, cache, cancel, reporter):
+        from hexrd.core.extensions import transforms as native
+        from hexrd.core.imageseries._sparse import sample_pixels
+
+        measure = getattr(native, '_measureWindows', None)
+        dtype = items[0].batch.view.dtype
+        if (
+            measure is None
+            or not dtype.isnative
+            or any(p.batch.view.dtype != dtype for p in items)
+        ):
+            return None
+        requests = [
+            (
+                p.rows,
+                p.cols,
+                p.batch.shapes[p.index : p.index + 1],
+                p.batch.threshold,
+                tuple(a[p.index : p.index + 1] for a in p.batch.stats),
+                p.batch.view.view.dense,
+            )
+            for p in items
+        ]
+
+        borrowed_id = borrowed_frame = borrowed_sparse = None
+
+        def sample(frame_id, rows, cols):
+            nonlocal borrowed_id, borrowed_frame, borrowed_sparse
+            cache.max_bytes = min(128 * 1024**2, self.max_bytes // 4)
+            cache.metadata_limit = cache.max_bytes // 2
+            if borrowed_id != frame_id:
+                borrowed_id, borrowed_frame, borrowed_sparse = frame_id, None, None
+            if borrowed_frame is None:
+                direct = getattr(reader, 'sample_pixels', None)
+                values = direct(frame_id, rows, cols, cache) if direct else None
+                if values is not None:
+                    return values
+                borrowed_frame = cache.frame(reader, frame_id)
+                if (
+                    sparse.issparse(borrowed_frame)
+                    and borrowed_frame.has_sorted_indices
+                ):
+                    borrowed_sparse = native._SparseFrames([borrowed_frame])
+            frame = borrowed_frame
+            if sparse.issparse(frame):
+                if borrowed_sparse is not None:
+                    return borrowed_sparse.gather(
+                        np.zeros((1, 1), dtype='i8'),
+                        np.array([0, len(rows)], dtype='i8'),
+                        rows,
+                        cols,
+                    )
+                return sample_pixels(frame, rows, cols)
+            return frame[rows, cols]
+
+        def tick(completed):
+            if reporter is not None:
+                if completed:
+                    reporter.phase('Segmenting peak windows')
+                reporter.cache(cache)
+                reporter.sampled_frame()
+
+        return measure(requests, events, dtype, sample, cancel, tick)
 
 
 def fit_staged(params, bar, cancel_callback=None):

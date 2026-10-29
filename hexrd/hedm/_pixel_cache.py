@@ -26,6 +26,28 @@ class PixelCache:
         self.frames.clear()
         self.bytes = 0
 
+    def query(self, reader, frame, rows, cols):
+        from hexrd.core.extensions import transforms as native
+
+        make = getattr(native, '_makePixelQuery', None)
+        if make is None or any(n > np.iinfo('i8').max for n in reader.shape):
+            return None
+        key = reader, frame
+        old = self.frames.get(key)
+        query = make(
+            np.asarray(rows).ravel(),
+            np.asarray(cols).ravel(),
+            *reader.shape,
+            reader.dtype,
+            old
+        )
+        if query is not None:
+            if old is not None:
+                self.frames.move_to_end(key)
+            self.queries += query.unique_count
+            self.hits += query.unique_count - query.missing_count
+        return query
+
     def keys(self, reader, rows, cols):
         rows, cols = np.asarray(rows).ravel(), np.asarray(cols).ravel()
         # Callers supply clipped source coordinates. Reject anything else

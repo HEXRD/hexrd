@@ -96,6 +96,55 @@ def test_planning_without_native_windows_uses_existing_result():
     assert group.add(plan)
 
 
+def test_tiled_dense_sampling_borrows_one_frame_larger_than_the_cache():
+    from hexrd.core.extensions import transforms as native
+
+    line = (1 + np.arange(80000) % 17).astype('f4')
+    calls = []
+
+    class Reader:
+        shape, nframes, dtype, resident = (100, 80000), 1, line.dtype, False
+
+        def read(self, index, cache):
+            calls.append(index)
+            return np.broadcast_to(line, self.shape)
+
+    cache = FrameCache(0)
+    series = BoundedSeries(View(Reader(), dense=True), cache, {}, 1)
+
+    class Instrument:
+        def pull_spots(self):
+            return sparse_frame_view(series).extract(
+                np.array([[0], [0]]),
+                np.array([0, 40000, 80000]),
+                np.zeros(80000, dtype='i4'),
+                np.tile(np.arange(40000), 2),
+                np.array([[1, 1, 40000], [1, 1, 40000]]),
+                0,
+            )
+
+    clear_sparse_frame_views()
+    try:
+        plan = MeasurementPlan(Instrument(), ((), {})).prepare()
+        group = MeasurementGroup(8 * 1024**2)
+        assert group.add(plan)
+        group.measure(cache)
+        assert calls == [0]
+        expected = native._spotStats(
+            line[:40000],
+            np.array([0, 40000], dtype='i8'),
+            np.array([[1, 1, 40000]], dtype='i8'),
+            0,
+        )
+        for actual, wanted in zip(plan.batches[0].stats, expected):
+            np.testing.assert_array_equal(
+                actual, np.repeat(wanted, 2, axis=0), strict=True
+            )
+    finally:
+        cache.close()
+        clear_sparse_frame_views()
+
+
 def test_source_coordinates_are_prepared_once_even_after_rejected_group():
     from hexrd.hedm._staged_spots import patches
 
@@ -523,7 +572,10 @@ def test_large_float_windows_share_full_frame_reads_without_changing_moments():
         assert all(group.add(p) for p in plans)
         calls.clear()
         group.measure(cache)
-        assert calls == [0, 1, 2] and not sampled
+        assert calls == [0, 1, 2]
+        # Try the bounded pixel reader once per frame, then share its full
+        # fallback frame across every tile when partial sampling is unavailable.
+        assert len(sampled) == 3
         for p, wanted in zip(plans, reference):
             for actual, expected in zip(p.result(), wanted):
                 np.testing.assert_array_equal(actual, expected, strict=True)

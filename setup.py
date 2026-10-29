@@ -142,7 +142,14 @@ def get_cpp_extensions():
         sources=[str(cpp_transform_pkgdir / 'src/transforms.cpp')],
         depends=[
             str(cpp_transform_pkgdir / 'src' / name)
-            for name in ('spot_extraction.hpp', 'grain_objective.hpp')
+            for name in (
+                'spot_extraction.hpp',
+                'grain_objective.hpp',
+                'chunk_executor.hpp',
+                'native_frame.hpp',
+                'window_measurement.hpp',
+                'pixel_query.hpp',
+            )
         ],
         extra_compile_args=extra_compile_args,
         include_dirs=include_dirs,

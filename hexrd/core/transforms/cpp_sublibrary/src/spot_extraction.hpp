@@ -4,6 +4,7 @@
 #include <memory>
 #include <type_traits>
 #include <atomic>
+#include "chunk_executor.hpp"
 #ifndef _WIN32
 #include <unistd.h>
 #include <cerrno>
@@ -41,6 +42,13 @@ public:
 };
 
 class BloscReader {
+  friend class FrameSampler;
+  mutable ReadLimiter limiter;
+#ifndef _WIN32
+  std::unique_ptr<NativeChunkExecutor> executor;
+  std::mutex frameMutex;
+  int workers = 1;
+#endif
   using Validate = int (*)(const void *, size_t, size_t *);
   using Decompress = int (*)(const void *, void *, size_t, int);
   using Sizes = void (*)(const void *, size_t *, size_t *, size_t *);
@@ -56,8 +64,12 @@ class BloscReader {
 
   int readData(int fd, int64_t begin, int64_t count, int64_t skip, int64_t size,
                unsigned char *source, unsigned char *target, int64_t expected,
-               int64_t itemsize, int mask, int64_t first, int64_t last) const {
+               int64_t itemsize, int mask, int64_t first, int64_t last,
+               const std::atomic<bool> *cancelled = nullptr) const {
 #ifndef _WIN32
+    ReadLimiter::Guard permit(limiter, cancelled);
+    if (!permit)
+      return -4;
     int result = -1;
     ssize_t read;
     do {
@@ -148,6 +160,31 @@ public:
 #endif
   }
 #ifndef _WIN32
+  void configure(int count) {
+    if (count < 1 || count > 8)
+      throw py::value_error("native decoder workers must be between 1 and 8");
+    std::unique_lock<std::mutex> lock(frameMutex, std::try_to_lock);
+    if (!lock || executor)
+      throw py::value_error("cannot reconfigure an active native reader");
+    workers = count;
+    limiter.configure(count);
+  }
+
+  void close() {
+    py::gil_scoped_release release;
+    std::lock_guard<std::mutex> lock(frameMutex);
+    if (executor) {
+      executor->close();
+      executor.reset();
+    }
+  }
+
+  py::tuple readPixels(int fd, py::tuple coordinates, py::tuple values,
+                       CArray<int64_t> offsets, int64_t start, int64_t stop,
+                       CArray<int64_t> rows, CArray<int64_t> cols,
+                       int64_t width, bool direct, int64_t workspace,
+                       py::function check);
+
   // Keep the read/decode/index loop off the GIL. Jobs own their workspaces;
   // cancellation crosses from the UI thread through this atomic token only.
   py::tuple readRows(int fd, CArray<int64_t> addresses, CArray<uint32_t> sizes,
@@ -2077,7 +2114,13 @@ static py::array measuredXY(CArray<double> angles, CArray<double> rd,
   return output;
 }
 
+static py::object measureWindows(py::list, CArray<int64_t>, py::dtype,
+                                py::function, py::function, py::function);
+static void bindPixelQuery(py::module_ &);
+
 static void bind(py::module_ &m) {
+  bindPixelQuery(m);
+  m.def("_measureWindows", &measureWindows);
   m.def("_fch5RowOffsets", &updateRowOffsets);
 #ifndef _WIN32
   py::class_<ReadCancellation>(m, "_ReadCancellation")
@@ -2085,6 +2128,9 @@ static void bind(py::module_ &m) {
       .def("cancel", &ReadCancellation::cancel);
   py::class_<BloscReader>(m, "_BloscReader")
       .def(py::init<py::object>())
+      .def("configure", &BloscReader::configure)
+      .def("close", &BloscReader::close)
+      .def("read_pixels", &BloscReader::readPixels)
       .def("read", &BloscReader::read)
       .def("read_rows", &BloscReader::readRows);
 #endif
@@ -2119,3 +2165,9 @@ static void bind(py::module_ &m) {
 
 } // namespace
 } // namespace spot_extraction
+
+#ifndef _WIN32
+#include "native_frame.hpp"
+#endif
+#include "window_measurement.hpp"
+#include "pixel_query.hpp"

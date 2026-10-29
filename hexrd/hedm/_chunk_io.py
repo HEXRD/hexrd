@@ -82,8 +82,12 @@ class ChunkPool:
         # Leave at least a quarter of the cache for indexes and retained data.
         # Bound codec scratch as well as inputs/results, without multiplying
         # this allowance by the number of open detector files.
-        per_worker = 6 * self.max_chunk + 16384
-        fixed = self.directory_budget + 2 * self.max_chunk + 16384
+        # Native frame jobs and Python row lookahead share their active I/O
+        # limit, but each retains its own reusable aligned source workspace.
+        per_worker = 8 * self.max_chunk + 16384
+        # Also cover the bounded native query's sort/inverse/missing buffers
+        # and the coordinator's borrowed rows, columns and sampled result.
+        fixed = self.directory_budget + 8 * self.max_chunk + 16384
         capacity = max(1, (cache.max_bytes * 3 // 4 - fixed) // per_worker)
         self.workers = min(workers, os.cpu_count() or 1, capacity)
         # Includes decoded results, compressed input, direct-I/O alignment and
@@ -100,6 +104,9 @@ class ChunkPool:
 
     def close(self):
         self.executor.shutdown(wait=True, cancel_futures=True)
+        close = getattr(self.native_reader, 'close', None)
+        if close is not None:
+            close()
 
 
 class ChunkReader:
@@ -111,6 +118,9 @@ class ChunkReader:
             reader = getattr(native, '_BloscReader', None)
             if reader is not None:
                 pool.native_reader = reader(codec)
+                configure = getattr(pool.native_reader, 'configure', None)
+                if configure is not None:
+                    configure(pool.workers)
         self.specs = {}
         direct = getattr(handle, '_hexrd_direct_file', None)
         self.direct = direct is not None

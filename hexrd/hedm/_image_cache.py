@@ -251,6 +251,16 @@ class FileReader:
         pixels = cache.pixel_cache
         if pixels is None or not pixels.max_bytes:
             return sampler.sample(int(index), rows, cols, cache)
+        query = pixels.query(self, int(index), rows, cols)
+        if query is not None:
+            if not query.missing_count:
+                return query.finish()
+            values = sampler.sample(int(index), query.rows, query.cols, cache)
+            if values is None:
+                return None
+            result = query.finish(values)
+            pixels.remember(self, int(index), query.missing_keys, values)
+            return result
         keys = pixels.keys(self, rows, cols)
         if keys is None:
             return sampler.sample(int(index), rows, cols, cache)

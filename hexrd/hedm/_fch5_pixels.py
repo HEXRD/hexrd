@@ -241,12 +241,15 @@ class Fch5Pixels:
         self.read_bytes = self.read_seconds = 0
         try:
             rows, cols = np.asarray(rows).ravel(), np.asarray(cols).ravel()
-            output = np.zeros(rows.size, dtype=self.reader.dtype)
             if not rows.size:
-                return output
+                return np.zeros(rows.size, dtype=self.reader.dtype)
             ptr = self._offsets(frame, cache)
             if ptr[0] < 0:
                 return None
+            result = self._sample_native(frame, ptr, rows, cols, cache)
+            if result is not NotImplemented:
+                return result
+            output = np.zeros(rows.size, dtype=self.reader.dtype)
             start = int(self.bounds[frame, 0])
             order = np.argsort(rows, kind='stable')
             edges = np.r_[0, np.flatnonzero(np.diff(rows[order])) + 1, len(rows)]
@@ -337,3 +340,63 @@ class Fch5Pixels:
             if self.reporter is not None:
                 self.reporter.read_finished(self.read_bytes, self.read_seconds)
                 self.reporter.cache(cache)
+
+    def _sample_native(self, frame, ptr, rows, cols, cache):
+        from hexrd.hedm._chunk_io import ChunkReader
+
+        if rows.size > 65536 or self.indices.dtype != np.dtype('u2'):
+            return NotImplemented
+        if self.chunk_reader is None:
+            self.chunk_reader = ChunkReader.create(self.handle(), cache)
+        backend = self.chunk_reader
+        read = (
+            getattr(backend.pool.native_reader, 'read_pixels', None)
+            if backend
+            else None
+        )
+        if read is None:
+            return NotImplemented
+        coordinates, values = backend._spec(self.indices), backend._spec(self.values)
+        if coordinates is None or values is None:
+            return NotImplemented
+        workspace = min(
+            16 * 1024**2, cache.max_bytes // 4, cache.max_bytes - cache.reserved_bytes
+        )
+        if workspace < 65536:
+            return NotImplemented
+        cache.reserved_bytes += workspace
+        cache._evict(0, self.reporter)
+        started = monotonic()
+        try:
+            if self.reporter is not None and not self.read_bytes:
+                self.reporter.read_started()
+            result, status, decoded, reads = read(
+                backend.fd,
+                coordinates,
+                values,
+                ptr,
+                *map(int, self.bounds[frame]),
+                rows,
+                cols,
+                self.reader.shape[1],
+                backend.direct,
+                workspace,
+                check_cancelled,
+            )
+            self.read_bytes += decoded
+            cache.misses += reads
+            if self.reporter is not None:
+                self.reporter.data['cache_misses'] += reads
+            if status == 2:
+                return NotImplemented
+            if status < 0:
+                if status <= -1000:
+                    import os
+
+                    error = -1000 - status
+                    raise OSError(error, os.strerror(error))
+                raise OSError('Cannot read native FCH5 pixel chunks')
+            return result
+        finally:
+            self.read_seconds += monotonic() - started
+            cache.reserved_bytes -= workspace
