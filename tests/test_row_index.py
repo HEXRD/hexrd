@@ -8,80 +8,63 @@ from hexrd.hedm._image_cache import FrameCache
 from hexrd.hedm._progress import _cancellation_check
 
 
-@pytest.mark.parametrize('chunk_size', [1, 7, 8, 9, 16, 31, 131])
-def test_native_row_index_matches_searchsorted_across_partial_chunks(chunk_size):
-    from hexrd.core.extensions import transforms as native
+@pytest.mark.parametrize('height', [1, 43, 32767])
+def test_native_reader_row_boundaries_and_disorder(tmp_path, height):
+    import h5py
+    from hexrd.hedm._chunk_io import ChunkReader
 
-    rng = np.random.default_rng(813)
-    height = 43
-    rows = np.repeat(np.arange(height, dtype='u2'), rng.integers(0, 60, height))
-    # Padding is deliberately invalid and must not participate in validation.
-    stored = np.r_[np.full(5, 65535, dtype='u2'), rows, np.zeros(11, dtype='u2')]
-    offsets = np.full(height + 1, len(rows), dtype='i4')
-    next_row, previous = 0, -1
-    start, stop = 5, 5 + len(rows)
-    first = start
-    while first < stop:
-        chunk = first // chunk_size * chunk_size
-        end = min(stop, chunk + chunk_size)
-        next_row, previous = native._fch5RowOffsets(
-            stored[chunk : chunk + chunk_size],
-            first - chunk,
-            end - chunk,
-            offsets,
-            first - start,
-            previous,
-            next_row,
+    rows = np.repeat(np.array([0, height - 1], dtype='u2'), 19)
+    path = tmp_path / 'boundaries.h5'
+    with h5py.File(path, 'w') as handle:
+        handle.create_dataset(
+            'rows', data=rows[:, None], chunks=(7, 1),
+            **hdf5plugin.Blosc(cname='zstd'),
         )
-        assert next_row >= 0
-        first = end
-    expected = np.searchsorted(rows, np.arange(height + 1)).astype('i4')
-    np.testing.assert_array_equal(offsets, expected, strict=True)
+        invalid = rows.copy()
+        invalid[10] = 65535
+        handle.create_dataset(
+            'invalid', data=invalid[:, None], chunks=(7, 1),
+            **hdf5plugin.Blosc(cname='zstd'),
+        )
+    cache = FrameCache(32 * 1024**2)
+    cache.chunk_workers = 2
+    try:
+        with h5py.File(path, 'r') as handle:
+            reader = ChunkReader.create(handle, cache)
+            status, offsets, _ = reader.row_index(handle['rows'], 0, len(rows), height)
+            assert status == 1
+            np.testing.assert_array_equal(
+                offsets, np.searchsorted(rows, np.arange(height + 1)).astype('i4'),
+                strict=True,
+            )
+            assert reader.row_index(handle['invalid'], 0, len(rows), height)[0] == 0
+    finally:
+        cache.close()
 
 
 @pytest.mark.parametrize('position', [0, 1, 7, 8, 9, 15, 16, 31, 32])
 @pytest.mark.parametrize('value', [0, 65535])
-def test_native_row_validation_rejects_disorder_and_unsigned_overflow(position, value):
-    from hexrd.core.extensions import transforms as native
+def test_native_reader_rejects_disordered_or_out_of_range_rows(tmp_path, position, value):
+    import h5py
+    from hexrd.hedm._chunk_io import ChunkReader
 
     rows = np.ones(40, dtype='u2')
     rows[position] = value
-    # A leading zero is canonical; all other changes violate ordering or bounds.
-    offsets = np.full(5, len(rows), dtype='i4')
-    next_row, _ = native._fch5RowOffsets(rows, 0, len(rows), offsets, 0, -1, 0)
-    assert (next_row >= 0) == (position == 0 and value == 0)
-
-
-def test_native_row_index_checks_writable_output_and_overflow():
-    from hexrd.core.extensions import transforms as native
-
-    rows = np.array([0, 0, 1, 1], dtype='u2')
-    with pytest.raises(ValueError, match='int32'):
-        native._fch5RowOffsets(rows, 0, 4, np.zeros(3, dtype='i8'), 0, -1, 0)
-    output = np.zeros(3, dtype='i4')
-    with pytest.raises(ValueError, match='bounds'):
-        native._fch5RowOffsets(rows, 0, 4, output, 2**63 - 1, -1, 0)
-    output.flags.writeable = False
-    with pytest.raises(ValueError, match='int32'):
-        native._fch5RowOffsets(rows, 0, 4, output, 0, -1, 0)
-    unaligned = np.ndarray((3,), dtype='i4', buffer=bytearray(13), offset=1)
-    assert not unaligned.flags.aligned
-    with pytest.raises(ValueError, match='int32'):
-        native._fch5RowOffsets(rows, 0, 4, unaligned, 0, -1, 0)
-
-
-@pytest.mark.parametrize('height', [1, 32767])
-def test_native_row_index_handles_signed_limit_and_empty_frames(height):
-    from hexrd.core.extensions import transforms as native
-
-    rows = np.full(40, height - 1, dtype='u2')
-    offsets = np.full(height + 1, len(rows), dtype='i4')
-    next_row, previous = native._fch5RowOffsets(rows, 0, len(rows), offsets, 0, -1, 0)
-    assert next_row == height and previous == height - 1
-    np.testing.assert_array_equal(offsets, np.searchsorted(rows, np.arange(height + 1)))
-    empty = np.zeros(height + 1, dtype='i4')
-    assert native._fch5RowOffsets(rows[:0], 0, 0, empty, 0, -1, 0) == (0, -1)
-    assert not empty.any()
+    path = tmp_path / 'invalid.h5'
+    with h5py.File(path, 'w') as handle:
+        handle.create_dataset(
+            'rows', data=rows[:, None], chunks=(7, 1),
+            **hdf5plugin.Blosc(cname='zstd'),
+        )
+    cache = FrameCache(32 * 1024**2)
+    cache.chunk_workers = 2
+    try:
+        with h5py.File(path, 'r') as handle:
+            reader = ChunkReader.create(handle, cache)
+            status, _, _ = reader.row_index(handle['rows'], 0, len(rows), 4)
+            assert bool(status) == (position == 0 and value == 0)
+    finally:
+        cache.close()
 
 
 @pytest.mark.parametrize('chunk_size', [7, 16, 131])

@@ -274,32 +274,6 @@ static bool updateRowsRaw(const uint16_t *rows, Index first, Index last,
   return valid;
 }
 
-static py::tuple updateRowOffsets(CArray<uint16_t> rows, Index first,
-                                  Index last, py::array offsets,
-                                  int64_t relative, int previous, Index next) {
-  checkShape(rows, {-1});
-  checkShape(offsets, {-1});
-  if (!sameDtype(offsets.dtype(), py::dtype::of<int32_t>()) ||
-      !(offsets.flags() & py::array::c_style) ||
-      !(offsets.flags() & py::detail::npy_api::NPY_ARRAY_ALIGNED_) ||
-      !offsets.writeable())
-    throw py::value_error("row offsets must be writable contiguous int32");
-  const Index height = offsets.size() - 1;
-  auto output = static_cast<int32_t *>(offsets.mutable_data());
-  if (first < 0 || last < first || last > rows.size() || height < 0 ||
-      height > 32767 || next < 0 || next > height || previous < -1 ||
-      previous >= height || relative < 0 ||
-      relative > INT32_MAX - (last - first))
-    throw py::value_error("invalid sparse row-index bounds");
-  bool valid;
-  {
-    py::gil_scoped_release release;
-    valid = updateRowsRaw(rows.data(), first, last, output, height, relative,
-                          previous, next);
-  }
-  return py::make_tuple(valid ? next : Index(-1), previous);
-}
-
 template <typename COO, typename CSR>
 static py::object csrIndicesTyped(CArray<COO> rows, CArray<COO> columns,
                                   Index height, Index width) {
@@ -585,7 +559,6 @@ struct Frame {
 // pixel. Crystal/sample rotations cancel in real arithmetic. Project directly
 // in the lab frame, returning a conservative rounding envelope so the caller
 // can re-evaluate pixel-boundary cases with the original transform chain.
-template <bool require_aligned = true>
 static py::tuple projectGrid(CArray<double> points, CArray<int64_t> offsets,
                              CArray<int64_t> shapes, CArray<double> rd,
                              double chi, CArray<double> td, CArray<double> ts,
@@ -607,11 +580,11 @@ static py::tuple projectGrid(CArray<double> points, CArray<int64_t> offsets,
         offsets.data()[p + 1] > points.shape(0))
       throw py::value_error("invalid grid offsets");
     Index count = offsets.data()[p + 1] - offsets.data()[p];
-    if (count <= 0 || (require_aligned && count % lanes) ||
+    if (count <= 0 ||
         shapes.data()[2 * p] <= 0 || shapes.data()[2 * p + 1] <= 0 ||
         shapes.data()[2 * p] > count / shapes.data()[2 * p + 1] ||
         shapes.data()[2 * p] * shapes.data()[2 * p + 1] != count)
-      throw py::value_error("expected SIMD-aligned angular grids");
+      throw py::value_error("invalid angular grid dimensions");
   }
   py::array_t<double> xy({points.shape(0), Index(2)}),
       envelope(points.shape(0));
@@ -1015,8 +988,8 @@ static py::tuple gridIndices(CArray<double> angles, CArray<int64_t> shapes,
         }
     }
   }
-  auto projected = projectGrid<false>(points, offsets, shapes, rd, chi, td, ts,
-                                      tc, incident);
+  auto projected = projectGrid(points, offsets, shapes, rd, chi, td, ts, tc,
+                               incident);
   CArray<double> xy = py::cast<CArray<double>>(projected[0]);
   CArray<double> envelope = py::cast<CArray<double>>(projected[1]);
   py::array_t<int64_t> rows(total), cols(total);
@@ -2118,7 +2091,6 @@ static void bind(py::module_ &m) {
 #endif
   bindPixelQuery(m);
   m.def("_mergePixelEntries", &mergePixelEntries);
-  m.def("_fch5RowOffsets", &updateRowOffsets);
 #ifndef _WIN32
   bindRowIndexes(m);
   py::class_<BloscReader>(m, "_BloscReader")
@@ -2153,7 +2125,6 @@ static void bind(py::module_ &m) {
   m.def("_spotStats", &spotStats);
   m.def("_spotPatchGrid", &patchGrid);
   m.def("_spotGridIndices", &gridIndices);
-  m.def("_projectSpotGrid", &projectGrid<true>);
   m.def("_spotMeasuredXY", &measuredXY);
   m.def("_csrFrameIndices", &csrIndices);
   m.def("_fch5Positions", &fch5Positions);
