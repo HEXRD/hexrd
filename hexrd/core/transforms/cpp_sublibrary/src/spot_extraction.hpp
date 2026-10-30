@@ -1199,6 +1199,26 @@ template <typename T> struct IntegerRunScratch {
   std::vector<Index> lines;
   std::vector<int32_t> labels;
   std::vector<Component> components;
+
+  int32_t root(int32_t id) {
+    while (runs[id].parent != id) {
+      runs[id].parent = runs[runs[id].parent].parent;
+      id = runs[id].parent;
+    }
+    return id;
+  }
+
+  void link(Index first, Index previous) {
+    Index cursor = lines[previous], end = lines[previous + 1];
+    for (Index i = first; i < Index(runs.size()); ++i) {
+      while (cursor < end && runs[cursor].hi < runs[i].lo)
+        ++cursor;
+      for (Index j = cursor; j < end && runs[j].lo <= runs[i].hi; ++j) {
+        int32_t left = root(int32_t(i)), right = root(int32_t(j));
+        runs[std::max(left, right)].parent = std::min(left, right);
+      }
+    }
+  }
 };
 
 template <typename T, typename Sum>
@@ -1206,13 +1226,6 @@ static bool finishIntegerRuns(IntegerRunScratch<T> &scratch, Index a, Index b,
                               Index c, double *center, Sum *sum, T *maximum,
                               bool *valid, int mass_scale = 1) {
   auto &runs = scratch.runs;
-  auto root = [&](int32_t id) {
-    while (runs[id].parent != id) {
-      runs[id].parent = runs[runs[id].parent].parent;
-      id = runs[id].parent;
-    }
-    return id;
-  };
   if (runs.empty())
     return true;
   auto &labels = scratch.labels;
@@ -1221,7 +1234,7 @@ static bool finishIntegerRuns(IntegerRunScratch<T> &scratch, Index a, Index b,
   components.clear();
   for (Index i = 0; i < Index(runs.size()); ++i) {
     auto &run = runs[i];
-    int32_t label = root(int32_t(i));
+    int32_t label = scratch.root(int32_t(i));
     if (labels[label] < 0) {
       labels[label] = int32_t(components.size());
       components.push_back({0, 0, 0, 0, run.x, run.y, run.lo, run.peak});
@@ -1313,13 +1326,6 @@ static bool integerRunStats(const T *data, Index a, Index b, Index c,
   runs.clear();
   lines.resize(a * b + 1);
   double largest = 0.;
-  auto root = [&](int32_t id) {
-    while (runs[id].parent != id) {
-      runs[id].parent = runs[runs[id].parent].parent;
-      id = runs[id].parent;
-    }
-    return id;
-  };
   for (Index x = 0; x < a; ++x)
     for (Index y = 0; y < b; ++y) {
       Index line = x * b + y, first = runs.size();
@@ -1344,23 +1350,12 @@ static bool integerRunStats(const T *data, Index a, Index b, Index c,
         runs.push_back({lo, z, x, y, int32_t(runs.size()), mass, moment, peak});
       }
       lines[line + 1] = runs.size();
-      auto link = [&](Index previous) {
-        Index cursor = lines[previous], end = lines[previous + 1];
-        for (Index i = first; i < Index(runs.size()); ++i) {
-          while (cursor < end && runs[cursor].hi < runs[i].lo)
-            ++cursor;
-          for (Index j = cursor; j < end && runs[j].lo <= runs[i].hi; ++j) {
-            int32_t left = root(int32_t(i)), right = root(int32_t(j));
-            runs[std::max(left, right)].parent = std::min(left, right);
-          }
-        }
-      };
       if (y)
-        link(line - 1);
+        scratch.link(first, line - 1);
       if (x)
         for (Index yy = std::max(Index(0), y - 1); yy < std::min(b, y + 2);
              ++yy)
-          link((x - 1) * b + yy);
+          scratch.link(first, (x - 1) * b + yy);
     }
   if (std::is_integral<T>::value && largest * scale > 4503599627370496.)
     return false;
@@ -1802,13 +1797,6 @@ static py::object sparseIntegerStats(const SparseFrames &source,
       auto &lines = scratch.lines;
       runs.clear();
       lines.resize(a * b + 1);
-      auto root = [&](int32_t id) {
-        while (runs[id].parent != id) {
-          runs[id].parent = runs[runs[id].parent].parent;
-          id = runs[id].parent;
-        }
-        return id;
-      };
       Index position = 0;
       for (Index x = 0; x < a; ++x)
         for (Index y = 0; y < b; ++y) {
@@ -1833,24 +1821,12 @@ static py::object sparseIntegerStats(const SparseFrames &source,
                 {lo, z, x, y, int32_t(runs.size()), mass, moment, peak});
           }
           lines[line + 1] = runs.size();
-          auto link = [&](Index previous) {
-            Index cursor = lines[previous], stop = lines[previous + 1];
-            for (Index i = first; i < Index(runs.size()); ++i) {
-              while (cursor < stop && runs[cursor].hi < runs[i].lo)
-                ++cursor;
-              for (Index j = cursor; j < stop && runs[j].lo <= runs[i].hi;
-                   ++j) {
-                int32_t left = root(int32_t(i)), right = root(int32_t(j));
-                runs[std::max(left, right)].parent = std::min(left, right);
-              }
-            }
-          };
           if (y)
-            link(line - 1);
+            scratch.link(first, line - 1);
           if (x)
             for (Index yy = std::max(Index(0), y - 1); yy < std::min(b, y + 2);
                  ++yy)
-              link((x - 1) * b + yy);
+              scratch.link(first, (x - 1) * b + yy);
         }
       finishIntegerRuns(scratch, a, b, c, centers.mutable_data() + 3 * p,
                         sums.mutable_data() + p, maxima.mutable_data() + p,
