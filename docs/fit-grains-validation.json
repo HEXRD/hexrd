@@ -216,5 +216,77 @@
     "optimization": "O3 and single-worker LTO; portable CPU targeting and IEEE arithmetic",
     "address_space_limit_mib": 1536,
     "parallel_jobs": 1
+  },
+  "high_count": {
+    "reference_commit": "205d8483",
+    "candidate_commit": "192817ea",
+    "workload": {
+      "type": "synthetic stress test, not 2000 independent real grains",
+      "original_estimates": 920,
+      "perturbed_copies": 1080,
+      "seed": 20261029,
+      "orientation_component_sigma": 0.0003,
+      "translation_sigma": 0.005,
+      "grains_sha256": "22c3a5913d33536591726f9966bc7b242e1ee9ee6b09845d6abb400c88a06930",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df"
+    },
+    "staged": {
+      "grains": 2000,
+      "fitting_processes": 1,
+      "workspace_mib": 512,
+      "address_space_limit_mib": 4096,
+      "direct_fch5_reads": true,
+      "image_scratch": false,
+      "before_seconds": 2600.8472290719947,
+      "after_seconds": 990.601027473007,
+      "speedup": 2.6255244613532014,
+      "before_peak_rss_bytes": 1417256960,
+      "after_peak_rss_bytes": 1497649152,
+      "before_groups": 42,
+      "after_groups": 21,
+      "peak_windows": 1284938,
+      "first_pass_groups_before": 28,
+      "first_pass_groups_after": 12,
+      "first_pass_windows": 420088,
+      "pixel_cache_note": "Full groups often left no pixel-reuse cache within the workspace.",
+      "exact_comparison": {
+        "grains": 2000,
+        "arrays": 2000,
+        "scalars": 4000,
+        "spots_byte_identical": 2000,
+        "grains_out_byte_identical": true,
+        "grains_npz_arrays_bitwise_identical": true
+      }
+    },
+    "default_two_workers": {
+      "grains": 32,
+      "selection": "32 distinct Sven estimates evenly sampled from 920",
+      "grains_sha256": "db38041c8c17338cfdf746cfe8db1b24b3982dda15c08d4f09ac7dcf9daa0f61",
+      "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+      "fitting_workers": 2,
+      "cache_total_mib": 512,
+      "per_process_address_space_limit_mib": 1536,
+      "process_tree_rss_watchdog_mib": 3072,
+      "direct_fch5_reads": true,
+      "before_seconds": 347.99935143699986,
+      "after_seconds": 131.73502516500594,
+      "speedup": 2.641661555088406,
+      "before_peak_process_tree_rss_bytes": 2174951424,
+      "after_peak_process_tree_rss_bytes": 1639735296,
+      "exact_comparison": {
+        "grains": 32,
+        "arrays": 32,
+        "scalars": 96,
+        "spots_byte_identical": 32,
+        "grains_out_byte_identical": true,
+        "grains_npz_arrays_bitwise_identical": true
+      }
+    },
+    "limitations": [
+      "Single matched timing per revision.",
+      "2000-estimate test uses staged mode, one fitting process and synthetic copies.",
+      "Default mode at 2000 grains and remote HDD with 10\u201316 workers remain unmeasured.",
+      "Comparison is against 205d8483; prior example and bounded Sven checks use master."
+    ]
   }
 }

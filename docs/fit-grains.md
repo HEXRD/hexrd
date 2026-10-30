@@ -145,12 +145,26 @@ fitting process, a 512 MiB cache/workspace and a 4 GiB allocation ceiling:
 | Grain (default) | 4 | 112.8 s | 39.8 s | 2.83× |
 | Grain (default) | 13 | 277.5 s | 113.8 s | 2.44× |
 | Staged | 52 | 64.2 s | 44.6 s | 1.44× |
+| Staged (synthetic stress test) | 2,000 | 2,600.8 s | 990.6 s | 2.63× |
 
 The four-grain figures are medians of two runs; the larger cases use one matched
-run per revision. The 2× target was reached in default grain mode. Optimized
-dataset runs peaked below 0.97 GiB RSS; the interactive parent and worker peaked
-at 1.28 GiB combined. Full 920-grain throughput and remote HDD scaling remain
-unmeasured. Master is the numerical reference for the example comparisons.
+run per revision. For the 2,000-estimate stress test, all 920 local Sven estimates
+were followed by 1,080 perturbed copies (seed 20261029; standard deviations
+0.0003 for orientation components and 0.005 for translations). Both runs used
+the same image data and scientific settings. All fitted values were bitwise
+identical, all 2,000 spot files were byte-identical, and the written grain
+results matched. Peak RSS was 1.40 GiB on the current branch. The first pass
+used 12 groups instead of 28, though full groups left almost no pixel-reuse
+cache within the workspace.
+
+A separate default-mode test of 32 distinct, evenly sampled Sven estimates with
+two fitting workers took 348.0 s before and 131.7 s after (2.64×); fitted results
+and spot files matched exactly. Its process-tree peak RSS was 1.53 GiB after
+and 2.03 GiB before. Each process had a 1.5 GiB address-space limit and an
+additional 3 GiB process-tree RSS watchdog. These tests do not establish the
+speed of default mode at 2,000 grains, 2,000 independent real grains, or 10–16
+workers on the remote HDD. Full 920-real-grain throughput remains unmeasured.
+Master is the numerical reference for the example comparisons.
 
 [Validation evidence](fit-grains-validation.json) records reference commits,
 configuration fingerprints, guarded timings and the cleanup checks. Earlier
