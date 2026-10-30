@@ -1,4 +1,133 @@
 {
+  "latest_improvement": {
+    "date": "2026-10-30",
+    "performance_reference_commit": "0596c3322b09c228138248253152531cc54d8ea9",
+    "scope": "Additional speedup in default grain mode on large FCH5 scans with at least 512 MiB per fitting worker; staged and eager paths unchanged.",
+    "changes": [
+      "Combine all patch batches within one grain pass using the existing staged coordinator.",
+      "Reuse exact raw pixels between tolerance passes, discarding them after each grain."
+    ],
+    "net_runtime_lines": 50,
+    "new_runtime_modules": 0,
+    "native_extension_changed": false,
+    "cli_options_and_dashboard_layout_changed": false,
+    "guard": {
+      "sequential_runs": true,
+      "direct_fch5_reads": true,
+      "image_scratch": false,
+      "blas_threads": 1,
+      "single_process_address_limit_mib": 4096,
+      "two_worker_per_process_address_limit_mib": 1536,
+      "two_worker_tree_rss_watchdog_mib": 3072
+    },
+    "benchmarks": [
+      {
+        "case": "grain-4",
+        "grains": 4,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          36.54821245002677,
+          37.09087299599196
+        ],
+        "after_seconds": [
+          16.973377404006897,
+          15.884231036994606
+        ],
+        "speedup": 2.2411577999732897,
+        "after_peak_tree_rss_bytes": 805605376
+      },
+      {
+        "case": "grain-13",
+        "grains": 13,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          108.12685099800001,
+          127.43455074398662
+        ],
+        "after_seconds": [
+          47.645302600983996,
+          47.32871525900555
+        ],
+        "speedup": 2.480272047553581,
+        "after_peak_tree_rss_bytes": 811913216
+      },
+      {
+        "case": "parallel-32",
+        "grains": 32,
+        "fitting_workers": 2,
+        "aggregate_cache_mib": 1024.0,
+        "before_seconds": [
+          139.71662992000347
+        ],
+        "after_seconds": [
+          67.32646346002002
+        ],
+        "speedup": 2.075211183533654,
+        "after_peak_tree_rss_bytes": 1686093824
+      },
+      {
+        "case": "inconel-grain-200",
+        "grains": 200,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          6.462256333994446
+        ],
+        "after_seconds": [
+          6.510506550985156
+        ],
+        "speedup": 0.9925888689900161,
+        "after_peak_tree_rss_bytes": 516784128
+      },
+      {
+        "case": "sven-staged-52",
+        "grains": 52,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          47.3584489650093
+        ],
+        "after_seconds": [
+          47.226840304007055
+        ],
+        "speedup": 1.0027867344110903,
+        "after_peak_tree_rss_bytes": 1038848000
+      }
+    ],
+    "correctness": {
+      "focused_tests_passed": 442,
+      "focused_test_address_limit_mib": 1536,
+      "master_example_runs_bitwise_identical": 18,
+      "sven_four_grains_bitwise_master": true,
+      "benchmark_fit_arrays_bitwise_identical": true,
+      "spot_files_byte_identical": 301,
+      "all_written_grains_out_byte_identical": true,
+      "all_written_grains_npz_arrays_bitwise_identical": true,
+      "comparisons": {
+        "arrays": 421150,
+        "scalars": 337577
+      }
+    },
+    "scaling": {
+      "orchestration_regression_grains": 2000,
+      "regression_scope": "Small synthetic source, exact measurements, cache cleanup between grains; not a dataset throughput benchmark.",
+      "largest_real_grain_performance_sample": 32,
+      "full_920_or_2000_default_mode_throughput_measured": false,
+      "remote_hdd_performance_measured": false
+    },
+    "cancellation": {
+      "real_tui_button_and_ctrl_c_passed_in_both_modes": true,
+      "grain_seconds_after_request": {
+        "button": 0.08130067199817859,
+        "ctrl+c": 0.24702645500656217
+      },
+      "per_process_address_limit_mib": 2048,
+      "peak_tree_rss_bytes": 1348452352
+    },
+    "artifacts": ".local-bench/speed2 (ignored local benchmark outputs)"
+  },
   "branch_start_commit": "925967d2",
   "performance_reference_commit": "205d8483",
   "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",

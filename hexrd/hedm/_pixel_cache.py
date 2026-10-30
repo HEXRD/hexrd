@@ -37,11 +37,11 @@ def _codec():
 
 
 class PixelCache:
-    def __init__(self):
+    def __init__(self, *, compressed=True):
         self.max_bytes = self.bytes = self.peak_bytes = 0
         self.hits = self.queries = 0
         self.frames = OrderedDict()
-        self.codec = _codec()
+        self.codec = _codec() if compressed else None
         self._decoded_source = self._decoded = None
 
     def _encode(self, array):

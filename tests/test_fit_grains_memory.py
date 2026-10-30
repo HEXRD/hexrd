@@ -122,6 +122,39 @@ def test_decoder_configuration_survives_pickle_and_a_process_change(workers):
 
 
 @pytest.mark.parametrize(
+    'fmt,large,budget,workspace',
+    [
+        ('fch5', True, 512, 512), ('fch5', True, 256, 0),
+        ('fch5', False, 512, 0), ('npz', True, 512, 0),
+    ],
+)
+def test_grain_batching_requires_large_fch5_and_room_for_indexes(
+    sources, monkeypatch, fmt, large, budget, workspace
+):
+    from hexrd.hedm._image_cache import _Readers
+
+    original = _Readers.file
+
+    def describe(*args, **kwargs):
+        reader = original(*args, **kwargs)
+        if large:
+            reader.estimate = 4 * 1024**3
+        return reader
+
+    monkeypatch.setattr(_Readers, 'file', describe)
+    path = sources[2 if fmt == 'fch5' else 1]
+    source = _AdapterImageSeries('panel', str(path), 'frame-cache', {'style': fmt})
+    plan = ImagePlan()
+    try:
+        plan.prepare(
+            {'panel': OmegaImageSeries(source)}, ImageCacheSettings('lazy', budget), 1
+        )
+        assert plan.grain_workspace == workspace * 1024**2
+    finally:
+        plan.close()
+
+
+@pytest.mark.parametrize(
     'operations',
     [
         [('rectangle', [[1, 9], [2, 12]])],

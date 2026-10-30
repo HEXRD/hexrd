@@ -12,6 +12,84 @@ from hexrd.hedm._image_cache import BoundedSeries, FrameCache, View
 from hexrd.hedm._staged_spots import MeasurementPlan, MeasurementGroup
 
 
+@pytest.mark.parametrize(
+    'reuse,fallback,cancel,count',
+    [
+        (True, False, False, 2000), (False, False, False, 2),
+        (True, True, False, 2), (True, False, True, 1),
+    ],
+)
+def test_grain_batches_share_frames_without_retaining_previous_grains(
+    tmp_path, monkeypatch, reuse, fallback, cancel, count
+):
+    from test_fch5_pixels import make_reader
+    from hexrd.hedm import fitgrains
+    from hexrd.hedm._image_cache import StreamingView
+    from hexrd.hedm._staged_spots import _extraction_context
+
+    reader = make_reader(tmp_path / 'grain.h5', dtype='u2')
+    cache = FrameCache(512 * 1024**2)
+    view = StreamingView(View(reader), cache)
+
+    class Instrument:
+        def pull_spots(self):
+            return [
+                view.extract(
+                    np.array([[0, 1]]), np.array([0, 4]),
+                    np.array([1, 1, 4, 8]), np.array([2, 2, 5, 9]),
+                    np.array([[2, 2, 2]]), 0,
+                )
+                for _ in range(2)
+            ]
+
+    instrument = Instrument()
+    expected = instrument.pull_spots()
+    cache.close()
+    params = dict(
+        grain_cache=cache, grain_workspace=512 * 1024**2,
+        reuse_pixels=reuse, instrument=instrument,
+    )
+    fitgrains.fit_grain_FF_init(params)
+    sampler = reader._chunk_reader(cache)
+    original = sampler.sample
+    reads = 0
+
+    def sample(*args):
+        nonlocal reads
+        reads += 1
+        if cancel and reads == 2:
+            raise KeyboardInterrupt()
+        return original(*args)
+
+    def steps(grain):
+        for _ in range(2):
+            measured = yield ((), {})
+            for actual, wanted in zip(measured, expected):
+                assert all(a.tobytes() == b.tobytes() for a, b in zip(actual, wanted))
+        return grain
+
+    monkeypatch.setattr(sampler, 'sample', sample)
+    monkeypatch.setattr(fitgrains, '_fit_grain_steps', steps)
+    if fallback:
+        monkeypatch.setattr(MeasurementGroup, 'add', lambda *args: False)
+    try:
+        for grain in range(count):
+            if cancel:
+                with pytest.raises(KeyboardInterrupt):
+                    fitgrains._fit_grain_FF_reduced(grain)
+            else:
+                assert fitgrains._fit_grain_FF_reduced(grain) == grain
+            assert _extraction_context.get() is None
+            assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
+            if reuse:
+                assert cache.pixel_cache.bytes == 0 and not cache.pixel_cache.frames
+        if not cancel:
+            assert reads == count * (2 if reuse else 4)
+    finally:
+        cache.close()
+        fitgrains.fit_grain_FF_cleanup()
+
+
 @pytest.mark.parametrize('dtype', ['uint16', 'int32', 'float32', 'float64'])
 @pytest.mark.parametrize('as_sparse', [False, True])
 @pytest.mark.parametrize('physical_order', [False, True])

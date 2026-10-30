@@ -735,6 +735,7 @@ class ImagePlan:
         self.cache = None
         self.lazy = False
         self.context = None
+        self.grain_workspace = 0
 
     def prepare(self, series, settings, workers, *, force_process=False):
         import psutil
@@ -782,6 +783,14 @@ class ImagePlan:
         self.cache.chunk_workers = min(
             settings.read_workers, max(1, (os.cpu_count() or 1) // max(1, workers))
         )
+        # Reuse the staged coordinator within each grain for large FCH5 scans.
+        # Leave small caches and whole-frame formats on their existing path;
+        # compact row indexes and native decoding must still fit comfortably.
+        if self.cache.max_bytes >= 512 * _MIB and any(
+            getattr(r, 'fmt', None) == 'fch5' and r.estimate > self.cache.max_bytes
+            for r in builder.readers
+        ):
+            self.grain_workspace = 512 * _MIB
         if builder.spawn_safe:
             # No inherited HDF5 handles and no pickle of the eager image graph.
             self.context = multiprocessing.get_context('spawn')

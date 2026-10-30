@@ -48,6 +48,16 @@ def fit_grain_FF_init(params):
     """Initialize fit-local parameters and process-local progress reporting."""
     global paramMP
     paramMP = params
+    cache = params.get('grain_cache')
+    if cache is not None:
+        from hexrd.hedm._pixel_cache import PixelCache
+
+        cache._process()
+        cache.max_bytes = params['grain_workspace'] // 4
+        cache.metadata_limit = cache.max_bytes // 2
+        cache.pixel_cache = (
+            PixelCache(compressed=False) if params['reuse_pixels'] else None
+        )
     if multiprocessing.current_process().name != 'MainProcess':
         detach_dashboard()
     from hexrd.hedm._fit_progress import FitReporter, set_reporter
@@ -177,6 +187,7 @@ def _write_pending_spots(grain_id):
 
 def _fit_grain_FF_reduced(grain_id):
     steps = _fit_grain_steps(grain_id)
+    cache = paramMP.get('grain_cache')
     response = None
     try:
         while True:
@@ -184,9 +195,35 @@ def _fit_grain_FF_reduced(grain_id):
                 request = steps.send(response)
             except StopIteration as finished:
                 return finished.value
-            response = paramMP['instrument'].pull_spots(*request[0], **request[1])
+            if cache is None:
+                response = paramMP['instrument'].pull_spots(*request[0], **request[1])
+                continue
+            from hexrd.hedm._staged_spots import MeasurementPlan, MeasurementGroup
+
+            budget = paramMP['grain_workspace']
+            # Keep planning, retained pixels and decoder storage disjoint even
+            # while constructing the next pass. One grain owns the pixel cache.
+            if cache.pixel_cache is not None:
+                cache.pixel_cache.set_limit(budget // 4)
+            plan = MeasurementPlan(
+                paramMP['instrument'], request, max_bytes=budget // 4
+            ).prepare()
+            group = MeasurementGroup(budget)
+            if group.add(plan):
+                if cache.pixel_cache is not None:
+                    cache.pixel_cache.set_limit(
+                        min(cache.pixel_cache.max_bytes, budget // 4)
+                    )
+                group.measure(cache)
+                response = plan.result()
+            else:
+                plan = None
+                response = paramMP['instrument'].pull_spots(*request[0], **request[1])
+            del plan, group
     finally:
         steps.close()
+        if cache is not None and cache.pixel_cache is not None:
+            cache.pixel_cache.clear()
 
 
 def _fit_grain_steps(grain_id):
@@ -628,6 +665,11 @@ def fit_grains(
                 spots_filename=spots_filename,
                 return_pull_spots_data=return_pull_spots_data,
                 collect_metrics=current_dashboard() is not None,
+                grain_cache=(
+                    image_plan.cache if image_plan.grain_workspace and not staged else None
+                ),
+                grain_workspace=image_plan.grain_workspace,
+                reuse_pixels=settings.reuse_pixels,
             )
             if staged:
                 params['staged_workspace'] = min(
@@ -637,7 +679,6 @@ def fit_grains(
                 temporary_cache = min(128 * 1024**2, params['staged_workspace'] // 4)
                 image_plan.cache.max_bytes = temporary_cache
                 image_plan.cache.metadata_limit = temporary_cache // 2
-                params['reuse_pixels'] = settings.reuse_pixels
                 diagnostic(
                     'Measurement mode', 'Segment and measure before each fit pass'
                 )
