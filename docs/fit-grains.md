@@ -46,8 +46,11 @@ staged execution keeps a minimum bounded workspace of 16 MiB.
 
 `read_workers` accepts 1–8 and defaults to 4. A single native decoder pool is
 shared across panels, pixel reads, and bounded row-index read-ahead. Each active
-worker owns bounded input and decode buffers. No Python executor or image
-scratch files are created.
+worker owns reusable input and decode buffers. Both measurement modes enable
+the native decoder, including after worker serialization or a process change.
+The reader count also respects the CPU share available to each fitting process.
+Adjacent chunks are read together in physical order, retaining enough batches
+for the available readers. No Python executor or image scratch files are created.
 
 On Linux, `HEXRD_FIT_GRAINS_DIRECT_IO=1` uses aligned direct FCH5 reads to avoid
 filling the OS page cache with a large source file. It does not change the pixel
@@ -65,6 +68,10 @@ Both measurement modes use one coordinator and one window model, containing
 source coordinates, frame IDs, shape and statistics destinations. Reads are
 split into at most 65,536 pixels. The coordinator releases completed windows
 and calls the unchanged native statistics kernel.
+Repeated polar subpixels share one source-pixel value within each omega window.
+A compact inverse map reconstructs the original grid before segmentation,
+preserving connectivity, pixel bits and accumulation order. Workspace accounting
+includes that reconstruction and the smaller live buffers.
 Fallbacks remain for supported formats, noncanonical sparse data, numerical
 ranges and user-provided geometry that require the reference implementation.
 Use the Python code and native extension from the same branch; earlier native
@@ -130,12 +137,22 @@ measurement modes with master, as well as the Sven fits, extracted spots and
 spot files. Guarded master validation uses bounded pixel input when eager
 loading would exceed local RAM.
 
-The last performance measurements, before simplification, showed 1.11×, 1.22×
-and 1.48× gains for 4, 13 and 52 Sven grains against `e968097b`; measured peak RSS
-stayed below 1.09 GiB. These are not speed comparisons with master. Full
-920-grain throughput and remote HDD scaling remain unmeasured.
+Guarded Sven comparisons against the simplified branch at `205d8483` used one
+fitting process, a 512 MiB cache/workspace and a 4 GiB allocation ceiling:
+
+| Mode | Grains | Before | After | Speedup |
+| --- | ---: | ---: | ---: | ---: |
+| Grain (default) | 4 | 112.8 s | 39.8 s | 2.83× |
+| Grain (default) | 13 | 277.5 s | 113.8 s | 2.44× |
+| Staged | 52 | 64.2 s | 44.6 s | 1.44× |
+
+The four-grain figures are medians of two runs; the larger cases use one matched
+run per revision. The 2× target was reached in default grain mode. Optimized
+dataset runs peaked below 0.97 GiB RSS; the interactive parent and worker peaked
+at 1.28 GiB combined. Full 920-grain throughput and remote HDD scaling remain
+unmeasured. Master is the numerical reference for the example comparisons.
 
 [Validation evidence](fit-grains-validation.json) records reference commits,
 configuration fingerprints, guarded timings and the cleanup checks. Earlier
-validation records remain in git history at `42687db7` and `c6faf32d`;
+validation records remain in git history at `205d8483`, `42687db7` and `c6faf32d`;
 experiment reports and raw measurements are also available at `42f7623e`.

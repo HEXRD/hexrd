@@ -21,6 +21,12 @@ public:
   static constexpr size_t maxChunk = 1024 * 1024;
   struct Buffer {
     unsigned char *source = nullptr;
+    std::unique_ptr<unsigned char[]> decoded;
+    unsigned char *output() {
+      if (!decoded)
+        decoded.reset(new unsigned char[maxChunk]);
+      return decoded.get();
+    }
     unsigned char *get() {
       if (!source) {
         void *raw = nullptr;

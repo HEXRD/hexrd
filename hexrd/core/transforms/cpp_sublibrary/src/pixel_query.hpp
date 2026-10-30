@@ -25,9 +25,13 @@ class PixelQuery {
 public:
   int64_t uniqueCount = 0, missingCount = 0;
   PixelQuery(CArray<int64_t> rows, CArray<int64_t> cols, int64_t height,
-             int64_t width, py::dtype dtype, py::object old, uint64_t maximum)
+             int64_t width, py::dtype dtype, py::object old, uint64_t maximum,
+             bool hashed)
       : dtype(dtype), inverse(rows.size()), count(rows.size()),
         itemsize(dtype.itemsize()), wide(maximum > UINT32_MAX) {
+#if !HEXRD_BOOST_FLAT_QUERY
+    hashed = false;
+#endif
     std::vector<Entry> entries;
     {
       py::gil_scoped_release release;
@@ -35,11 +39,12 @@ public:
       // Polar subpixels often repeat one source pixel many times. Hash first
       // and sort only distinct pixels, retaining the exact inverse scatter.
       boost::unordered_flat_map<uint64_t, uint32_t> positions;
-      positions.reserve(std::min(count, int64_t(16384)));
-      entries.reserve(size_t(std::min(count, int64_t(16384))));
-#else
-      entries.resize(size_t(count));
+      if (hashed) {
+        positions.reserve(std::min(count, int64_t(16384)));
+        entries.reserve(size_t(std::min(count, int64_t(16384))));
+      } else
 #endif
+        entries.resize(size_t(count));
       for (int64_t i = 0; i < count; ++i) {
         if (rows.data()[i] < 0 || rows.data()[i] >= height ||
             cols.data()[i] < 0 || cols.data()[i] >= width)
@@ -47,27 +52,29 @@ public:
         uint64_t key = uint64_t(rows.data()[i]) * uint64_t(width) +
                        uint64_t(cols.data()[i]);
 #if HEXRD_BOOST_FLAT_QUERY
-        auto inserted = positions.try_emplace(key, uint32_t(entries.size()));
-        if (inserted.second)
-          entries.push_back({key, int64_t(entries.size())});
-        inverse.mutable_data()[i] = inserted.first->second;
-#else
-        entries[i] = {key, i};
+        if (hashed) {
+          auto inserted = positions.try_emplace(key, uint32_t(entries.size()));
+          if (inserted.second)
+            entries.push_back({key, int64_t(entries.size())});
+          inverse.mutable_data()[i] = inserted.first->second;
+        } else
 #endif
+          entries[i] = {key, i};
       }
       std::sort(entries.begin(), entries.end(),
                 [](const Entry &a, const Entry &b) { return a.key < b.key; });
 #if HEXRD_BOOST_FLAT_QUERY
-      uniqueCount = int64_t(entries.size());
-      std::vector<uint32_t> ordered(size_t(uniqueCount), 0);
-      for (int64_t i = 0; i < uniqueCount; ++i)
-        ordered[size_t(entries[size_t(i)].index)] = uint32_t(i);
-      for (int64_t i = 0; i < count; ++i)
-        inverse.mutable_data()[i] = ordered[size_t(inverse.data()[i])];
-#else
-      for (int64_t i = 0; i < count; ++i)
-        uniqueCount += !i || entries[i].key != entries[i - 1].key;
+      if (hashed) {
+        uniqueCount = int64_t(entries.size());
+        std::vector<uint32_t> ordered(size_t(uniqueCount), 0);
+        for (int64_t i = 0; i < uniqueCount; ++i)
+          ordered[size_t(entries[size_t(i)].index)] = uint32_t(i);
+        for (int64_t i = 0; i < count; ++i)
+          inverse.mutable_data()[i] = ordered[size_t(inverse.data()[i])];
+      } else
 #endif
+        for (int64_t i = 0; i < count; ++i)
+          uniqueCount += !i || entries[i].key != entries[i - 1].key;
     }
     auto keydtype =
         wide ? py::dtype::of<uint64_t>() : py::dtype::of<uint32_t>();
@@ -98,7 +105,7 @@ public:
         return storedWide ? static_cast<const uint64_t *>(storedKeys.data())[i]
                           : static_cast<const uint32_t *>(storedKeys.data())[i];
       };
-      int64_t index = -1;
+      int64_t index = -1, position = 0;
       for (int64_t i = 0; i < int64_t(entries.size()); ++i) {
         if (!i || entries[i].key != entries[i - 1].key) {
           ++index;
@@ -108,14 +115,21 @@ public:
           else
             static_cast<uint32_t *>(keys.mutable_data())[index] =
                 uint32_t(entries[i].key);
-          int64_t lo = 0, hi = stored;
-          while (lo < hi) {
-            const int64_t mid = lo + (hi - lo) / 2;
-            if (storedKey(mid) < entries[i].key)
-              lo = mid + 1;
-            else
-              hi = mid;
+          int64_t lo = position, hi = stored;
+          for (int step = 0;
+               step < 8 && lo < stored && storedKey(lo) < entries[i].key;
+               ++step)
+            ++lo;
+          if (lo < stored && storedKey(lo) < entries[i].key) {
+            while (lo < hi) {
+              const int64_t mid = lo + (hi - lo) / 2;
+              if (storedKey(mid) < entries[i].key)
+                lo = mid + 1;
+              else
+                hi = mid;
+            }
           }
+          position = lo;
           if (lo < stored && storedKey(lo) == entries[i].key)
             std::memcpy(static_cast<char *>(uniqueValues.mutable_data()) +
                             index * itemsize,
@@ -125,9 +139,10 @@ public:
           else
             missing.push_back(index);
         }
-#if !HEXRD_BOOST_FLAT_QUERY
-        inverse.mutable_data()[entries[i].index] = index;
+#if HEXRD_BOOST_FLAT_QUERY
+        if (!hashed)
 #endif
+          inverse.mutable_data()[entries[i].index] = index;
       }
     }
     missingCount = int64_t(missing.size());
@@ -179,11 +194,12 @@ public:
     return rows ? missingRows : missingCols;
   }
   py::array missingKeysArray() const { return missingKeys; }
+  py::array inverseArray() const { return inverse; }
 };
 
 static std::unique_ptr<PixelQuery>
 makePixelQuery(py::array rows, py::array cols, int64_t height, int64_t width,
-               py::dtype dtype, py::object old) {
+               py::dtype dtype, py::object old, bool hashed) {
   const auto numericInteger = [](py::array a) {
     return a.dtype().kind() == 'i' || a.dtype().kind() == 'u';
   };
@@ -200,7 +216,7 @@ makePixelQuery(py::array rows, py::array cols, int64_t height, int64_t width,
   try {
     return std::unique_ptr<PixelQuery>(new PixelQuery(
         py::cast<CArray<int64_t>>(rows), py::cast<CArray<int64_t>>(cols),
-        height, width, dtype, old, base + uint64_t(width - 1)));
+        height, width, dtype, old, base + uint64_t(width - 1), hashed));
   } catch (const std::invalid_argument &) {
     return nullptr;
   }
@@ -217,8 +233,11 @@ static void bindPixelQuery(py::module_ &m) {
           "cols",
           [](const PixelQuery &q) { return q.missingCoordinates(false); })
       .def_property_readonly("missing_keys", &PixelQuery::missingKeysArray)
+      .def_property_readonly("inverse", &PixelQuery::inverseArray)
       .def("finish", &PixelQuery::finish, py::arg("values") = py::none());
-  m.def("_makePixelQuery", &makePixelQuery);
+  m.def("_makePixelQuery", &makePixelQuery, py::arg("rows"), py::arg("cols"),
+        py::arg("height"), py::arg("width"), py::arg("dtype"), py::arg("old"),
+        py::arg("hashed") = true);
 }
 
 } // namespace

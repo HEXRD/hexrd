@@ -92,7 +92,8 @@ class PixelCache:
             np.asarray(cols).ravel(),
             *reader.shape,
             reader.dtype,
-            old
+            old,
+            False
         )
         if query is not None:
             if old is not None:

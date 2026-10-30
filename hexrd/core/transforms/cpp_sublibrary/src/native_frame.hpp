@@ -95,49 +95,95 @@ class FrameSampler {
     return directory.positions[slot] >= 0 && directory.lengths[slot] > 0 &&
            directory.filters[slot] <= 1;
   }
-  int load(const FrameDirectory &directory, int column, const Jobs &jobs) {
+  struct Read {
+    int64_t offset, size;
+    std::function<int(const unsigned char *, NativeChunkExecutor::Buffer &)>
+        consume;
+  };
+  // Merge nearby chunks in physical order without reducing the available
+  // batches below the decoder-worker count. Input and output buffers belong
+  // to each worker and remain inside its existing byte reservation.
+  int runReads(std::vector<Read> work) {
+    std::sort(work.begin(), work.end(),
+              [](const Read &a, const Read &b) { return a.offset < b.offset; });
+    auto reads = std::make_shared<std::vector<Read>>(std::move(work));
     pending.clear();
-    pending.reserve(jobs.size());
-    // Metadata and jobs are coordinator-owned. Workers never touch HDF5,
-    // NumPy, reference counts, the UI or any Python callback.
-    for (const auto &entry : jobs) {
-      const auto job = entry.second;
-      const int64_t slot = job->index * directory.stride + column;
-      const int64_t offset = directory.positions[slot],
-                    size = directory.lengths[slot];
-      const int mask = directory.filters[slot];
-      const int64_t expected = directory.chunk * directory.itemsize;
-      if (size > expected + 16)
-        return -2;
-      pending.push_back(reader.executor->submit(
-          [this, job, offset, size, mask, expected,
-           &directory](NativeChunkExecutor::Buffer &buffer) {
-            if (stopped.load(std::memory_order_relaxed))
-              return -4;
-            job->data.reset(new unsigned char[size_t(expected)]);
-            const int64_t begin = direct ? offset / 4096 * 4096 : offset;
-            const int64_t skip = offset - begin;
-            const int64_t count =
-                direct ? (skip + size + 4095) / 4096 * 4096 : size;
-            return reader.readData(fd, begin, count, skip, size, buffer.get(),
-                                   job->data.get(), expected,
-                                   directory.itemsize, mask, job->first,
-                                   job->last, &stopped);
+    pending.reserve(reads->size());
+    const size_t limit =
+        std::max(size_t(1), reads->size() / size_t(reader.workers));
+    for (size_t first = 0; first < reads->size();) {
+      size_t last = first + 1;
+      const int64_t offset = (*reads)[first].offset;
+      int64_t end = offset + (*reads)[first].size;
+      while (last < reads->size() && last - first < limit) {
+        const auto &next = (*reads)[last];
+        const int64_t stop = std::max(end, next.offset + next.size);
+        if (next.offset - end > 4096 ||
+            stop - offset > int64_t(NativeChunkExecutor::maxChunk))
+          break;
+        end = stop;
+        ++last;
+      }
+      const int64_t begin = direct ? offset / 4096 * 4096 : offset;
+      const int64_t count =
+          direct ? (end - begin + 4095) / 4096 * 4096 : end - begin;
+      pending.push_back(
+          reader.executor->submit([this, reads, first, last, begin, count,
+                                   end](NativeChunkExecutor::Buffer &buffer) {
+            int status = reader.readSource(fd, begin, count, end - begin,
+                                           buffer.get(), &stopped);
+            if (status < 0)
+              return status;
+            int total = 0;
+            for (size_t i = first; i < last; ++i) {
+              if (stopped.load(std::memory_order_relaxed))
+                return -4;
+              status = (*reads)[i].consume(
+                  buffer.get() + ((*reads)[i].offset - begin), buffer);
+              if (status < 0)
+                return status;
+              total += status;
+            }
+            return total;
           }));
+      first = last;
     }
     for (auto &future : pending) {
       while (future.wait_for(std::chrono::milliseconds(25)) !=
              std::future_status::ready)
         checkpoint(true);
       checkpoint();
-      const int result = future.get();
-      if (result < 0)
-        return result;
-      decodedBytes += result;
+      const int status = future.get();
+      if (status < 0)
+        return status;
+      decodedBytes += status;
       ++chunkReads;
     }
     pending.clear();
     return 1;
+  }
+  int load(const FrameDirectory &directory, int column, const Jobs &jobs) {
+    std::vector<Read> reads;
+    for (const auto &entry : jobs) {
+      const auto job = entry.second;
+      const int64_t slot = job->index * directory.stride + column;
+      const int64_t size = directory.lengths[slot],
+                    expected = directory.chunk * directory.itemsize;
+      const int mask = directory.filters[slot];
+      const int64_t offset = directory.positions[slot];
+      if (size > expected + 16 || offset > INT64_MAX - size)
+        return -2;
+      reads.push_back(
+          {offset, size,
+           [this, job, size, expected, mask, &directory](
+               const unsigned char *source, NativeChunkExecutor::Buffer &) {
+             job->data.reset(new unsigned char[size_t(expected)]);
+             return reader.decodeData(source, size, job->data.get(), expected,
+                                      directory.itemsize, mask, job->first,
+                                      job->last);
+           }});
+    }
+    return runReads(std::move(reads));
   }
   int loadValues(std::vector<Query> queries,
                  const std::map<int64_t, Span> &spans, void *output,
@@ -146,8 +192,7 @@ class FrameSampler {
     // a worker starts a job. Slow chunks cannot strand the other readers at a
     // batch barrier. Each job scatters to disjoint original sample slots.
     auto requests = std::make_shared<std::vector<Query>>(std::move(queries));
-    pending.clear();
-    pending.reserve(spans.size());
+    std::vector<Read> reads;
     size_t cursor = 0;
     for (const auto &entry : spans) {
       const int64_t index = entry.first;
@@ -167,45 +212,28 @@ class FrameSampler {
       const int mask = values.filters[slot];
       if (size > expected + 16)
         return -2;
-      pending.push_back(reader.executor->submit(
-          [this, requests, first, last, span, output, store, offset, size,
-           expected, mask](NativeChunkExecutor::Buffer &buffer) {
-            if (stopped.load(std::memory_order_relaxed))
-              return -4;
-            std::unique_ptr<unsigned char[]> decoded(
-                new unsigned char[size_t(expected)]);
-            const int64_t begin = direct ? offset / 4096 * 4096 : offset,
-                          skip = offset - begin,
-                          count = direct ? (skip + size + 4095) / 4096 * 4096
-                                         : size;
-            const int result =
-                reader.readData(fd, begin, count, skip, size, buffer.get(),
-                                decoded.get(), expected, values.itemsize, mask,
-                                span.first, span.last, &stopped);
-            if (result < 0)
-              return result;
-            for (size_t i = first; i < last; ++i) {
-              const auto &query = (*requests)[i];
-              if (query.position >= 0)
-                store(output, query.index, decoded.get(),
-                      query.position % values.chunk);
-            }
-            return result;
-          }));
+      if (offset > INT64_MAX - size)
+        return -2;
+      reads.push_back({offset, size,
+                       [this, requests, first, last, span, output, store, size,
+                        expected, mask](const unsigned char *source,
+                                        NativeChunkExecutor::Buffer &buffer) {
+                         auto decoded = buffer.output();
+                         const int result = reader.decodeData(
+                             source, size, decoded, expected, values.itemsize,
+                             mask, span.first, span.last);
+                         if (result < 0)
+                           return result;
+                         for (size_t i = first; i < last; ++i) {
+                           const auto &query = (*requests)[i];
+                           if (query.position >= 0)
+                             store(output, query.index, decoded,
+                                   query.position % values.chunk);
+                         }
+                         return result;
+                       }});
     }
-    for (auto &future : pending) {
-      while (future.wait_for(std::chrono::milliseconds(25)) !=
-             std::future_status::ready)
-        checkpoint(true);
-      checkpoint();
-      const int result = future.get();
-      if (result < 0)
-        return result;
-      decodedBytes += result;
-      ++chunkReads;
-    }
-    pending.clear();
-    return 1;
+    return runReads(std::move(reads));
   }
   static std::shared_ptr<Job> job(int64_t index, Span span) {
     auto output = std::make_shared<Job>();
@@ -315,6 +343,7 @@ public:
               ->data.get())[position % coordinates.chunk];
     };
     previous = -1;
+    const uint16_t *rowBegin = nullptr, *search = nullptr, *rowEnd = nullptr;
     for (auto &query : queries) {
       checkpoint();
       const int64_t first = start + ptr[query.row],
@@ -339,19 +368,29 @@ public:
           before = end[-1];
           pos += count;
         }
+        rowBegin = nullptr;
+        if (first < last &&
+            first / coordinates.chunk == (last - 1) / coordinates.chunk) {
+          rowBegin = reinterpret_cast<const uint16_t *>(
+                         columns.at(first / coordinates.chunk)->data.get()) +
+                     first % coordinates.chunk;
+          search = rowBegin;
+          rowEnd = rowBegin + (last - first);
+        }
         previous = query.row;
       }
       if (first == last || query.col < 0 || query.col >= width)
         continue;
-      if (first / coordinates.chunk == (last - 1) / coordinates.chunk) {
-        const auto begin =
-            reinterpret_cast<const uint16_t *>(
-                columns.at(first / coordinates.chunk)->data.get()) +
-            first % coordinates.chunk;
-        const auto end = begin + last - first;
-        const auto found = std::lower_bound(begin, end, query.col);
-        if (found != end && *found == query.col)
-          query.position = first + found - begin;
+      if (rowBegin) {
+        // Sorted queries usually visit adjacent columns. Reuse the row's
+        // decoded pointer and advance locally before searching a larger gap.
+        for (int step = 0; step < 8 && search < rowEnd && *search < query.col;
+             ++step)
+          ++search;
+        if (search < rowEnd && *search < query.col)
+          search = std::lower_bound(search, rowEnd, query.col);
+        if (search < rowEnd && *search == query.col)
+          query.position = first + (search - rowBegin);
       } else {
         int64_t lo = first, hi = last;
         while (lo < hi) {
@@ -436,7 +475,7 @@ int BloscReader::scanRows(int fd, const FrameDirectory &directory,
                           NativeChunkExecutor::Buffer &source,
                           std::atomic<bool> &cancelled, int64_t &total) {
   offsets.assign(size_t(height + 1), int32_t(stop - start));
-  std::vector<uint16_t> decoded(size_t(directory.chunk));
+  auto decoded = reinterpret_cast<uint16_t *>(source.output());
   int status = 1, previous = -1;
   Index next = 0;
   for (int64_t first = start; first < stop;) {
@@ -460,7 +499,7 @@ int BloscReader::scanRows(int fd, const FrameDirectory &directory,
                   count = direct ? (skip + size + 4095) / 4096 * 4096 : size;
     const int got =
         readData(fd, begin, count, skip, size, source.get(),
-                 reinterpret_cast<unsigned char *>(decoded.data()), expected, 2,
+                 reinterpret_cast<unsigned char *>(decoded), expected, 2,
                  directory.filters[slot], -1, -1, &cancelled);
     if (got < 0) {
       status = got;
@@ -468,7 +507,7 @@ int BloscReader::scanRows(int fd, const FrameDirectory &directory,
     }
     total += got;
     const int64_t end = std::min(stop, (index + 1) * directory.chunk);
-    if (!updateRowsRaw(decoded.data(), first % directory.chunk,
+    if (!updateRowsRaw(decoded, first % directory.chunk,
                        first % directory.chunk + end - first, offsets.data(),
                        height, first - start, previous, next)) {
       status = 0;

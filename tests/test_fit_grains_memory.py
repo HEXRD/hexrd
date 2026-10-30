@@ -91,6 +91,7 @@ def test_formats_never_bulk_load_and_pickle_without_frames(sources, monkeypatch,
             {'panel': OmegaImageSeries(source)}, ImageCacheSettings('lazy', 0.003), 10
         )
         assert plan.lazy and workers == 10
+        assert 1 <= plan.cache.chunk_workers <= 4
         assert plan.context.get_start_method() == 'spawn'
         for i in [4, 2, 0, 6, 4]:
             np.testing.assert_array_equal(actual['panel'][i].toarray(), data[i])
@@ -98,11 +99,26 @@ def test_formats_never_bulk_load_and_pickle_without_frames(sources, monkeypatch,
         assert len(plan.cache.frames) < len(data)
         restored = pickle.loads(pickle.dumps(actual))
         assert restored['panel']._adapter.cache.bytes == 0
+        assert (
+            restored['panel']._adapter.cache.chunk_workers == plan.cache.chunk_workers
+        )
         np.testing.assert_array_equal(restored['panel'][3].toarray(), data[3])
         restored['panel']._adapter.cache.close()
     finally:
         plan.close()
     assert not plan.cache.frames and not plan.cache.files
+
+
+@pytest.mark.parametrize('workers', [1, 4])
+def test_decoder_configuration_survives_pickle_and_a_process_change(workers):
+    cache = FrameCache(32 * 1024**2)
+    cache.chunk_workers = workers
+    restored = pickle.loads(pickle.dumps(cache))
+    restored.pid = -1
+    restored._process()
+    assert restored.chunk_workers == workers
+    restored.close()
+    cache.close()
 
 
 @pytest.mark.parametrize(

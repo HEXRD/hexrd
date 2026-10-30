@@ -58,7 +58,7 @@ class FrameCache:
         self.metadata_bytes = 0
         self.metadata_limit = None
         self.files = OrderedDict()
-        self.chunk_workers = 0
+        self.chunk_workers = getattr(self, 'chunk_workers', 0)
         self.chunk_pool = None
         self.reserved_bytes = 0
         self.pixel_cache = None
@@ -181,10 +181,10 @@ class FrameCache:
         self.files.clear()
 
     def __getstate__(self):
-        return self.max_bytes, self.max_open_files
+        return self.max_bytes, self.max_open_files, self.chunk_workers
 
     def __setstate__(self, state):
-        self.max_bytes, self.max_open_files = state
+        self.max_bytes, self.max_open_files, self.chunk_workers = state
         self._reset()
 
 
@@ -779,6 +779,9 @@ class ImagePlan:
         room = max(0, available * 3 // 4 - budget)
         workers = min(workers, max(1, room // max(1, peak * 4 + 512 * _MIB)))
         self.cache.max_bytes = budget // max(1, workers)
+        self.cache.chunk_workers = min(
+            settings.read_workers, max(1, (os.cpu_count() or 1) // max(1, workers))
+        )
         if builder.spawn_safe:
             # No inherited HDF5 handles and no pickle of the eager image graph.
             self.context = multiprocessing.get_context('spawn')

@@ -80,3 +80,50 @@ def test_sampler_must_return_the_declared_pixel_type_and_shape(bad):
             np.array([[1, 1, 1]]),
             0,
         )
+
+
+@pytest.mark.parametrize('dtype', ['u2', 'f8'])
+def test_repeated_source_pixels_keep_the_original_polar_grid_and_omega_order(dtype):
+    calls = []
+    images = np.arange(2 * 6 * 7, dtype=dtype).reshape(2, 6, 7)
+    if dtype == 'f8':
+        images[0, 1, 2] = -0.0
+        images[1, 1, 2] = np.nan
+        images.view('u8')[1, 1, 2] = 0x7FF8000000001234
+
+    class Reader:
+        shape, nframes = (6, 7), 2
+        dtype = images.dtype
+
+        def sample_pixels(self, frame, rows, cols, cache):
+            calls.append(len(rows))
+            assert len(set(zip(rows, cols))) == len(rows)
+            return images[frame, rows, cols]
+
+    rows = np.array([-1, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3])
+    cols = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3])
+    order = np.array([5, 1, 11, 6, 2, 9, 0, 3, 10, 4, 7, 8])
+    rows, cols = rows[order], cols[order]
+    shapes = np.array([[2, 3, 4]])
+    cache = FrameCache(0)
+    windows, stats, _ = Window.capture(
+        StreamingView(View(Reader(), roi=(1, 2, 3, 4), dense=True), cache),
+        np.array([[1, 0]]),
+        np.array([0, 12]),
+        rows,
+        cols,
+        shapes,
+        2,
+    )
+    assert windows[0].inverse is not None
+    assert not windows[0].inverse.flags.writeable
+    measure_windows(windows, cache)
+    assert sum(calls) == 8
+    pixels = images[
+        np.array([1, 0])[:, None],
+        rows.clip(0, 2)[None, :] + 1,
+        cols.clip(0, 3)[None, :] + 2,
+    ]
+    expected = native._spotStats(pixels.ravel(), np.array([0, 24]), shapes, 2)
+    for actual, wanted in zip(stats, expected):
+        assert actual.dtype == wanted.dtype and actual.tobytes() == wanted.tobytes()

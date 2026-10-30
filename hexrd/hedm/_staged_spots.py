@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from hexrd.hedm._fit_progress import current_reporter, set_reporter
-from hexrd.hedm._image_cache import FrameSampler, StreamingView
+from hexrd.hedm._image_cache import FrameSampler, StreamingView, _array_storage
 from hexrd.hedm._progress import check_cancelled
 
 _extraction_context = ContextVar('spot_extraction_context', default=None)
@@ -48,6 +48,7 @@ class Window:
     shape: np.ndarray
     threshold: object
     stats: tuple
+    inverse: np.ndarray | None = None
 
     @property
     def reader(self):
@@ -57,8 +58,18 @@ class Window:
     def bytes(self):
         return self.rows.size * self.frames.size * self.view.dtype.itemsize
 
+    @property
+    def expansion_bytes(self):
+        return (
+            0
+            if self.inverse is None
+            else int(self.shape.prod()) * self.view.dtype.itemsize
+        )
+
     @classmethod
     def capture(cls, original, frames, offsets, rows, cols, shapes, threshold):
+        from hexrd.core.extensions import transforms as native
+
         check_cancelled()
         n = len(shapes)
         if (
@@ -99,19 +110,34 @@ class Window:
         )
         actual[actual < 0] += view.reader.nframes
         shapes = shapes.copy()
-        size = 2048 + sum(a.nbytes for a in (actual, rows, cols, shapes, *stats))
-        windows = [
-            cls(
-                original,
-                actual[i],
-                rows[first:last],
-                cols[first:last],
-                shapes[i : i + 1],
-                threshold,
-                tuple(a[i : i + 1] for a in stats),
+        windows = []
+        arrays = [actual, shapes, *stats]
+        for i, (first, last) in enumerate(zip(offsets[:-1], offsets[1:])):
+            r, c = rows[first:last], cols[first:last]
+            inverse = None
+            query = native._makePixelQuery(
+                r, c, *view.reader.shape, original.dtype, None
             )
-            for i, (first, last) in enumerate(zip(offsets[:-1], offsets[1:]))
-        ]
+            if query is not None and query.unique_count <= len(r) * 3 // 4:
+                # The source-pixel map is omega-independent. Keep its exact
+                # inverse so repeated polar subpixels need no repeated reads.
+                r, c, inverse = map(_compact, (query.rows, query.cols, query.inverse))
+                r.flags.writeable = c.flags.writeable = inverse.flags.writeable = False
+                arrays.append(inverse)
+            arrays.extend((r, c))
+            windows.append(
+                cls(
+                    original,
+                    actual[i],
+                    r,
+                    c,
+                    shapes[i : i + 1],
+                    threshold,
+                    tuple(a[i : i + 1] for a in stats),
+                    inverse,
+                )
+            )
+        size = 2048 + sum(dict(_array_storage(a) for a in arrays).values())
         return windows, stats, size
 
 
@@ -217,12 +243,20 @@ class MeasurementGroup:
         self.cost = min(128 * 1024**2, max_bytes // 4)
         self.frontiers = {}
         self.frame_ranks = {}
-        self.peak_pixels = 0
+        self.peak_pixels = self.expansion = 0
         self.frame_visits = 0
 
     def add(self, plan):
         incoming = plan.windows
-        cost = plan.bytes + sum(1024 + 64 * len(p.frames) for p in incoming)
+        expansion = max(
+            self.expansion, max((p.expansion_bytes for p in incoming), default=0)
+        )
+        cost = (
+            plan.bytes
+            + sum(1024 + 64 * len(p.frames) for p in incoming)
+            + expansion
+            - self.expansion
+        )
         frontiers = {r: x.copy() for r, x in self.frontiers.items()}
         frame_ranks = self.frame_ranks.copy()
         for p in incoming:
@@ -258,6 +292,7 @@ class MeasurementGroup:
         self.plans.append(plan)
         self.windows.extend(incoming)
         self.cost += cost
+        self.expansion = expansion
         self.frontiers, self.peak_pixels = frontiers, peak
         self.frame_ranks = frame_ranks
         for cache in {window.view.cache for window in incoming}:
@@ -362,7 +397,10 @@ def measure_windows(windows, cache, cancel=check_cancelled, frame_ranks=None):
                             remaining[index] -= 1
                             if remaining[index] == 0:
                                 cancel()
-                                pixels = live.pop(index).ravel()
+                                pixels = live.pop(index)
+                                if w.inverse is not None:
+                                    pixels = np.take(pixels, w.inverse, axis=1)
+                                pixels = pixels.ravel()
                                 stats = native._spotStats(
                                     pixels,
                                     np.array([0, len(pixels)], dtype='i8'),

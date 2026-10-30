@@ -57,6 +57,64 @@ def test_native_frame_preserves_pixel_bits_and_original_query_order(
         reference.close()
 
 
+@pytest.mark.parametrize('workers', [1, 2, 4])
+@pytest.mark.parametrize('direct', [False, True])
+def test_adjacent_chunks_share_reads_without_exceeding_the_cache(
+    tmp_path, monkeypatch, workers, direct
+):
+    from test_fch5_pixels import make_reader
+
+    if direct:
+        if not hasattr(os, 'O_DIRECT'):
+            pytest.skip('Linux direct I/O')
+        monkeypatch.setenv('HEXRD_FIT_GRAINS_DIRECT_IO', '1')
+    reader = make_reader(tmp_path / 'coalesced.h5', compression=hdf5plugin.Blosc())
+    with h5py.File(reader.filename, 'a') as handle:
+        group = handle['scan']
+        for name in ('indices', 'data'):
+            data = group[name][()]
+            del group[name]
+            group.create_dataset(name, data=data, chunks=(1, 1), **hdf5plugin.Blosc())
+    cache = FrameCache(64 * 1024**2)
+    cache.chunk_workers = workers
+    try:
+        sampler = reader._chunk_reader(cache)
+        rows, cols = np.indices(reader.shape)
+        rows, cols = rows.ravel().astype('i8'), cols.ravel().astype('i8')
+        expected = reader.read(0, cache).toarray()[rows, cols]
+        actual = reader.sample_pixels(0, rows, cols, cache)
+        assert actual.tobytes() == expected.tobytes()
+        backend = sampler.chunk_reader
+        assert backend is not None and backend.pool.workers <= workers
+        ptr = sampler._offsets(0, cache)
+        coordinates, values = backend._spec(sampler.indices), backend._spec(
+            sampler.values
+        )
+        output, status, decoded, reads = backend.pool.native_reader.read_pixels(
+            backend.fd,
+            coordinates,
+            values,
+            ptr,
+            *map(int, sampler.bounds[0]),
+            rows,
+            cols,
+            reader.shape[1],
+            backend.direct,
+            16 * 1024**2,
+            lambda: None,
+        )
+        assert status == 1 and output.tobytes() == expected.tobytes()
+        first, stop = map(int, sampler.bounds[0])
+        chunks = sum(
+            (stop - 1) // chunk - first // chunk + 1
+            for chunk in (sampler.coord_chunk, sampler.value_chunk)
+        )
+        assert 0 < reads < chunks
+        assert cache.bytes + cache.reserved_bytes <= cache.max_bytes
+    finally:
+        cache.close()
+
+
 def test_native_frame_handles_partial_codec_blocks_and_large_positions(tmp_path):
     from hexrd.hedm._image_cache import FileReader
 

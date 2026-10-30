@@ -74,7 +74,7 @@ class ChunkReader:
     @classmethod
     def create(cls, handle, cache):
         workers = cache.chunk_workers
-        if os.name != 'posix' or workers < 2 or cache.max_bytes < 32 * _MIB:
+        if os.name != 'posix' or workers < 1 or cache.max_bytes < 32 * _MIB:
             return None
         if handle.driver not in ('sec2', 'fileobj') or handle.userblock_size:
             return None

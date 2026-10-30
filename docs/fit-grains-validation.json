@@ -1,41 +1,124 @@
 {
   "branch_start_commit": "925967d2",
-  "cleanup_start_commit": "42687db7",
+  "performance_reference_commit": "205d8483",
   "master_reference_commit": "ca51e7d5d278bafb6a007dd284d9867714b19465",
-  "previous_validation_record_commit": "42687db7",
-  "cleanup": {
-    "python_runtime_lines_removed_net": 68,
-    "python_runtime_net_since_branch_start": 3337,
-    "net_negative_branch_target_met": false,
-    "changes": [
-      "Share console/file logging and profiling lifetimes between both CLI workflows.",
-      "Separate initial grain-table loading and worker scheduling from orchestration.",
-      "Use ExitStack for pool/queue teardown on success, failure and cancellation.",
-      "Share completion-event formatting across serial, staged and IPC results; simplify column selection."
-    ],
-    "dashboard_layout_and_controls_changed": false,
-    "native_extension_changed": false
+  "previous_validation_record_commit": "205d8483",
+  "goal": {
+    "required_speedup": 2,
+    "scope": "Default grain mode on guarded Sven subsets",
+    "met": true,
+    "staged_52_speedup": 1.4397710305144373,
+    "full_920_grain_and_remote_hdd_scaling_unmeasured": true
+  },
+  "changes": [
+    "Enable bounded native decoding in ordinary grain fitting; preserve worker configuration through pickle and process reset and cap readers by CPU share.",
+    "Store each distinct source pixel once per window; restore the original polar grid with an inverse map before unchanged spot statistics.",
+    "Coalesce neighboring physical chunk reads without starving decoder workers; reuse input/output buffers for rows and intensities.",
+    "Avoid redundant hashing for compact source requests and reuse monotone lookup cursors."
+  ],
+  "code": {
+    "python_runtime_lines_net": 41,
+    "cpp_runtime_lines_net": 75,
+    "new_runtime_modules": 0,
+    "cli_options_and_dashboard_layout_changed": false,
+    "native_extension_rebuild_required": true
   },
   "tests": {
-    "focused_suite_passed": 535,
+    "focused_suite_passed": 545,
     "address_space_limit_mib": 1536,
-    "cli_comparison": {
-      "parser_help_identical": true,
-      "scenarios": 90,
-      "clean_and_estimate_precedence_checked": true,
-      "output_logs_and_dashboard_state_identical": true
-    },
-    "cli_comparison_reference": "42687db7",
-    "cli_comparison_ignores": "Elapsed wall time and profile call counts/source locations."
+    "formats": "NPZ, FCH5, HDF5, TIFF, ROI/processed/resident views",
+    "bitwise_comparison": {
+      "arrays": 74739,
+      "scalars": 59891
+    }
   },
   "dataset_policy": {
     "address_space_limit_mib": 4096,
+    "cache_workspace_mib": 512,
     "fitting_processes": 1,
-    "blas_and_numba_threads": 1,
+    "configured_read_workers": 4,
+    "grain_native_decoding_before": false,
+    "grain_native_decoding_after": true,
     "runs_sequentially": true,
+    "blas_and_numba_threads": 1,
     "direct_fch5_reads": true,
     "image_scratch": false
   },
+  "sven": [
+    {
+      "mode": "grain",
+      "grains": 4,
+      "before_seconds": [
+        114.24610633199336,
+        111.41849104801076
+      ],
+      "after_seconds": [
+        38.82015240499459,
+        40.79779354899074
+      ],
+      "speedup": 2.8343433716617796,
+      "exact": true,
+      "spot_files_byte_identical": 4,
+      "peak_rss_bytes": 788365312,
+      "grains_out_byte_identical": true,
+      "grains_npz_arrays_bitwise_identical": true,
+      "master_reference": "master scientific algorithms with bounded input",
+      "before_cpu_seconds": [
+        90.4014758,
+        92.2220659
+      ],
+      "after_cpu_seconds": [
+        41.7360163,
+        43.9929298
+      ]
+    },
+    {
+      "mode": "grain",
+      "grains": 13,
+      "before_seconds": [
+        277.4540168379899
+      ],
+      "after_seconds": [
+        113.82278989399492
+      ],
+      "speedup": 2.4375963468861332,
+      "exact": true,
+      "spot_files_byte_identical": 13,
+      "peak_rss_bytes": 787582976,
+      "grains_out_byte_identical": true,
+      "grains_npz_arrays_bitwise_identical": true,
+      "master_reference": "simplified branch 205d8483",
+      "before_cpu_seconds": [
+        229.8842746
+      ],
+      "after_cpu_seconds": [
+        97.6997101
+      ]
+    },
+    {
+      "mode": "staged",
+      "grains": 52,
+      "before_seconds": [
+        64.2434125860018
+      ],
+      "after_seconds": [
+        44.62057592799829
+      ],
+      "speedup": 1.4397710305144373,
+      "exact": true,
+      "spot_files_byte_identical": 52,
+      "peak_rss_bytes": 1040175104,
+      "grains_out_byte_identical": true,
+      "grains_npz_arrays_bitwise_identical": true,
+      "master_reference": "simplified branch 205d8483",
+      "before_cpu_seconds": [
+        108.77102939999999
+      ],
+      "after_cpu_seconds": [
+        76.5401084
+      ]
+    }
+  ],
   "examples": {
     "runs": 18,
     "fits_and_extracted_spots_exact_master": true,
@@ -55,77 +138,83 @@
       "zirconium"
     ]
   },
-  "sven": [
-    {
-      "mode": "staged",
-      "grains": 52,
-      "exact_previous": true,
-      "spot_files_byte_identical": 52,
-      "peak_rss_bytes": 1165893632,
-      "seconds": [
-        62.762020446010865
-      ],
-      "master_reference": "previous commit 42687db7"
-    },
-    {
-      "mode": "grain",
-      "grains": 4,
-      "exact_previous": true,
-      "spot_files_byte_identical": 4,
-      "peak_rss_bytes": 1290850304,
-      "seconds": [
-        109.76774863799801
-      ],
-      "master_reference": "master scientific algorithms with bounded input"
-    }
-  ],
-  "timing_comparison": {
-    "reference_commit": "42687db7",
-    "samples": {
-      "staged-52": {
-        "before_seconds": 63.33589816199674,
-        "after_seconds": 62.762020446010865,
-        "time_change_percent": -0.9060860154190054
-      },
-      "grain-4": {
-        "before_seconds": 108.38257528499526,
-        "after_seconds": 109.76774863799801,
-        "time_change_percent": 1.278040634631905
-      }
-    },
-    "interpretation": "Single matched runs show similar timings; no speedup claim. Full 920-grain and remote-HDD scaling remain unmeasured."
-  },
   "cancellation": {
     "runs": [
       {
+        "mode": "staged",
         "method": "button",
-        "seconds_from_cancel_request_to_cleanup": 0.004013812998891808,
-        "seconds_including_simulated_ui_dispatch": 3.3029910619952716,
+        "seconds_from_cancel_request_to_cleanup": 0.0047165319992927834,
+        "seconds_including_simulated_ui_dispatch": 3.294250186008867,
         "cancelled_during_real_fch5_reads": true
       },
       {
+        "mode": "staged",
         "method": "ctrl+c",
-        "seconds_from_cancel_request_to_cleanup": 0.0057969350018538535,
-        "seconds_including_simulated_ui_dispatch": 0.3171741140104132,
+        "seconds_from_cancel_request_to_cleanup": 0.0047779860033188015,
+        "seconds_including_simulated_ui_dispatch": 0.14744984300341457,
+        "cancelled_during_real_fch5_reads": true
+      },
+      {
+        "mode": "grain",
+        "method": "button",
+        "seconds_from_cancel_request_to_cleanup": 0.029862330004107207,
+        "seconds_including_simulated_ui_dispatch": 0.43383591499878094,
+        "cancelled_during_real_fch5_reads": true
+      },
+      {
+        "mode": "grain",
+        "method": "ctrl+c",
+        "seconds_from_cancel_request_to_cleanup": 0.2572910509916255,
+        "seconds_including_simulated_ui_dispatch": 0.2612038140068762,
         "cancelled_during_real_fch5_reads": true
       }
     ],
-    "address_limit_mib": 4096,
-    "peak_rss_mib": 1032.95703125
+    "per_process_address_limit_mib": 3072,
+    "memory": {
+      "peak_bytes": {
+        "rss": 1365803008,
+        "pss": 1216634880,
+        "uss": 1118978048
+      },
+      "peak_processes": 3,
+      "samples": 115,
+      "sample_interval_seconds": 0.1
+    }
+  },
+  "timing_interpretation": "Four-grain medians use two repeats; larger cases have one matched run per revision. Timings include image planning/reads, optimization and spot-file writes. Staged mode improved 1.44x and did not reach 2x.",
+  "environment": {
+    "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+    "numpy": "2.3.5",
+    "scipy": "1.17.1",
+    "thread_environment": {
+      "OPENBLAS_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "MKL_NUM_THREADS": "1"
+    }
   },
   "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
   "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+  "input_file_bytes": 44303807671,
   "source_sha256": {
     "hexrd/core/instrument/_spotutils.py": "8c3946a6856f3cb8e5738cb138575a1c9031f39dedd52aa5bb4c63a50144eed1",
-    "hexrd/core/transforms/cpp_sublibrary/src/spot_extraction.hpp": "0df8614df75fb6fb7cf48608115ac31053c3066b3ffe98dfcbafd0a3adf325f6",
-    "hexrd/hedm/_image_cache.py": "0d7a4a4b5d58e9ce4f3823c58859be8f21c3c1656d780c350dffe81a08682927",
-    "hexrd/hedm/_pixel_cache.py": "bc2760d83e893fd2b284e35a0515210bd54043ff39d3fa6ae919d0d31a3d1220",
+    "hexrd/core/transforms/cpp_sublibrary/src/chunk_executor.hpp": "7508a9e87b977fade35db7718bc0750d3224a521cbaf195cfc56f773953d94ab",
+    "hexrd/core/transforms/cpp_sublibrary/src/native_frame.hpp": "4fe08b17de954f562e1f01e8e9cbb88a4c333de953345a9da2586083b5381c26",
+    "hexrd/core/transforms/cpp_sublibrary/src/pixel_query.hpp": "816cf30c8516531570196eeb6579b0d752ffba017a8571234d413554b6dcacef",
+    "hexrd/core/transforms/cpp_sublibrary/src/spot_extraction.hpp": "f5648797c16972f9be9610c0d39ce1429ae39eabf472340d029b9cf647544ea9",
+    "hexrd/hedm/_chunk_io.py": "528e7449b39fbbbf732b01892d430df93561967c626763ae2db4bb1c03063200",
+    "hexrd/hedm/_image_cache.py": "306df5fededd3a666b742c1571937c00d51ee27f3102788b343de2ac44e51801",
+    "hexrd/hedm/_pixel_cache.py": "99934ecc6a2bb5dd7dfc00bbcc21af9d3a9cfcbaae70fd84935daa52afa48159",
     "hexrd/hedm/_progress.py": "b2ef8c3b4b360ac52eeaf7d89cf8d31d3cbd9f871a9a2cedbd62aeb714ac7356",
-    "hexrd/hedm/_staged_spots.py": "d982a950bb4a5a117e5d6998fe2bca6ec15ed639ac0640a1a0f9f0a3aa3fb5b2",
+    "hexrd/hedm/_staged_spots.py": "a5a6affca6301f8a4c19b88203c997b52fab204755eff9793eb869992d602058",
     "hexrd/hedm/cli/find_orientations.py": "cda279bed62b7911deafe4268cc1eee1b4c92c17a46ec24fd21c27376f53b9b8",
     "hexrd/hedm/cli/fit_grains.py": "6b778e634f79cdb461a4214e2f08f12ce06f72d3cd6d3d23c03f13d5409cec2f",
-    "hexrd/hedm/fitgrains.py": "1406d34175dab1d8be2637f0cb4ce0da10ccef1eb0fc26f8fb22db91a2f2dcdd",
+    "hexrd/hedm/fitgrains.py": "bd35b4a8db47870829c77f52f1117db77c0afa1b400ec1ac46ed8d0911d1b291",
     "hexrd/hedm/xrdutil/utils.py": "2ae047aa1bffb816d8ba82eed6ac8c34462cd85d2d596e264d36a38a0a603254"
   },
-  "native_extension_sha256": "f5bb0930054f6ae995a6d59d1b457e6972abfd04570ae77f16fcb3f4c8fb53a2"
+  "native_extension_sha256": "4f0a532b0bd94ee582dc9556f03523b5e3a659056024178005a09c2968e14a59",
+  "build": {
+    "optimization": "O3 and single-worker LTO; portable CPU targeting and IEEE arithmetic",
+    "address_space_limit_mib": 1536,
+    "parallel_jobs": 1
+  }
 }

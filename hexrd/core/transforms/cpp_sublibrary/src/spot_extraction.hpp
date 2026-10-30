@@ -68,23 +68,26 @@ class BloscReader {
   Getitem getitem;
   Compress compress = nullptr;
 
-  int readData(int fd, int64_t begin, int64_t count, int64_t skip, int64_t size,
-               unsigned char *source, unsigned char *target, int64_t expected,
-               int64_t itemsize, int mask, int64_t first, int64_t last,
-               const std::atomic<bool> *cancelled = nullptr) const {
+  int readSource(int fd, int64_t begin, int64_t count, int64_t needed,
+                 unsigned char *source,
+                 const std::atomic<bool> *cancelled) const {
 #ifndef _WIN32
     if (cancelled && cancelled->load(std::memory_order_relaxed))
       return -4;
-    int result = -1;
     ssize_t read;
     do {
       read = ::pread(fd, source, size_t(count), off_t(begin));
     } while (read < 0 && errno == EINTR);
-    if (read < 0)
-      return -1000 - errno;
-    if (read < skip + size)
-      return -1;
-    source += skip;
+    return read < 0 ? -1000 - errno : (read < needed ? -1 : 1);
+#else
+    return -1;
+#endif
+  }
+
+  int decodeData(const unsigned char *source, int64_t size,
+                 unsigned char *target, int64_t expected, int64_t itemsize,
+                 int mask, int64_t first, int64_t last) const {
+    int result = -1;
     if (mask == 1) {
       if (size != expected)
         return -2;
@@ -113,9 +116,17 @@ class BloscReader {
     }
     result = decompress(source, target, size_t(expected), 1);
     return result == expected ? result : -3;
-#else
-    return -1;
-#endif
+  }
+
+  int readData(int fd, int64_t begin, int64_t count, int64_t skip, int64_t size,
+               unsigned char *source, unsigned char *target, int64_t expected,
+               int64_t itemsize, int mask, int64_t first, int64_t last,
+               const std::atomic<bool> *cancelled = nullptr) const {
+    const int status =
+        readSource(fd, begin, count, skip + size, source, cancelled);
+    return status < 0 ? status
+                      : decodeData(source + skip, size, target, expected,
+                                   itemsize, mask, first, last);
   }
 
 public:
