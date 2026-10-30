@@ -159,38 +159,6 @@ class Fch5Pixels:
             first += count
         return chunks[0] if len(chunks) == 1 else np.concatenate(chunks)
 
-    def _positions(self, ptr, start, rows, cols, needed, cache):
-        from hexrd.core.extensions import transforms as native
-
-        lookup = native._fch5Positions
-        # Pin at most 16 MiB of coordinate chunks during one native call. This
-        # allowance is deducted from the same cache while the arrays are live.
-        # A compressed edge chunk owns its full decoded allocation even when
-        # only a short slice lies inside the dataset's logical extent.
-        size = len(needed) * (1024 + self.coord_chunk * self.indices.dtype.itemsize)
-        if size > min(
-            16 * 1024**2, cache.max_bytes // 4, cache.max_bytes - cache.reserved_bytes
-        ):
-            return NotImplemented
-        arrays = []
-        cache.reserved_bytes += size
-        cache._evict(0)
-        try:
-            arrays = [self._chunk('columns', index, cache) for index in needed]
-            return lookup(
-                ptr,
-                start,
-                arrays,
-                np.asarray(needed, dtype='i8'),
-                self.coord_chunk,
-                rows,
-                cols,
-                self.reader.shape[1],
-            )
-        finally:
-            arrays.clear()
-            cache.reserved_bytes -= size
-
     def sample(self, frame, rows, cols, cache):
         try:
             return self._sample(frame, rows, cols, cache)
@@ -214,45 +182,25 @@ class Fch5Pixels:
         order = np.argsort(rows, kind='stable')
         edges = np.r_[0, np.flatnonzero(np.diff(rows[order])) + 1, len(rows)]
         queries, positions = [], []
-        requested_rows = rows[order[edges[:-1]]]
-        needed = set()
-        for row in requested_rows:
+        for left, right in zip(edges[:-1], edges[1:]):
+            check_cancelled()
+            selected = order[left:right]
+            row = int(rows[selected[0]])
             first, last = start + int(ptr[row]), start + int(ptr[row + 1])
-            needed.update(
-                range(
-                    first // self.coord_chunk,
-                    (last + self.coord_chunk - 1) // self.coord_chunk,
-                )
-                if first < last
-                else ()
-            )
-        needed = sorted(needed)
-        found = self._positions(ptr, start, rows[order], cols[order], needed, cache)
-        if found is None:
-            return None
-        if found is not NotImplemented:
-            valid = found >= 0
-            queries, positions = [order[valid]], [found[valid]]
-        else:
-            for left, right in zip(edges[:-1], edges[1:]):
-                check_cancelled()
-                selected = order[left:right]
-                row = int(rows[selected[0]])
-                first, last = start + int(ptr[row]), start + int(ptr[row + 1])
-                if first == last:
-                    continue
-                columns = self._columns(first, last, cache)
-                if (
-                    columns[0] < 0
-                    or columns[-1] >= self.reader.shape[1]
-                    or np.any(columns[1:] <= columns[:-1])
-                ):
-                    return None
-                indices = np.searchsorted(columns, cols[selected])
-                valid = indices < len(columns)
-                valid[valid] &= columns[indices[valid]] == cols[selected[valid]]
-                queries.append(selected[valid])
-                positions.append(first + indices[valid])
+            if first == last:
+                continue
+            columns = self._columns(first, last, cache)
+            if (
+                columns[0] < 0
+                or columns[-1] >= self.reader.shape[1]
+                or np.any(columns[1:] <= columns[:-1])
+            ):
+                return None
+            indices = np.searchsorted(columns, cols[selected])
+            valid = indices < len(columns)
+            valid[valid] &= columns[indices[valid]] == cols[selected[valid]]
+            queries.append(selected[valid])
+            positions.append(first + indices[valid])
         if not positions:
             return output
         queries = np.concatenate(queries)

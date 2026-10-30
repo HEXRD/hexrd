@@ -20,11 +20,12 @@ def assert_stats_equal(actual, pixels, shapes, threshold=0):
 
 
 def make_reader(
-    path, dtype='float64', malformed=None, large_offset=False, compression=None
+    path, dtype='float64', malformed=None, large_offset=False, compression=None,
+    coord_dtype='uint16',
 ):
     shape = (14, 18)
     row, col = np.meshgrid([1, 4, 8, 12], [2, 5, 9, 13], indexing='ij')
-    indices = np.column_stack((row.ravel(), col.ravel())).astype('uint16')
+    indices = np.column_stack((row.ravel(), col.ravel())).astype(coord_dtype)
     values = np.arange(len(indices), dtype=dtype) + 1
     if np.dtype(dtype).kind == 'f':
         values[:4] = [-0.0, np.nan, np.inf, -np.inf]
@@ -51,7 +52,7 @@ def make_reader(
         coordinates = group.create_dataset(
             'indices',
             shape=(offset + cursor, 2),
-            dtype='u2',
+            dtype=coord_dtype,
             chunks=(7, 1),
             **(compression or {}),
         )
@@ -111,6 +112,29 @@ def test_chunk_sampling_matches_whole_frame_across_boundaries(
             assert partial.metadata_bytes <= partial.max_bytes // 4
     finally:
         partial.close()
+        whole.close()
+
+
+@pytest.mark.parametrize('coord_dtype', ['u2', 'i2', 'u4', 'i4', 'u8', 'i8'])
+@pytest.mark.parametrize('large_offset', [False, True])
+def test_fallback_samples_coordinate_types_and_large_offsets(
+    tmp_path, coord_dtype, large_offset
+):
+    from hexrd.core.imageseries._sparse import sample_pixels
+
+    reader = make_reader(
+        tmp_path / 'types.h5', coord_dtype=coord_dtype, large_offset=large_offset
+    )
+    rows, cols = np.indices(reader.shape)
+    rows, cols = rows.ravel(), cols.ravel()
+    cache, whole = FrameCache(12000), FrameCache(0)
+    try:
+        actual = reader.sample_pixels(0, rows, cols, cache)
+        expected = sample_pixels(whole.frame(reader, 0), rows, cols)
+        np.testing.assert_array_equal(actual, expected, strict=True)
+        np.testing.assert_array_equal(np.signbit(actual), np.signbit(expected))
+    finally:
+        cache.close()
         whole.close()
 
 

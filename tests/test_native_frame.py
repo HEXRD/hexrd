@@ -46,7 +46,7 @@ def test_native_frame_preserves_pixel_bits_and_original_query_order(
         def no_python_lookup(*args, **kwargs):
             pytest.fail('native frame sampling returned to Python coordinate lookup')
 
-        monkeypatch.setattr(Fch5Pixels, '_positions', no_python_lookup)
+        monkeypatch.setattr(Fch5Pixels, '_columns', no_python_lookup)
         for frame, wanted in enumerate(expected):
             actual = reader.sample_pixels(frame, rows, cols, cache)
             assert actual.dtype == wanted.dtype
