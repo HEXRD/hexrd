@@ -434,7 +434,7 @@ class HedmExperiment(Experiment):
         experiment.studies = []
         experiment._default_working_dir = os.getcwd()
         experiment._default_file_placement = False
-        experiment._configure(deepcopy(config), instrument.write_config())
+        experiment._configure(deepcopy(config), instrument.write_config(style='hdf5'))
         experiment._instrument = instrument
         experiment.beam = Beam(instrument.beam_energy, instrument.beam_vector,
                                instrument.source_distance, instrument.energy_correction)

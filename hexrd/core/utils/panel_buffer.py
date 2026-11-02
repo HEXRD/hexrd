@@ -41,7 +41,8 @@ def panel_buffer_as_2d_array(panel: Detector) -> np.ndarray:
         ] = True
         return panel_buffer
     elif panel.panel_buffer.ndim == 2:
-        return panel.panel_buffer
+        # Callers use boolean mask operations, including inversion with ~
+        return np.asarray(panel.panel_buffer, dtype=bool)
 
     raise NotImplementedError(panel.panel_buffer.ndim)
 

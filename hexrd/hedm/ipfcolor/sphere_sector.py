@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # =============================================================================
 # Copyright (c) 2020, Lawrence Livermore National Security, LLC.
 # Produced at the Lawrence Livermore National Laboratory.
@@ -25,9 +24,9 @@
 # the Free Software Foundation, Inc., 59 Temple Place, Suite 330,
 # Boston, MA 02111-1307 USA or visit <http://www.gnu.org/licenses/>.
 # =============================================================================
-from hexrd.core import constants
 import numpy as np
-from hexrd.hedm.ipfcolor import colorspace
+
+from hexrd.core import constants
 
 eps = constants.sqrt_epsf
 
@@ -77,12 +76,13 @@ pg2vertex = {
                         [-0.5, -np.sqrt(3.)/2., 0.]]).T,
           np.array([[0, 1, 2], [0, 2, 3], [0, 3, 1]]).T, 'upper'],
 
-    'c2': [2, np.array([[0., 0., 1.],
+    'c2': [4, np.array([[0., 0., 1.],
                         [1., 0., 0.],
                         [0., 1., 0.],
-                        [-1., 0., 0.]]).T,
-           np.array([[0, 1, 2], [0, 2, 3]]).T,
-           'both'],
+                        [-1., 0., 0.],
+                        [0., 0., -1.]]).T,
+           np.array([[0, 1, 2], [0, 2, 3], [4, 2, 1], [4, 3, 2]]).T,
+           'upper'],
 
     # supergroup 1 in our convention
     'cs': [3, np.array([[0., 0., 1.],
@@ -109,10 +109,10 @@ pg2vertex = {
     # supergroup 2 in our convention
     'c2v': [2, np.array([[0., 0., 1.],
                          [1., 0., 0.],
-                         [0., 1., 0.],
-                         [0., 0., -1.]]).T,
-            np.array([[0, 1, 2], [3, 1, 2]]).T,
-            'both'],
+                         [0., 0., -1.],
+                         [0., 1., 0.]]).T,
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     # supergroup 3 in our convention
     'd2h': [1, np.array([[0., 0., 1.],
@@ -121,11 +121,12 @@ pg2vertex = {
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
-    'c4': [1, np.array([[0., 0., 1.],
+    'c4': [2, np.array([[0., 0., 1.],
                         [1., 0., 0.],
+                        [0., 0., -1.],
                         [0., 1., 0.]]).T,
-           np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           np.array([[0, 1, 3], [2, 3, 1]]).T,
+           'upper'],
 
     # supergroup 01 in our convention
     's4': [2, np.array([[0., 0., 1.],
@@ -148,11 +149,12 @@ pg2vertex = {
            'upper'],
 
     # supergroup 4 in our convention
-    'c4v': [1, np.array([[0., 0., 1.],
+    'c4v': [2, np.array([[0., 0., 1.],
                          [1., 0., 0.],
+                         [0., 0., -1.],
                          [1./np.sqrt(2.), 1./np.sqrt(2.), 0.]]).T,
-            np.atleast_2d(np.array([0, 1, 2])).T,
-            'both'],
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     'd2d': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
@@ -167,11 +169,12 @@ pg2vertex = {
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
-    'c3': [1, np.array([[0., 0., 1.],
+    'c3': [2, np.array([[0., 0., 1.],
                         [np.sqrt(3.)/2., -0.5, 0.],
+                        [0., 0., -1.],
                         [0., 1., 0.]]).T,
-           np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           np.array([[0, 1, 3], [2, 3, 1]]).T,
+           'upper'],
 
     # supergroup 02 in our convention
     's6': [1, np.array([[0., 0., 1.],
@@ -187,11 +190,12 @@ pg2vertex = {
            'upper'],
 
     # supergroup 6 in our convention
-    'c3v': [1, np.array([[0., 0., 1.],
+    'c3v': [2, np.array([[0., 0., 1.],
                          [np.sqrt(3.)/2., -0.5, 0.],
+                         [0., 0., -1.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.atleast_2d(np.array([0, 1, 2])).T,
-            'both'],
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     'd3d': [1, np.array([[0., 0., 1.],
                          [np.sqrt(3.)/2., -0.5, 0.],
@@ -199,11 +203,12 @@ pg2vertex = {
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
 
-    'c6': [1, np.array([[0., 0., 1.],
+    'c6': [2, np.array([[0., 0., 1.],
                         [1., 0., 0.],
+                        [0., 0., -1.],
                         [0.5, np.sqrt(3.)/2., 0.]]).T,
-           np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           np.array([[0, 1, 3], [2, 3, 1]]).T,
+           'upper'],
 
     'c3h': [1, np.array([[0., 0., 1.],
                          [1., 0., 0.],
@@ -221,18 +226,19 @@ pg2vertex = {
                         [1., 0., 0.],
                         [0.5, np.sqrt(3.)/2., 0.]]).T,
            np.atleast_2d(np.array([0, 1, 2])).T,
-           'both'],
+           'upper'],
 
     # supergroup 7 in our convention
-    'c6v': [1, np.array([[0., 0., 1.],
+    'c6v': [2, np.array([[0., 0., 1.],
                          [1., 0., 0.],
+                         [0., 0., -1.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
-            np.atleast_2d(np.array([0, 1, 2])).T,
-            'both'],
+            np.array([[0, 1, 3], [2, 3, 1]]).T,
+            'upper'],
 
     # supergroup 8 in our convention
     'd3h': [1, np.array([[0., 0., 1.],
-                         [1., 0., 0.],
+                         [np.sqrt(3.)/2., -0.5, 0.],
                          [np.sqrt(3.)/2., 0.5, 0.]]).T,
             np.atleast_2d(np.array([0, 1, 2])).T,
             'upper'],
@@ -513,31 +519,24 @@ class sector:
         '''
         vertex = self.vertices[switch]
         fregion = self.fillet_region(dir3, switch)
-        dir3_b = np.zeros(dir3.shape)
         nn = vertex.shape[1]
 
-        for i in range(fregion.shape[0]):
-
-            f = fregion[i]
-            d = dir3[i, :]
-
-            A = vertex[:, np.mod(f, nn)]
-            B = vertex[:, np.mod(f + 1, nn)]
-
-            nhat = np.cross(B, A)
-            nhat = nhat / np.linalg.norm(nhat)
-
-            lam = np.dot(nhat, d)
-            deldir = lam * nhat
-
-            dp = d - deldir
-            ndp = np.linalg.norm(dp)
-            if ndp > 0.0:
-                dp = dp / ndp
-            else:
-                dp = d
-
-            dir3_b[i, :] = dp
+        # intersect the great circle from the barycenter through each
+        # direction with the edge of its fillet (not the perpendicular
+        # projection onto the edge, which differs between neighboring
+        # fillets and makes the hue jump along barycenter-vertex lines)
+        A = vertex[:, np.mod(fregion, nn)].T
+        B = vertex[:, np.mod(fregion + 1, nn)].T
+        p = np.cross(
+            np.cross(np.atleast_2d(self.barycenter[switch]), dir3), np.cross(A, B)
+        )
+        pn = np.linalg.norm(p, axis=1)
+        at_center = pn < eps
+        p[at_center] = A[at_center]
+        pn[at_center] = 1.0
+        dir3_b = p / pn[:, None]
+        flip = np.einsum('ij,ij->i', dir3_b, dir3) < 0.0
+        dir3_b[flip] = -dir3_b[flip]
 
         return dir3_b, fregion
 
@@ -582,7 +581,7 @@ class sector:
                 # angle between point and A
                 omegap = np.dot(A, d)
                 if np.abs(omegap) > 1.0:
-                    omegap = np.sign(omega)
+                    omegap = np.sign(omegap)
 
                 omega = np.arccos(omega)
                 omegap = np.arccos(omegap)
@@ -646,17 +645,22 @@ class sector:
         '''
         @AUTHOR  Saransh Singh, Lawrence Livermore National Lab, saransh1@llnl.gov
         @DATE    12/09/2020 SS 1.0 original
+                 10/19/2026 SS 1.1 wrap rho in [-pi, pi]
         @PARAM   rho azimuthal angle
         @DETAIL  calculate the hue speed for a vector of azimuthal angles
                 this is utilized in increasing the area of the red, blue and
                 green regions
         '''
-        rho = rho - np.pi
+
+        def wrap(x: np.ndarray) -> np.ndarray:
+            return np.mod(x + np.pi, 2.0 * np.pi) - np.pi
+
+        k = 4.0 / 7.0
         v = (
             0.5
-            + np.exp(-(4.0 / 7.0) * rho**2)
-            + np.exp(-(4.0 / 7.0) * (rho - 2.0 * np.pi / 3.0) ** 2)
-            + np.exp(-(4.0 / 7.0) * (rho + 2.0 * np.pi / 3.0) ** 2)
+            + np.exp(-k * wrap(rho) ** 2)
+            + np.exp(-k * wrap(rho - 2.0 * np.pi / 3.0) ** 2)
+            + np.exp(-k * wrap(rho + 2.0 * np.pi / 3.0) ** 2)
         )
 
         return v
@@ -682,20 +686,36 @@ class sector:
         @DETAIL  calculate hue. this is aggigned based on the azimuthal angle in the
         stereographic triangle. the laueswitch controls which fundamental sector to use.
 
+        the original integrated hue_speed with a 1000-point trapezoid rule from
+        0 to rho for every direction. here the integral is tabulated once on a
+        fine grid (cached on the sector) and interpolated, and the trapezoid
+        rule's leading error term, +(step**2 / 12) * (v'(b) - v'(a)), is added
+        so the result reproduces the 1000-point rule.
+
         '''
+        n = 1000  # points used by the original rule
         rho = self.calculate_rho(dir3, switch)
-        r = np.linspace(0.0, 2 * np.pi, 1000)
-        v = self.hue_speed(r)
-        cons = np.trapezoid(v, r)
 
-        h = np.zeros(rho.shape)
-
-        for i in range(rho.shape[0]):
-            r = np.linspace(0.0, rho[i], 1000)
+        table = getattr(self, '_hue_table', None)
+        if table is None:
+            r = np.linspace(0.0, 2.0 * np.pi, 200001)
             v = self.hue_speed(r)
-            h[i] = np.trapezoid(v, r) / cons
+            cum = np.concatenate(
+                ([0.0], np.cumsum(0.5 * (v[1:] + v[:-1]) * np.diff(r)))
+            )
+            table = self._hue_table = (r, cum)
+        r, cum = table
 
-        return h
+        def dv(x: np.ndarray, h: float = 1e-5) -> np.ndarray:  # hue speed derivative
+            return (self.hue_speed(x + h) - self.hue_speed(x - h)) / (2.0 * h)
+
+        def trapezoid_n(b: np.ndarray) -> np.ndarray:  # 1000-point trapezoid, 0 to b
+            step = b / (n - 1)
+            return np.interp(b, r, cum) + step**2 / 12.0 * (
+                dv(b) - dv(np.zeros_like(b))
+            )
+
+        return trapezoid_n(rho) / trapezoid_n(np.array(2.0 * np.pi))
 
     def calc_saturation(self, l):
         '''
@@ -728,6 +748,7 @@ class sector:
                  group reductions. mask has size dir3.shape[0]
                  12/09/2020 SS 2.0 completely rewrite the way in which computation
                  is performed. all the routines have been rewritten
+                 10/19/2026 SS 2.1 change lightness to 0.25
 
         @PARAM   dir3 direction in fundamental sector. behavior is undefined if
                  laueswitch get colors in laue group or pg
@@ -740,7 +761,7 @@ class sector:
         theta = np.pi - self.calculate_theta(dir3, switch)
         f1 = theta / np.pi
         f2 = np.sin(theta / 2.0) ** 2
-        l = 0.35 * f1 + 0.65 * f2
+        l = 0.25 * f1 + 0.75 * f2
         l[~mask] = 1.0 - l[~mask]
 
         return l

@@ -91,17 +91,35 @@ class Detector:
     distortion: Distortion
     pixels: Pixels
     transform: Transform
-    buffer: Optional[np.ndarray]   # (2,) edge buffer in mm
+    buffer: np.ndarray | str | None  # edge widths in mm, pixel mask, or buffer name
     group: Optional[str]           # parent panel for ROI instruments
 
     @classmethod
     def from_dict(cls, name, d):
         buffer = d.get('buffer')
+        if buffer is not None and not isinstance(buffer, str):
+            buffer = np.asarray(buffer)
+            if buffer.ndim == 0:
+                buffer = np.repeat(buffer, 2)
         return cls(name, Distortion.from_dict(d.get('distortion', {})),
                    Pixels.from_dict(d.get('pixels', {})),
                    Transform.from_dict(d.get('transform', {})),
-                   None if buffer is None else np.asarray(buffer, dtype=np.float64),
+                   buffer,
                    d.get('group'))
+
+    @property
+    def buffer_mask(self):
+        """Valid pixels using the same buffer conventions as HEDMInstrument."""
+        from types import SimpleNamespace
+        from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
+
+        rows, cols = self.pixels.rows, self.pixels.columns
+        roi = self.pixels.roi
+        return panel_buffer_as_2d_array(SimpleNamespace(
+            panel_buffer=self.buffer, shape=(rows, cols),
+            pixel_size_row=self.pixels.size[0], pixel_size_col=self.pixels.size[1],
+            roi=None if roi is None else ((roi[0], roi[0] + rows),
+                                         (roi[1], roi[1] + cols))))
 
     @property
     def pixel_coordinates(self):

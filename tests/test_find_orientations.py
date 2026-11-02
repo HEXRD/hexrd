@@ -62,6 +62,9 @@ def test_generate_eta_ome_maps(multiruby_experiment):
     from hexrd.hedm.find_orientations import build_eta_omega_maps
 
     experiment = multiruby_experiment
+    # The historical archive predates panel-buffer masking.
+    for detector in experiment.detectors.values():
+        detector.buffer = None
     maps = build_eta_omega_maps(experiment, experiment.get_active_material().plane_data)
     include = Path(experiment.config['working_dir'])
     # This archive uses the same calibration as mruby_config_composite.yml.

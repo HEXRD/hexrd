@@ -585,7 +585,7 @@ class Material_Rietveld(Material_LeBail):
         return v_out
 
     def getMultiplicity(self, hkls):
-        return np.array([self.CalcStar(g, 'r').shape[0] for g in hkls])
+        return np.array([self.CalcStar(g, 'r', applyLaue=True).shape[0] for g in hkls])
 
     def CalcPositions(self):
         """

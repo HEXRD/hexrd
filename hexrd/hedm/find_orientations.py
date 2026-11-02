@@ -507,8 +507,11 @@ def _filter_maps(maps: EtaOmegaMaps, median: bool,
     for ring_map in maps.ring_maps:
         ring_map -= np.nanmedian(ring_map, axis=0)
         if log_fwhm is not None:
+            missing = np.isnan(ring_map)
+            ring_map[missing] = 0
             ring_map[:] = -ndimage.gaussian_laplace(
                 ring_map, const.fwhm_to_sigma * log_fwhm)
+            ring_map[missing] = np.nan
 
 
 def _eta_bin_edges(step: float) -> np.ndarray:
@@ -551,6 +554,8 @@ def _panel_bin_data(detector, beam_vector, two_theta_ranges, eta_edges):
     eta_bin = np.minimum(
         np.searchsorted(eta_edges, peta, side='right') - 1, n_eta - 1)
     eta_bin[(peta < eta_edges[0]) | (peta > eta_edges[-1]) | np.isnan(peta)] = -1
+    if detector.buffer is not None:
+        eta_bin[~detector.buffer_mask.ravel()] = -1
     masks, coverage = native._ringMasks(ptth, eta_bin, two_theta_ranges, n_eta)
     return eta_bin, masks, coverage
 
@@ -561,11 +566,12 @@ def _cached_panel_bin_data(experiment, panel, two_theta_ranges, eta_edges):
     import hashlib
     from pathlib import Path
     from hexrd.core.extensions import transforms, inverse_distortion
+    from hexrd.core.utils import panel_buffer
 
     detector = experiment.detectors[panel]
     sources = [Path(__file__),
                Path(transforms_c_api.__file__), Path(transforms.__file__),
-               Path(inverse_distortion.__file__)]
+               Path(inverse_distortion.__file__), Path(panel_buffer.__file__)]
     sources.extend(sorted(Path(distortion_pkg.__file__).parent.glob('*.py')))
     name = detector.distortion.function_name
     mapping_type = distortion_pkg.Registry.distortion_registry.get(name)
@@ -994,6 +1000,16 @@ def _clip_to_panel(detector, xy: np.ndarray) -> np.ndarray:
     """Select xy coordinates inside the buffered detector area, in millimeters."""
     half_x = 0.5 * detector.pixels.columns * detector.pixels.size[1]
     half_y = 0.5 * detector.pixels.rows * detector.pixels.size[0]
+    if isinstance(detector.buffer, str) or (
+            detector.buffer is not None and detector.buffer.ndim == 2):
+        rows, cols = detector.pixels.rows, detector.pixels.columns
+        dy, dx = detector.pixels.size
+        with np.errstate(invalid='ignore'):
+            ij = np.round(np.column_stack(((half_y - xy[:, 1]) / dy - 0.5,
+                                          (half_x + xy[:, 0]) / dx - 0.5))).astype(int)
+        valid = ((ij >= 0) & (ij < [rows, cols])).all(axis=1)
+        valid[valid] = detector.buffer_mask[ij[valid, 0], ij[valid, 1]]
+        return valid
     buf_x, buf_y = detector.buffer if detector.buffer is not None else (0.0, 0.0)
     with np.errstate(invalid='ignore'):
         return ((np.abs(xy[:, 0]) <= half_x - buf_x)

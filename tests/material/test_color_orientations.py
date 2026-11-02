@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 
+from hexrd.hedm.ipfcolor.colorspace import hsl2rgb
 from hexrd.material.material import Material
 
 
@@ -62,3 +63,32 @@ def test_color_orientations() -> None:
     rgb_nh_calc = mat.unitcell.color_directions(dir3_nh, False)
 
     np.testing.assert_allclose(rgb_nh, rgb_nh_calc, atol=1e-6)
+
+    # a single hsl triple is accepted (pure red)
+    np.testing.assert_allclose(hsl2rgb(np.array([0.0, 1.0, 0.5])), [[1.0, 0.0, 0.0]])
+
+
+def test_color_symmetry_invariance() -> None:
+    # colors must be valid and unchanged by every symmetry operation of the
+    # crystal, including low symmetry groups and alternate settings
+    rng = np.random.default_rng(0)
+    dirs = rng.normal(size=(200, 3))
+    dirs /= np.linalg.norm(dirs, axis=1)[:, None]
+
+    mat = Material()
+    for sgnum in (1, 2, 3, 6, 25, 81, 143, 149, 157, 187):
+        mat.sgnum = sgnum
+        uc = mat.unitcell
+        for laue in (False, True):
+            rgb = uc.color_directions(dirs, laue)
+            assert np.all((rgb >= 0.0) & (rgb <= 1.0)), f'sgnum {sgnum}'
+
+            sym = uc.SYM_PG_d_laue if laue else uc.SYM_PG_d
+            for op in sym:
+                g = uc.dsm @ op @ uc.rsm.T
+                np.testing.assert_allclose(
+                    uc.color_directions(dirs @ g.T, laue),
+                    rgb,
+                    atol=1e-6,
+                    err_msg=f'sgnum {sgnum}, laue {laue}',
+                )
