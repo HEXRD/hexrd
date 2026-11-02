@@ -218,6 +218,7 @@ class SeedSearch:
     fiber_step: float                   # radians
     method: SeedSearchMethod
     method_kwargs: dict[str, Any]
+    _fiber_step_degrees: float | np.floating | None = None
 
     @classmethod
     def from_dict(cls, d: dict, omega_tolerance_deg: float) -> 'SeedSearch':
@@ -228,12 +229,17 @@ class SeedSearch:
         if seeds.ndim != 1:
             raise ValueError(f'hkl_seeds must be a list of ring indices, '
                              f'got {d.get("hkl_seeds")!r}')
-        return cls(seeds, np.radians(d.get('fiber_step', omega_tolerance_deg)),
-                   SeedSearchMethod(name.lower()), kwargs or {})
+        step = d.get('fiber_step', omega_tolerance_deg)
+        return cls(seeds, np.radians(step),
+                   SeedSearchMethod(name.lower()), kwargs or {}, step)
 
     @property
     def fiber_ndiv(self) -> int:
-        return int(round(2 * np.pi / self.fiber_step))
+        # Keep master's degree arithmetic; a radians round-trip can change truncation.
+        step = self._fiber_step_degrees
+        if step is None or np.radians(step) != self.fiber_step:
+            step = np.degrees(self.fiber_step)
+        return int(360.0 / step)
 
 
 @dataclass(frozen=True, config={'arbitrary_types_allowed': True})
@@ -337,7 +343,7 @@ class FindOrientations:
             raise ValueError('choose direct_search, seed_search, or use_quaternion_grid')
         return cls(OrientationMaps.from_dict(d.get('orientation_maps', {})),
                    SeedSearch.from_dict(d.get('seed_search', {}),
-                                        np.degrees(omega.tolerance)),
+                                        d.get('omega', {}).get('tolerance', 0.5)),
                    omega,
                    Eta.from_dict(d.get('eta', {})),
                    Clustering.from_dict(d.get('clustering', {})),

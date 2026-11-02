@@ -316,6 +316,25 @@ def test_seed_search_from_dict():
         SeedSearch.from_dict({'method': {'watershed': {}}}, 0.25)
 
 
+def test_fiber_divisions_match_master():
+    from dataclasses import replace
+    from hexrd.core.config.root import RootConfig
+
+    for step in (0.25, 0.35, 0.45, 0.75, 1.5, 3., np.nextafter(0.15, np.inf), np.float32(0.75)):
+        for explicit in (False, True):
+            config = {'find_orientations': {
+                'omega': {'tolerance': step},
+                'seed_search': {'hkl_seeds': [0]},
+                'clustering': {'radius': 1., 'completeness': 0.85}}}
+            if explicit:
+                config['find_orientations']['seed_search']['fiber_step'] = step
+            expected = RootConfig(config).find_orientations.seed_search.fiber_ndiv
+            actual = FindOrientations.from_dict(config['find_orientations']).seed_search
+            assert actual.fiber_ndiv == expected, (step, explicit)
+    seed = SeedSearch.from_dict({'fiber_step': 1.0}, 0.5)
+    assert replace(seed, fiber_step=np.radians(0.35)).fiber_ndiv == 1028
+
+
 def test_eta_range_masks_rotation_axis():
     eta = Eta.from_dict({})
     assert np.isclose(eta.tolerance, np.radians(0.5))
