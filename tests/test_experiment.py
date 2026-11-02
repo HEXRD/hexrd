@@ -861,6 +861,7 @@ def test_material_exclusions_match_master(synthetic_config, ruby_materials_file)
     base['working_dir'] = str(synthetic_config.parent)
     base['material']['definitions'] = ruby_materials_file
     for selection in (
+        None,
         {'sfacmin': 0.5}, {'dmax': 1.2}, {'tthmin': 0.1}, {'tthmax': 0.1},
         {'sfacmax': 0.5}, {'pintmin': 0.1}, {'pintmax': 0.1},
         {'min_sfac_ratio': 0.5}, {'min_sfac_ratio': 0.9, 'sfacmin': 0.1},
@@ -869,7 +870,10 @@ def test_material_exclusions_match_master(synthetic_config, ruby_materials_file)
          'sfacmin': 0.01, 'sfacmax': 0.9, 'pintmin': 0.01, 'pintmax': 0.9},
     ):
         config = deepcopy(base)
-        config['material'].update(selection)
+        if selection is None:
+            config['material'].pop('dmin')
+        else:
+            config['material'].update(selection)
         synthetic_config.write_text(yaml.safe_dump(config))
         expected = RootConfig(config).material.plane_data
         actual = HedmExperiment(str(synthetic_config)).get_active_material().plane_data
@@ -877,8 +881,9 @@ def test_material_exclusions_match_master(synthetic_config, ruby_materials_file)
         np.testing.assert_array_equal(actual.unexcluded_hkls, expected.hkls.T, err_msg=str(selection))
 
 
+@pytest.mark.parametrize('with_dmin', [False, True])
 def test_experiment_preserves_saved_material_selection(
-        synthetic_config, ruby_materials_file):
+        synthetic_config, ruby_materials_file, with_dmin):
     from hexrd.core.material.material_data import Material
 
     saved = Material('ruby', ruby_materials_file, dmin=1.6,
@@ -889,6 +894,8 @@ def test_experiment_preserves_saved_material_selection(
     documents[0]['material'].update(reset_exclusions=False, dmin=0.35,
                                      min_sfac_ratio=0.99, sfacmin=1.0, dmax=0.1,
                                      tthmax=0.01, sfacmax=0.0, pintmin=1.0, pintmax=0.0)
+    if not with_dmin:
+        documents[0]['material'].pop('dmin')
     synthetic_config.write_text(yaml.safe_dump_all(documents))
 
     experiment = HedmExperiment(str(synthetic_config))

@@ -40,7 +40,7 @@ class ActiveMaterial:
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d.get('definitions'), d.get('active'), d.get('dmin'),
+        return cls(d.get('definitions'), d.get('active'), d.get('dmin', 0.5),
                    d.get('tth_width'), d.get('sfacmin', d.get('min_sfac_ratio')),
                    d.get('reset_exclusions', True),
                    {key: d.get(key) for key in
