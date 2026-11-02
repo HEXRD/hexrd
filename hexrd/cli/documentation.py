@@ -2,7 +2,7 @@
 
 import argparse
 
-help = "Launches the hexrd documentation (work in progress) in a web browser"
+help = "Launch the HEXRD documentation in a web browser"
 
 
 def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
@@ -13,6 +13,4 @@ def configure_parser(sub_parsers: argparse._SubParsersAction) -> None:
 def execute(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     import webbrowser
 
-    import hexrd
-
-    webbrowser.open_new_tab(hexrd.doc_url)
+    webbrowser.open_new_tab('https://hexrd.readthedocs.io/en/latest/')

@@ -69,7 +69,14 @@ def main() -> None:
     except ImportError:
         pass
 
-    args = p.parse_args()
+    argv = sys.argv[1:]
+    if (
+        len(argv) == 1
+        and argv[0] in sub_parsers.choices
+        and argv[0] not in ('help', 'documentation')
+    ):
+        argv.append('--help')
+    args = p.parse_args(argv)
     logging.info(f'HEXRD version: {_version}')
 
     log_level = logging.DEBUG if args.debug else logging.INFO

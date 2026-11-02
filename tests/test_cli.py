@@ -1,6 +1,7 @@
 import importlib
 import subprocess
 import sys
+import webbrowser
 
 import pytest
 
@@ -63,3 +64,25 @@ def test_module_entry_point() -> None:
     assert result.returncode == 2
     assert 'invalid choice' in result.stderr
     assert 'Traceback' not in result.stderr
+
+
+def test_bare_workflow_commands_show_help(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys.modules['__main__'], '__spec__', None)
+    for command in ('cake-data', 'find-orientations', 'fit-grains', 'preprocess'):
+        monkeypatch.setattr(sys, 'argv', ['hexrd', command])
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == 0
+        captured = capsys.readouterr()
+        assert f'usage: hexrd {command}' in captured.out
+        assert not captured.err
+
+
+def test_documentation_command_opens_browser(monkeypatch: pytest.MonkeyPatch) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(webbrowser, 'open_new_tab', opened.append)
+    monkeypatch.setattr(sys, 'argv', ['hexrd', 'documentation'])
+    main()
+    assert opened == ['https://hexrd.readthedocs.io/en/latest/']
