@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import field
 from typing import Optional, TYPE_CHECKING
 
 import numpy as np
@@ -35,12 +36,15 @@ class ActiveMaterial:
     two_theta_width: float | None     # degrees
     min_sfac_ratio: float | None
     reset_exclusions: bool = True
+    exclusion_parameters: dict[str, float | None] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d):
         return cls(d.get('definitions'), d.get('active'), d.get('dmin'),
-                   d.get('tth_width'), d.get('min_sfac_ratio'),
-                   d.get('reset_exclusions', True))
+                   d.get('tth_width'), d.get('sfacmin', d.get('min_sfac_ratio')),
+                   d.get('reset_exclusions', True),
+                   {key: d.get(key) for key in
+                    ('dmax', 'tthmin', 'tthmax', 'sfacmax', 'pintmin', 'pintmax')})
 
 
 @dataclass(config={'arbitrary_types_allowed': True})
@@ -469,7 +473,8 @@ class Experiment:
                         dmin=self.active_material.dmin,
                         sfacmin=self.active_material.min_sfac_ratio,
                         beam_energy=self.beam.energy,
-                        reset_exclusions=self.active_material.reset_exclusions)
+                        reset_exclusions=self.active_material.reset_exclusions,
+                        exclusion_parameters=self.active_material.exclusion_parameters)
 
     @property
     def beam_energy(self) -> float:

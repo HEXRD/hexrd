@@ -853,6 +853,30 @@ def test_material_bridge_parameters(ruby_materials_file):
         assert any(np.array_equal(col, hkl) for col in symm.T)
 
 
+def test_material_exclusions_match_master(synthetic_config, ruby_materials_file):
+    from copy import deepcopy
+    from hexrd.core.config.root import RootConfig
+
+    base = next(yaml.safe_load_all(synthetic_config.read_text()))
+    base['working_dir'] = str(synthetic_config.parent)
+    base['material']['definitions'] = ruby_materials_file
+    for selection in (
+        {'sfacmin': 0.5}, {'dmax': 1.2}, {'tthmin': 0.1}, {'tthmax': 0.1},
+        {'sfacmax': 0.5}, {'pintmin': 0.1}, {'pintmax': 0.1},
+        {'min_sfac_ratio': 0.5}, {'min_sfac_ratio': 0.9, 'sfacmin': 0.1},
+        {'min_sfac_ratio': 0.9, 'sfacmin': None},
+        {'dmax': 1.5, 'tthmin': 0.05, 'tthmax': 0.14,
+         'sfacmin': 0.01, 'sfacmax': 0.9, 'pintmin': 0.01, 'pintmax': 0.9},
+    ):
+        config = deepcopy(base)
+        config['material'].update(selection)
+        synthetic_config.write_text(yaml.safe_dump(config))
+        expected = RootConfig(config).material.plane_data
+        actual = HedmExperiment(str(synthetic_config)).get_active_material().plane_data
+        np.testing.assert_array_equal(actual.exclusions, expected.exclusions, err_msg=str(selection))
+        np.testing.assert_array_equal(actual.unexcluded_hkls, expected.hkls.T, err_msg=str(selection))
+
+
 def test_experiment_preserves_saved_material_selection(
         synthetic_config, ruby_materials_file):
     from hexrd.core.material.material_data import Material
@@ -863,7 +887,8 @@ def test_experiment_preserves_saved_material_selection(
     saved.dump_material(str(synthetic_config.parent/'materials.h5'))
     documents = list(yaml.safe_load_all(synthetic_config.read_text()))
     documents[0]['material'].update(reset_exclusions=False, dmin=0.35,
-                                     min_sfac_ratio=0.99)
+                                     min_sfac_ratio=0.99, sfacmin=1.0, dmax=0.1,
+                                     tthmax=0.01, sfacmax=0.0, pintmin=1.0, pintmax=0.0)
     synthetic_config.write_text(yaml.safe_dump_all(documents))
 
     experiment = HedmExperiment(str(synthetic_config))
