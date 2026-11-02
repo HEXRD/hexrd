@@ -183,7 +183,6 @@ class CakeDataConfig:
             eta_span = geometry['eta_end'] - geometry['eta_start']
             if eta_span <= 0:
                 raise ValueError('eta_start must be less than eta_end')
-            _interval_count(eta_span, self.cake_width, 'eta')
 
         if self.par_version != 5:
             raise ValueError('cake-data currently supports par version 5 only')

@@ -163,6 +163,7 @@ def test_scan_from_instrument(
         tth_start=0,
         tth_end=3,
         max_input_frames=10,
+        cake_width=110,
     )
     output_path, _ = cake_data(config)
     with h5py.File(output_path) as output:
@@ -172,6 +173,13 @@ def test_scan_from_instrument(
         np.testing.assert_allclose(profile[np.isfinite(profile)], 1)
         np.testing.assert_allclose(layer['ome_key'][1], [1.5])
         assert layer['nFrames'][()] == 1
+        wedges = layer['Ome/0/IvTTH'][:]
+        assert wedges.shape[0] == 4
+        np.testing.assert_allclose(wedges[np.isfinite(wedges)], 1)
+        # The final wedge is partial, with a slightly rounded grid endpoint.
+        eta = layer['Ome/0/eta_key'][1]
+        np.testing.assert_allclose(eta[:3], [-125, -15, 95])
+        assert 150 < eta[-1] < 180
         assert np.all(np.diff(layer['tth'][:]) > 0)
 
 
@@ -312,6 +320,7 @@ def test_reader_options(
     'step, count, width, wedges, last_width',
     [
         (10, 36, 110, 4, 30),
+        (10, 36, 400, 1, 360),  # One partial wedge may cover the whole span.
         (1.3, 277, 5, 72, 5.1),  # Rounded endpoint must not add an empty wedge.
         (2, 8, 5, 4, 1),  # The final center lies exactly on a wedge boundary.
     ],
