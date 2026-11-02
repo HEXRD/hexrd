@@ -130,23 +130,46 @@ def test_p4_special_position(tetragonal_material, caller):
 
 
 @pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
-def test_isotropic_structure_factors(tetragonal_material, caller):
-    tetragonal_material._set_atomdata([28], [[0.1, 0.2, 0.3, 0.7]], [0.005], ['0'])
+@pytest.mark.parametrize('U', [0.0, 0.005, 0.020])
+@pytest.mark.parametrize(
+    'sgnum,lattice',
+    [
+        pytest.param(16, [4, 5, 6, 90, 90, 90], id='orthorhombic'),
+        pytest.param(75, [5, 5, 6, 90, 90, 90], id='tetragonal'),
+        pytest.param(195, [5, 5, 5, 90, 90, 90], id='cubic'),
+    ],
+)
+def test_equal_diagonal_anisotropic_matches_isotropic(
+    tetragonal_material, caller, U, sgnum, lattice
+):
+    # Equal diagonal U entries with zero cross terms describe isotropic
+    # displacement in orthogonal crystal axes, including unequal cell lengths.
+    tetragonal_material.sgnum = sgnum
+    tetragonal_material.latticeParameters = lattice
+    tetragonal_material._set_atomdata([28], [[0.137, 0.271, 0.319, 0.7]], [U], ['0'])
     target = tetragonal_material.unitcell
     if caller == 'rietveld':
         target = Material_Rietveld(material_obj=tetragonal_material)
 
-    hkls = np.array([[1, 0, 0], [2, 1, 3]], dtype=float)
-    U = target.U[0]
+    hkls = np.array(
+        [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [2, 1, 3], [-1, 2, 3]],
+        dtype=float,
+    )
+    assert not target.aniU
     reciprocal_lengths_squared = np.einsum('ni,ij,nj->n', hkls, target.rmt, hkls)
     expected = np.exp(-4.0 * np.pi**2 * U * reciprocal_lengths_squared * 1e-2)
-    np.testing.assert_allclose(_attenuation_ratio(target, hkls), expected, rtol=1e-12)
+    np.testing.assert_allclose(
+        _attenuation_ratio(target, hkls), expected, rtol=1e-13, atol=0.0
+    )
 
     isotropic = _calculate_raw(target, hkls)
     target.U = np.array([[U, U, U, 0, 0, 0]])
     if caller == 'rietveld':
         target.aniU = True
-    np.testing.assert_allclose(_calculate_raw(target, hkls), isotropic, rtol=1e-12)
+    assert target.aniU
+    np.testing.assert_allclose(
+        _calculate_raw(target, hkls), isotropic, rtol=1e-13, atol=0.0
+    )
 
 
 def test_calc_orbit_returns_aligned_rotations(tetragonal_material):
