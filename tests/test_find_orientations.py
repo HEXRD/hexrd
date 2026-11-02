@@ -1027,6 +1027,14 @@ def test_dashboard_progress_preserves_scores(tmp_path, monkeypatch, workers):
     assert terminal.getvalue() == ''
 
 
+async def _wait_for_dashboard(pilot, condition):
+    import asyncio
+
+    async with asyncio.timeout(5):
+        while not condition():
+            await pilot.pause(0.01)
+
+
 def test_dashboard_navigation_and_cancellation(monkeypatch):
     import asyncio
     import logging
@@ -1057,7 +1065,9 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
     async def interact():
         try:
             async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
+                await _wait_for_dashboard(pilot, lambda:
+                    'Scoring' in str(app.query_one('#stage-name', Static).render())
+                    and app.query_one(RichLog).lines)
                 memory = app.query_one('#memory-bar', ProgressBar)
                 assert memory.progress / memory.total == 0.125
                 assert '2.00 / 16.0 GiB' in str(app.query_one('#memory-label', Static).render())
@@ -1082,7 +1092,7 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.press('q')
                 assert dashboard.cancelled.is_set()
                 release.set()
-                await pilot.pause(0.2)
+                await _wait_for_dashboard(pilot, lambda: app.sub_title == 'CANCELLED')
                 assert app.is_running
                 assert app.sub_title == 'CANCELLED'
                 assert str(app.query_one('#cancel', Button).label) == 'Close'
@@ -1131,7 +1141,8 @@ def test_dashboard_retains_completion_and_failure(fails):
 
     async def interact():
         async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
+            await _wait_for_dashboard(pilot, lambda:
+                app.sub_title == ('FAILED' if fails else 'COMPLETE'))
             assert app.is_running and app.finished.is_set()
             assert app.sub_title == ('FAILED' if fails else 'COMPLETE')
             status = str(app.query_one('#status', Static).render())
