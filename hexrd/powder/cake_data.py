@@ -12,7 +12,7 @@ from itertools import pairwise
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import UnionType
-from typing import Any, get_args, get_origin, get_type_hints
+from typing import TypedDict, TypeVar, cast, get_args, get_origin, get_type_hints, is_typeddict
 
 import h5py
 import numpy as np
@@ -27,8 +27,37 @@ from hexrd.powder.cake import CakeMatrix, export_cake_matrix
 
 logger = logging.getLogger(__name__)
 
+
+class CakeGeometry(TypedDict):
+    tth_start: float
+    tth_end: float
+    eta_start: float
+    eta_end: float
+    refinement: float
+
+
+class ImageOptions(TypedDict, total=False):
+    """Options for the HDF5 and Eiger readers supported by cake-data."""
+
+    path: str
+    dataname: str
+    close_when_finished: bool
+    threshold_setting: str
+    multiplier: float
+
+
+class ParData(TypedDict):
+    scan_number: np.ndarray
+    image_number: np.ndarray
+    position_key: np.ndarray
+    num_frames: np.ndarray
+    flip: np.ndarray
+
+
+_OptionValue = TypeVar('_OptionValue')
+
 # These defaults apply when we build a matrix from an instrument file
-GEOMETRY_DEFAULTS = {
+GEOMETRY_DEFAULTS: CakeGeometry = {
     'tth_start': 2.0,
     'tth_end': 5.0,
     'eta_start': -180.0,
@@ -48,7 +77,7 @@ def _interval_count(span: float, width: float, name: str) -> int:
     return int(round(count))
 
 
-def _option(default: Any, short: str, help: str) -> Any:
+def _option(default: _OptionValue, short: str, help: str) -> _OptionValue:
     """Attach command-line help to a configuration field"""
     return field(default=default, metadata={'short': short, 'help': help})
 
@@ -102,7 +131,8 @@ class CakeDataConfig:
         'image file glob (YAML also accepts a panel/group-to-glob mapping)'
     )
     image_format: str = _option('eiger-stream-v1', 'F', 'HEXRD image-series format')
-    image_options: dict[str, Any] = field(
+    # Other registered readers may define their own option names and values.
+    image_options: ImageOptions | dict[str, object] = field(
         default_factory=dict,
         metadata={'short': 'O', 'help': 'image-series reader options as a JSON object'},
     )
@@ -125,7 +155,7 @@ class CakeDataConfig:
         return cls(**values)
 
     @property
-    def geometry(self) -> dict[str, float]:
+    def geometry(self) -> CakeGeometry:
         geometry = {}
         for name, default in GEOMETRY_DEFAULTS.items():
             value = getattr(self, name)
@@ -134,7 +164,7 @@ class CakeDataConfig:
 
             geometry[name] = value
 
-        return geometry
+        return cast(CakeGeometry, geometry)
 
     def validate(self) -> None:
         for name, types in _field_types().items():
@@ -241,11 +271,13 @@ def _field_types() -> dict[str, tuple[type, ...]]:
     result = {}
     for name, hint in get_type_hints(CakeDataConfig).items():
         types = get_args(hint) if get_origin(hint) is UnionType else (hint,)
-        result[name] = tuple(get_origin(t) or t for t in types)
+        result[name] = tuple(dict.fromkeys(
+            dict if is_typeddict(t) else get_origin(t) or t for t in types
+        ))
     return result
 
 
-def load_par_file(path: str | Path) -> dict[str, np.ndarray]:
+def load_par_file(path: str | Path) -> ParData:
     data = np.loadtxt(path, ndmin=2)
     if data.shape[1] < 25:
         raise ValueError('version-5 par input must contain at least 25 columns')
@@ -304,15 +336,15 @@ def _load_matrix(config: CakeDataConfig, temporary: Path) -> CakeMatrix:
 
         geometry = config.geometry
         tth_stats, eta_stats = pixel_resolution(instrument)
-        kwargs = {
-            'tth_range': (geometry['tth_start'], geometry['tth_end']),
-            'eta_range': (geometry['eta_start'], geometry['eta_end']),
-            'pixel_size': (
+        export_cake_matrix(
+            path, instrument,
+            tth_range=(geometry['tth_start'], geometry['tth_end']),
+            eta_range=(geometry['eta_start'], geometry['eta_end']),
+            pixel_size=(
                 geometry['refinement'] * np.degrees(tth_stats[1]),
                 np.degrees(eta_stats[1]),
             ),
-        }
-        export_cake_matrix(path, instrument, **kwargs)
+        )
 
     operator = CakeMatrix(path)
     if operator.input_layout == 'panels' and isinstance(config.image_pattern, str):

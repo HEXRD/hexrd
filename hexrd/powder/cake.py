@@ -269,9 +269,9 @@ def _csr_chunk(
         interp = mapping[name]['bilinear_interp_dict']
         panel_sources = np.column_stack(
             [
-                interp[i + '_img'] * panel.cols + interp[j + '_img']
-                for i in ('i_floor', 'i_ceil')
-                for j in ('j_floor', 'j_ceil')
+                interp[i] * panel.cols + interp[j]
+                for i in ('i_floor_img', 'i_ceil_img')
+                for j in ('j_floor_img', 'j_ceil_img')
             ]
         )
 

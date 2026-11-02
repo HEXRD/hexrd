@@ -1,4 +1,5 @@
 import warnings
+from typing import TypedDict
 
 import numpy as np
 
@@ -10,6 +11,23 @@ from hexrd.hed.xrdutil.utils import (
     _project_on_detector_cylinder,
     _project_on_detector_plane,
 )
+
+
+class BilinearInterpolation(TypedDict):
+    cc: np.ndarray
+    fc: np.ndarray
+    cf: np.ndarray
+    ff: np.ndarray
+    i_floor_img: np.ndarray
+    j_floor_img: np.ndarray
+    i_ceil_img: np.ndarray
+    j_ceil_img: np.ndarray
+
+
+class PanelCoordinateMapping(TypedDict):
+    xypts: np.ndarray
+    on_panel_idx: np.ndarray
+    bilinear_interp_dict: BilinearInterpolation
 
 
 def num_valid_azimuthal_pixels(pv: np.ndarray) -> np.ma.MaskedArray:
@@ -323,7 +341,7 @@ class PolarView:
 
     def _generate_coordinate_mapping(
         self, eta_slice: slice | None = None
-    ) -> dict[str, dict[str, np.ndarray]]:
+    ) -> dict[str, PanelCoordinateMapping]:
         """Generate mapping of detector coordinates to generate polar view
 
         This function is, in general, the most time consuming part of creating
@@ -352,7 +370,7 @@ class PolarView:
         )
         dummy_ome = np.zeros(angpts[0].size)
 
-        mapping = {}
+        mapping: dict[str, PanelCoordinateMapping] = {}
         for detector_id, panel in self.detectors.items():
             _project_on_detector = self._func_project_on_detector(panel)
             gvec_angs = np.vstack(
@@ -383,7 +401,7 @@ class PolarView:
 
     def _generate_nan_mask(
         self,
-        coordinate_map: dict[str, dict[str, np.ndarray]],
+        coordinate_map: dict[str, PanelCoordinateMapping],
     ) -> np.ndarray:
         """Generate the nan mask
 
@@ -421,10 +439,10 @@ class PolarView:
     def _warp_image_from_coordinate_map(
         self,
         image_dict: dict[str, np.ndarray],
-        coordinate_map: dict[str, dict[str, np.ndarray]],
+        coordinate_map: dict[str, PanelCoordinateMapping],
         nan_mask: np.ndarray,
         pad_with_nans: bool = False,
-        do_interpolation=True,
+        do_interpolation: bool = True,
     ) -> np.ma.MaskedArray:
         first_det = next(iter(self.detectors))
         # This is a flat image. We'll reshape at the end.

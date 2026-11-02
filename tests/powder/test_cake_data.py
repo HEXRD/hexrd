@@ -3,7 +3,6 @@ import json
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 import h5py
 import numpy as np
@@ -106,7 +105,10 @@ def test_command_integrates_frames(
     config_path = tmp_path / 'cake.yml'
     config_path.write_text(config_as_yaml(config))
     monkeypatch.setattr(
-        sys, 'argv', ['hexrd', 'cake-data', '--config', str(config_path), '-c', '90']
+        sys, 'argv', [
+            'hexrd', 'cake-data', '--config', str(config_path), '-c', '90',
+            '-O', json.dumps(config.image_options),
+        ]
     )
     main()
 
@@ -306,7 +308,7 @@ def test_reader_options(
     small_scan: CakeDataConfig,
     monkeypatch: pytest.MonkeyPatch,
     image_format: str,
-    options: dict[str, Any],
+    options: dict[str, object],
     error: str,
 ) -> None:
     # Validate configuration even when optional Dectris support is not installed.

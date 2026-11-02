@@ -1,14 +1,19 @@
 from hexrd.core.utils.compatibility import h5py_read_string
 
-from typing import Any
+from typing import Any, TypeAlias
+
+from numpy.typing import ArrayLike
 
 import h5py
 import numpy as np
 
 
+HDF5Value: TypeAlias = ArrayLike | None | dict[str, "HDF5Value"]
+
+
 def unwrap_dict_to_h5(
     grp: h5py.Group,
-    d: dict[str, Any],
+    d: dict[str, HDF5Value],
     asattr: bool = False,
     **dataset_options: Any,
 ) -> None:
@@ -37,15 +42,9 @@ def unwrap_dict_to_h5(
         if isinstance(item, dict):
             subgrp = grp.create_group(key)
             unwrap_dict_to_h5(subgrp, item, asattr=asattr, **dataset_options)
-        else:
+        elif item is not None:
             if asattr:
-                try:
-                    grp.attrs.create(key, item)
-                except TypeError:
-                    if item is None:
-                        continue
-                    else:
-                        raise
+                grp.attrs.create(key, item)
             else:
                 data = np.atleast_1d(item)
                 # b/i/u/f/c: bool, signed/unsigned integer, float, and complex
@@ -57,16 +56,10 @@ def unwrap_dict_to_h5(
                 except TypeError:
                     if options:
                         raise
-                    if item is None:
-                        continue
-                    else:
-                        # probably a string badness
-
-                        if isinstance(item, np.ndarray) and np.issubdtype(
-                            item.dtype, 'U'
-                        ):
-                            item = str(item)  # hdf5 files do not support unicode arrays
-                        grp.create_dataset(key, data=item)
+                    # HDF5 files do not support NumPy unicode arrays.
+                    if isinstance(item, np.ndarray) and np.issubdtype(item.dtype, 'U'):
+                        item = str(item)
+                    grp.create_dataset(key, data=item)
 
 
 def unwrap_h5_to_dict(f, d):
