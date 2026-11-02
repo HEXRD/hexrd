@@ -875,7 +875,10 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
         for (int r = 0; r < 4; ++r)
           dot(const_cast<double *>(symmetry.data(s, r, 0)), symmetry.strides(2),
               v, sizeof(double), value+r, 4, array);
-        double norm = std::sqrt(((value[0]*value[0]+value[1]*value[1])+value[2]*value[2])+value[3]*value[3]);
+        // Keep NumPy's separate square and sum operations, including on FMA CPUs.
+        volatile double squares[4] = {value[0]*value[0], value[1]*value[1],
+                                      value[2]*value[2], value[3]*value[3]};
+        double norm = std::sqrt(((squares[0]+squares[1])+squares[2])+squares[3]);
         if (!(norm > 10.*eps) || !std::isfinite(norm)) { invalid_norm = true; return; }
         bool negative = value[0] < 0;
         for (int r = 0; r < 4; ++r) {

@@ -805,12 +805,13 @@ def test_eta_ome_maps_file_paths(synthetic_config, tmp_path):
         exp.config['find_orientations'])
     assert relative.eta_ome_maps_file == str(tmp_path / 'my_maps.npz')
 
-    exp.config['find_orientations']['orientation_maps']['file'] = '/abs/maps.npz'
+    path = str(tmp_path / 'absolute_maps.npz')
+    exp.config['find_orientations']['orientation_maps']['file'] = path
     absolute = HedmExperiment.__new__(HedmExperiment)
     absolute.__dict__.update(exp.__dict__)
     absolute.find_orientations = FindOrientations.from_dict(
         exp.config['find_orientations'])
-    assert absolute.eta_ome_maps_file == '/abs/maps.npz'
+    assert absolute.eta_ome_maps_file == path
 
 
 def test_quaternion_grid_file_paths(synthetic_config, tmp_path):

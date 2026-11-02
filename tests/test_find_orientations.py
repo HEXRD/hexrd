@@ -59,17 +59,32 @@ def multiruby_experiment(example_repo_path, tmp_path, request):
 
 
 def test_generate_eta_ome_maps(multiruby_experiment):
+    from hexrd.core import imageseries
+    from hexrd.core.imageseries.omega import OmegaImageSeries
     from hexrd.hedm.find_orientations import build_eta_omega_maps
 
     experiment = multiruby_experiment
-    # The historical archive predates panel-buffer masking.
-    for detector in experiment.detectors.values():
-        detector.buffer = None
-    maps = build_eta_omega_maps(experiment, experiment.get_active_material().plane_data)
+    material = experiment.get_active_material()
+    maps = build_eta_omega_maps(experiment, material.plane_data)
     include = Path(experiment.config['working_dir'])
-    # This archive uses the same calibration as mruby_config_composite.yml.
-    with np.load(include / 'results_mruby_composite_hexrd08_py38_ruby_eta-ome_maps.npz') as ref:
-        for actual, key in ((maps.ring_maps, 'dataStore'), (maps.eta_edges, 'etaEdges'),
+    series = {spec['panel']: OmegaImageSeries(imageseries.open(
+        str(include / spec['file']), experiment.config['image_series']['format'],
+        **spec['args'])) for spec in experiment.config['image_series']['data']}
+    reference, eta_edges = experiment.instrument.extract_polar_maps(
+        material._material.planeData, series,
+        active_hkls=material.plane_data.master_hkl_ids[maps.ring_ids],
+        threshold=experiment.find_orientations.orientation_maps.threshold,
+        tth_tol=experiment.active_material.two_theta_width)
+    panels = np.array(list(reference.values()))
+    expected = np.nansum(panels, axis=0)
+    expected[np.isnan(panels).all(axis=0)] = np.nan
+    np.testing.assert_array_equal(maps.ring_maps, expected)
+    np.testing.assert_array_equal(maps.eta_edges, eta_edges)
+
+    # Angular grids are independent of the archive's older calibration.
+    with np.load(include.parent / 'results' /
+                 'results_mruby_composite_hexrd06_py27_ruby_eta-ome_maps.npz') as ref:
+        for actual, key in ((maps.eta_edges, 'etaEdges'),
                             (maps.omegas, 'omegas'), (maps.omega_edges, 'omeEdges')):
             np.testing.assert_array_equal(actual, ref[key])
         np.testing.assert_allclose(maps.eta_edges[:-1] + maps.eta_step / 2,
