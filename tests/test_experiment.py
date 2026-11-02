@@ -59,12 +59,14 @@ def test_parse_multiprocessing():
 
 
 def test_merge_config_nested_overlay():
-    base = {'a': 1, 'b': {'x': 1, 'y': 2}, 'c': [1, 2]}
-    overlay = {'b': {'y': 20, 'z': 30}, 'c': [3], 'd': 4}
+    base = {'a': 1, 'b': {'x': 1, 'y': 2}, 'c': [1, 2], 'flag': False, 'zero': 0}
+    overlay = {'a': None, 'b': {'x': None, 'y': 20, 'z': 30}, 'c': [3],
+               'd': 4, 'flag': None, 'zero': None, 'new': None}
     merged = _merge_config(base, overlay)
-    assert merged == {'a': 1, 'b': {'x': 1, 'y': 20, 'z': 30}, 'c': [3], 'd': 4}
+    assert merged == {'a': 1, 'b': {'x': 1, 'y': 20, 'z': 30}, 'c': [3],
+                      'd': 4, 'flag': False, 'zero': 0, 'new': None}
     # the inputs are not mutated
-    assert base['b'] == {'x': 1, 'y': 2} and overlay['b'] == {'y': 20, 'z': 30}
+    assert base['b'] == {'x': 1, 'y': 2} and overlay['b'] == {'x': None, 'y': 20, 'z': 30}
 
 
 def test_beam_from_dict():
@@ -444,7 +446,8 @@ def synthetic_config(tmp_path):
         },
     }
     study = {'analysis_name': 'study1',
-             'find_orientations': {'orientation_maps': {'eta_step': 10.0}}}
+             'find_orientations': {'orientation_maps': {'eta_step': 10.0},
+                                   'clustering': None}}
     path = tmp_path / 'config.yml'
     with open(path, 'w') as f:
         yaml.safe_dump_all([config, study], f, sort_keys=False)

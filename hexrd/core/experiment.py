@@ -323,12 +323,12 @@ class RoiImageSeries:
 
 
 def _merge_config(base: dict, overlay: dict) -> dict:
-    """Recursively overlay one config document on another (hexrd multi-doc yml)."""
+    """Recursively overlay config documents; nulls preserve existing values."""
     merged = dict(base)
     for key, val in overlay.items():
         if isinstance(val, dict) and isinstance(merged.get(key), dict):
             merged[key] = _merge_config(merged[key], val)
-        else:
+        elif val is not None or merged.get(key) is None:
             merged[key] = val
     return merged
 
