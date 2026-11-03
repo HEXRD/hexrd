@@ -393,8 +393,9 @@ def test_planning_copies_window_coordinates_without_replaying_extraction():
 
 @pytest.mark.parametrize('cancel_run', [False, 1, 2])
 @pytest.mark.parametrize('fallback', [False, True])
+@pytest.mark.parametrize('worker_batch', [False, True])
 def test_staged_driver_prepares_pass_before_fitting_and_restores_grain_state(
-    monkeypatch, cancel_run, fallback
+    monkeypatch, cancel_run, fallback, worker_batch
 ):
     from hexrd.hedm import fitgrains
     from hexrd.hedm._staged_spots import fit_staged
@@ -435,6 +436,7 @@ def test_staged_driver_prepares_pass_before_fitting_and_restores_grain_state(
         'imgser_dict': {'panel': series},
         'instrument': Instrument(),
         'staged_workspace': 16 * 1024**2,
+        'grain_workspace': 16 * 1024**2,
         'tth_tol': [1, 1],
     }
     params['grains_table'][:, 0] = [0, 1]
@@ -464,6 +466,9 @@ def test_staged_driver_prepares_pass_before_fitting_and_restores_grain_state(
     if fallback:
         monkeypatch.setattr(MeasurementGroup, 'add', lambda *args: False)
     clear_sparse_frame_views()
+    kwargs = {'grain_ids': [0, 1]} if worker_batch else {}
+    if worker_batch:
+        fitgrains.fit_grain_FF_init(params)
     try:
         if cancel_run:
             from hexrd.hedm._staged_spots import StagedCancelled
@@ -471,14 +476,16 @@ def test_staged_driver_prepares_pass_before_fitting_and_restores_grain_state(
             with pytest.raises(StagedCancelled):
                 threshold = 1 if cancel_run == 1 else (6 if fallback else 3) + 1
                 fit_staged(
-                    params, bar, lambda: sum(x[0] == 'read' for x in log) >= threshold
+                    params, bar,
+                    lambda: sum(x[0] == 'read' for x in log) >= threshold,
+                    **kwargs,
                 )
             assert bar.count == 0 and not written
-            assert not hasattr(fitgrains, 'paramMP')
+            assert hasattr(fitgrains, 'paramMP') == worker_batch
             assert cache.bytes == 0
             assert _cancellation_check.get() is None
             return
-        result = fit_staged(params, bar)
+        result = fit_staged(params, bar, **kwargs)
         assert [x[0] for x in result] == [0, 1]
         reads = [('read', 0), ('read', 1), ('read', 2)] * (2 if fallback else 1)
         assert log == reads + [('fit', 0, 1), ('fit', 1, 1)] + reads + [
@@ -487,9 +494,32 @@ def test_staged_driver_prepares_pass_before_fitting_and_restores_grain_state(
         ]
         assert written == {0: (0, 2), 1: (1, 2)}
         assert bar.count == 2
-        assert not hasattr(fitgrains, 'paramMP')
+        assert hasattr(fitgrains, 'paramMP') == worker_batch
         assert _cancellation_check.get() is None
+        if worker_batch:
+            # A worker handles many batches with the same parameters/reporter.
+            result = fitgrains._fit_batch([1, 0])
+            assert [x[0] for x in result] == [1, 0]
+            assert fitgrains.paramMP is params and cache.pixel_cache.bytes == 0
+            if not fallback:
+                for first in range(0, 2000, 128):
+                    ids = list(range(first, min(first + 128, 2000)))
+                    result = fitgrains._fit_batch(ids)
+                    assert [x[0] for x in result] == ids
+                    assert cache.pixel_cache.bytes == 0 and not cache.frames
+            def interrupt():
+                raise KeyboardInterrupt()
+
+            token = _cancellation_check.set(interrupt)
+            try:
+                with pytest.raises(KeyboardInterrupt):
+                    fitgrains._fit_batch([0, 1])
+                assert _cancellation_check.get() is interrupt
+            finally:
+                _cancellation_check.reset(token)
     finally:
+        if worker_batch:
+            fitgrains.fit_grain_FF_cleanup()
         cache.close()
         clear_sparse_frame_views()
 

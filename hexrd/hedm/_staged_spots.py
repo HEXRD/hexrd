@@ -420,7 +420,7 @@ def measure_windows(windows, cache, cancel=check_cancelled, frame_ranks=None):
     return visits
 
 
-def fit_staged(params, bar, cancel_callback=None):
+def fit_staged(params, bar, cancel_callback=None, grain_ids=None):
     """Advance grains by pass without repeating any optimizer work."""
     from hexrd.hedm import fitgrains as fitting
     from hexrd.hedm._progress import activity, diagnostic, _cancellation_check
@@ -429,8 +429,12 @@ def fit_staged(params, bar, cancel_callback=None):
         if cancel_callback is not None and cancel_callback():
             raise StagedCancelled()
 
-    fitting.fit_grain_FF_init(params)
-    ids = [int(x) for x in params['grains_table'][:, 0]]
+    owns_state = grain_ids is None
+    if owns_state:
+        fitting.fit_grain_FF_init(params)
+    ids = [
+        int(x) for x in (params['grains_table'][:, 0] if owns_state else grain_ids)
+    ]
     steps = {i: fitting._fit_grain_steps(i) for i in ids}
     pending, last_spots, pass_indices, results = {}, {}, {}, {}
     cache = next(iter(params['imgser_dict'].values()))._adapter.cache
@@ -442,7 +446,7 @@ def fit_staged(params, bar, cancel_callback=None):
         if cache.pixel_cache is not None:
             cache.pixel_cache.clear()
         cache.pixel_cache = None
-    budget = params['staged_workspace']
+    budget = params['staged_workspace'] if owns_state else params['grain_workspace']
     groups_done = 0
     frames_done = windows_done = 0
     cancelled = False
@@ -463,7 +467,8 @@ def fit_staged(params, bar, cancel_callback=None):
                     done.value, len(params['tth_tol']), params.get('progress_pass', 0)
                 )
             )
-            bar.update(1)
+            if bar is not None:
+                bar.update(1)
         finally:
             pass_indices[grain] = params.get('progress_pass', 0)
             if 'pending_spot_data' in params:
@@ -495,7 +500,9 @@ def fit_staged(params, bar, cancel_callback=None):
             )
 
     cancel_token = _cancellation_check.set(
-        requested_cancel if cancel_callback is not None else None
+        requested_cancel
+        if cancel_callback is not None
+        else _cancellation_check.get()
     )
     try:
         for grain in ids:
@@ -545,5 +552,6 @@ def fit_staged(params, bar, cancel_callback=None):
             if cache.pixel_cache is not None:
                 cache.pixel_cache.clear()
             cache.clear_payload()
-            fitting.fit_grain_FF_cleanup()
+            if owns_state:
+                fitting.fit_grain_FF_cleanup()
             _cancellation_check.reset(cancel_token)

@@ -249,3 +249,51 @@ def test_pool_startup_failure_restores_gc_and_closes_progress_queue(monkeypatch)
             {'grains_table': np.zeros((2, 21))}, context, 2, None, True, None
         )
     assert events == ['freeze', 'unfreeze', 'close', 'join']
+
+
+def test_batched_pool_preserves_result_order_and_dashboard_completion(monkeypatch):
+    from queue import Empty
+    from hexrd.hedm import fitgrains
+
+    dashboard = Dashboard(FIT_STAGES)
+    dashboard.start()
+    completed, sizes = [], []
+    grains = np.zeros((2000, 21))
+    grains[:, 0] = np.arange(len(grains))[::-1]
+
+    def empty():
+        raise Empty()
+
+    queue = SimpleNamespace(
+        get_nowait=empty, close=lambda: None, join_thread=lambda: None
+    )
+
+    def submit(function, jobs, chunksize):
+        sizes.extend(map(len, jobs))
+        result = [function(job) for job in jobs]
+        return SimpleNamespace(ready=lambda: True, get=lambda: result)
+
+    pool = SimpleNamespace(
+        map_async=submit, close=lambda: None,
+        terminate=lambda: None, join=lambda: None,
+    )
+    context = SimpleNamespace(
+        get_start_method=lambda: 'spawn', Queue=lambda **kw: queue,
+        Pool=lambda *args: pool,
+    )
+    monkeypatch.setattr(
+        fitgrains, '_fit_batch',
+        lambda ids: [(int(i), 1.0, 0.0, np.zeros(12)) for i in ids],
+    )
+    try:
+        result = fitgrains._fit_parallel(
+            dict(grains_table=grains, grain_cache=object(), tth_tol=[1, 1, 1]),
+            context, 10, SimpleNamespace(update=completed.append), False, None,
+        )
+        assert [x[0] for x in result] == list(grains[:, 0])
+        assert sum(completed) == 2000 and len(dashboard.finished_grains) == 2000
+        assert all(row[1] == 'Done' for row in dashboard.grains.values())
+        assert max(sizes) <= 128 and max(sizes) - min(sizes) <= 1
+        assert len(sizes) % 10 == 0
+    finally:
+        dashboard.close()

@@ -153,9 +153,20 @@ def _fit_grain_with_metrics(grain_id):
     """
     from hexrd.hedm._fit_progress import current_reporter
 
-    result = fit_grain_FF_reduced(grain_id)
+    result = (
+        _fit_batch(grain_id) if np.ndim(grain_id) else fit_grain_FF_reduced(grain_id)
+    )
     reporter = current_reporter()
     return result, dict(reporter.data) if reporter is not None else None
+
+
+def _fit_batch(grain_ids):
+    """Share bounded frame reads without sharing any grain's fit decisions."""
+    from hexrd.hedm._staged_spots import fit_staged
+
+    if len(grain_ids) == 1:
+        return [fit_grain_FF_reduced(grain_ids[0])]
+    return fit_staged(paramMP, None, grain_ids=grain_ids)
 
 
 def _write_pending_spots(grain_id):
@@ -493,6 +504,15 @@ def _fit_parallel(params, context, ncpus, bar, show_progress, check_if_canceled_
     dashboard = current_dashboard()
     nproc = min(ncpus, len(params['grains_table']))
     chunksize = max(1, len(params['grains_table']) // (64 * nproc))
+    ids = np.array(params['grains_table'][:, 0], dtype=int)
+    batched = params.get('grain_cache') is not None and len(ids) > nproc
+    if batched:
+        # Equal batches, at most 128 grains each, keep the last wave balanced.
+        batches = nproc * ((len(ids) + 128 * nproc - 1) // (128 * nproc))
+        jobs = np.array_split(ids, min(len(ids), batches))
+        chunksize = 1
+    else:
+        jobs = ids
 
     logger.info("\tstarting fit on %d processes with chunksize %d", nproc, chunksize)
     freeze = context.get_start_method() == 'fork' and gc.get_freeze_count() == 0
@@ -521,9 +541,9 @@ def _fit_parallel(params, context, ncpus, bar, show_progress, check_if_canceled_
             (
                 _fit_grain_with_metrics
                 if dashboard is not None
-                else fit_grain_FF_reduced
+                else (_fit_batch if batched else fit_grain_FF_reduced)
             ),
-            np.array(params['grains_table'][:, 0], dtype=int),
+            jobs,
             chunksize=chunksize,
         )
         completed = 0
@@ -546,6 +566,8 @@ def _fit_parallel(params, context, ncpus, bar, show_progress, check_if_canceled_
                 if snapshot is not None:
                     report_fit_metrics(snapshot)
             fit_results = records
+        if batched:
+            fit_results = [result for batch in fit_results for result in batch]
         completed += _consume_fit_progress(progress_queue, bar)
         bar.update(max(0, len(fit_results) - completed))
         for result in fit_results:
@@ -755,10 +777,17 @@ def fit_grains(
                 fit_grain_FF_init(params)
                 try:
                     fit_results = []
-                    for grain_id in np.array(grains_table[:, 0], dtype=int):
+                    ids = np.array(grains_table[:, 0], dtype=int)
+                    batch_size = 128 if params['grain_cache'] is not None else 1
+                    for first in range(0, len(ids), batch_size):
                         check_cancelled()
-                        fit_results.append(fit_grain_FF_reduced(grain_id))
-                        bar.update(1)
+                        batch = ids[first : first + batch_size]
+                        fit_results.extend(
+                            _fit_batch(batch)
+                            if batch_size > 1
+                            else [fit_grain_FF_reduced(batch[0])]
+                        )
+                        bar.update(len(batch))
                 finally:
                     fit_grain_FF_cleanup()
             else:

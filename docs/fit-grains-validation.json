@@ -1,5 +1,212 @@
 {
   "latest_improvement": {
+    "date": "2026-11-03",
+    "performance_reference_commit": "8b981bdf58ca6d8dcfd81761b4ad841eb90bc6aa",
+    "scope": "Default grain mode on large FCH5 scans with at least 512 MiB per worker and multiple grains per worker task. No new speedup claimed for explicit staged mode or eager Inconel.",
+    "changes": [
+      "Share sparse frame reads across up to 128 independent grains per worker task using the existing bounded staged coordinator.",
+      "Balance task grain counts across workers; retain input result order and each grain's exact tolerance/refit sequence.",
+      "Use the existing lossless pixel cache within a batch, clear it on batch exit, and preserve inherited cancellation callbacks."
+    ],
+    "net_runtime_lines": 37,
+    "new_runtime_modules": 0,
+    "native_extension_changed": false,
+    "native_extension_sha256": "a0888937b0a0ecdc8f9bb5102bc16f4d03fc787e25ff8f5ba2ca4b382f6a87d0",
+    "cli_options_and_dashboard_layout_changed": false,
+    "guard": {
+      "sequential_dataset_runs": true,
+      "direct_fch5_reads": true,
+      "image_scratch": false,
+      "blas_threads": 1,
+      "single_process_address_limit_mib": 4096,
+      "two_worker_per_process_address_limit_mib": 1536,
+      "two_worker_tree_rss_watchdog_mib": 3072
+    },
+    "benchmarks": [
+      {
+        "case": "grain-4",
+        "grains": 4,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          19.305203656999993,
+          18.822990989000118
+        ],
+        "after_seconds": [
+          14.41363937999995,
+          13.994489670000121
+        ],
+        "speedup": 1.3421578935695526,
+        "before_peak_tree_rss_bytes": 807845888,
+        "after_peak_tree_rss_bytes": 811454464
+      },
+      {
+        "case": "grain-13",
+        "grains": 13,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          54.931277131000115,
+          54.6981518030002
+        ],
+        "after_seconds": [
+          25.18510754800036,
+          24.472807271999955
+        ],
+        "speedup": 2.2076929595490338,
+        "before_peak_tree_rss_bytes": 811806720,
+        "after_peak_tree_rss_bytes": 856981504
+      },
+      {
+        "case": "parallel-32",
+        "grains": 32,
+        "fitting_workers": 2,
+        "aggregate_cache_mib": 1024.0,
+        "before_seconds": [
+          69.74245160200007,
+          67.17724281600022
+        ],
+        "after_seconds": [
+          32.47150794100003,
+          32.79892460199994
+        ],
+        "speedup": 2.0977292333369784,
+        "before_peak_tree_rss_bytes": 1689751552,
+        "after_peak_tree_rss_bytes": 1809457152
+      },
+      {
+        "case": "parallel-160",
+        "grains": 160,
+        "fitting_workers": 2,
+        "aggregate_cache_mib": 1024.0,
+        "before_seconds": [
+          304.01712270200005
+        ],
+        "after_seconds": [
+          73.50743010900032
+        ],
+        "speedup": 4.1358692890118585,
+        "before_peak_tree_rss_bytes": 1691901952,
+        "after_peak_tree_rss_bytes": 2415337472
+      },
+      {
+        "case": "inconel-grain-200",
+        "grains": 200,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          6.156503207999776
+        ],
+        "after_seconds": [
+          6.157812016000207
+        ],
+        "speedup": 0.9997874556746731,
+        "before_peak_tree_rss_bytes": 517697536,
+        "after_peak_tree_rss_bytes": 517251072
+      },
+      {
+        "case": "sven-staged-52",
+        "grains": 52,
+        "fitting_workers": 1,
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          53.68864105900002
+        ],
+        "after_seconds": [
+          55.42182185499996
+        ],
+        "speedup": 0.9687274662219791,
+        "before_peak_tree_rss_bytes": 1039843328,
+        "after_peak_tree_rss_bytes": 1038598144
+      }
+    ],
+    "timing_interpretation": "4/13/32-grain comparisons use medians of two runs per revision. 160-grain, Inconel and explicit staged comparisons use one run per revision. All include fit_grains image setup and spot writing. Separate instrumented read-count runs are excluded from these timings.",
+    "correctness": {
+      "focused_tests_passed": 450,
+      "focused_test_address_limit_mib": 1536,
+      "master_example_runs_bitwise_identical": 18,
+      "sven_four_grains_bitwise_master": true,
+      "benchmark_fit_arrays_bitwise_identical": true,
+      "spot_files_byte_identical": 461,
+      "all_written_grains_out_byte_identical": true,
+      "all_written_grains_npz_arrays_bitwise_identical": true,
+      "comparisons": {
+        "arrays": 421327,
+        "scalars": 338065
+      }
+    },
+    "scaling": {
+      "orchestration_regression_grains": 2000,
+      "regression_scope": "Small synthetic source checks exact measurements and cleanup over repeated batches; a separate 2,000-result test checks pool ordering, balanced dispatch and dashboard completion. Neither measures dataset throughput.",
+      "largest_real_grain_performance_sample": 160,
+      "real_grain_selection": "160 evenly spaced rows from the 920 Sven estimates, IDs renumbered; original row mapping retained in local artifacts.",
+      "full_920_or_2000_default_mode_throughput_measured": false,
+      "remote_hdd_performance_measured": false
+    },
+    "sparse_read_counts": {
+      "grains": 13,
+      "interpretation": "Instrumented serial runs; decoded_bytes is decoder-reported work, not physical disk bytes. Frame visits and sampling calls are observed counters.",
+      "before": {
+        "frame_visits": 70769,
+        "sample_calls": 30368,
+        "decoded_bytes": 105913064882,
+        "queried_unique_pixels": 23229875,
+        "missing_unique_pixels": 17503530
+      },
+      "after": {
+        "frame_visits": 10795,
+        "sample_calls": 5270,
+        "decoded_bytes": 96057954570,
+        "queried_unique_pixels": 22766602,
+        "missing_unique_pixels": 17089992
+      }
+    },
+    "cancellation": {
+      "runs": [
+        {
+          "mode": "staged",
+          "method": "button",
+          "seconds_from_cancel_request_to_cleanup": 0.0051458009997986665,
+          "seconds_including_simulated_ui_dispatch": 3.334181325999907,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "mode": "staged",
+          "method": "ctrl+c",
+          "seconds_from_cancel_request_to_cleanup": 0.005654684000091947,
+          "seconds_including_simulated_ui_dispatch": 0.14015623500017682,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "mode": "grain",
+          "method": "button",
+          "seconds_from_cancel_request_to_cleanup": 0.1845382830001654,
+          "seconds_including_simulated_ui_dispatch": 0.4999381450002147,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "mode": "grain",
+          "method": "ctrl+c",
+          "seconds_from_cancel_request_to_cleanup": 0.22547604500005036,
+          "seconds_including_simulated_ui_dispatch": 0.23478652100038744,
+          "cancelled_during_real_fch5_reads": true
+        }
+      ],
+      "per_process_address_limit_mib": 2048,
+      "memory": {
+        "peak_bytes": {
+          "rss": 1395486720,
+          "pss": 1237335040,
+          "uss": 1102778368
+        },
+        "peak_processes": 3,
+        "samples": 151,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "artifacts": ".local-bench/speed3 (ignored local benchmark outputs)"
+  },
+  "previous_grain_improvement": {
     "date": "2026-10-30",
     "performance_reference_commit": "0596c3322b09c228138248253152531cc54d8ea9",
     "scope": "Additional speedup in default grain mode on large FCH5 scans with at least 512 MiB per fitting worker; staged and eager paths unchanged.",

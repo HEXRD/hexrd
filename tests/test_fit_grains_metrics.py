@@ -156,7 +156,10 @@ def test_dashboard_shows_grain_progress_without_fit_activity_panel(size, tmp_pat
     assert app.failure is None
 
 
-def test_final_result_recovers_snapshot_lost_to_a_full_progress_queue(monkeypatch):
+@pytest.mark.parametrize('batched', [False, True])
+def test_final_result_recovers_snapshot_lost_to_a_full_progress_queue(
+    monkeypatch, batched
+):
     from hexrd.hedm import fitgrains
 
     dashboard = Dashboard(FIT_STAGES)
@@ -167,16 +170,20 @@ def test_final_result_recovers_snapshot_lost_to_a_full_progress_queue(monkeypatc
     set_reporter(reporter)
     reporter.grain(4, 'Extracting', 1, 3)  # Fills the queue.
     expected = (4, 1.0, 0.01, np.zeros(12))
+    if batched:
+        expected = [expected]
 
     def fit(grain):
         for _ in range(3):
             reporter.reflections(100)
-        reporter.grain(grain, 'Done', 3, 3)  # Last update is dropped too.
+        reporter.grain(4, 'Done', 3, 3)  # Last update is dropped too.
         return expected
 
-    monkeypatch.setattr(fitgrains, 'fit_grain_FF_reduced', fit)
+    monkeypatch.setattr(
+        fitgrains, '_fit_batch' if batched else 'fit_grain_FF_reduced', fit
+    )
     try:
-        result, snapshot = fitgrains._fit_grain_with_metrics(4)
+        result, snapshot = fitgrains._fit_grain_with_metrics([4] if batched else 4)
         assert result is expected
         old = queue.get_nowait()
         assert old['pass_done'] == 0

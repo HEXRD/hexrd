@@ -25,13 +25,16 @@ fit_grains:
     reuse_pixels: true
 ```
 
-`measurement_mode` defaults to `grain`, which processes grains independently
+`measurement_mode` defaults to `grain`, which fits grains independently
 with the configured multiprocessing setting. `staged` advances grains by
 fitting pass and shares source-frame reads across a memory-bounded group.
 For large FCH5 scans with at least 512 MiB available per fitting worker, grain
-mode now shares frame reads across all patch batches within each grain's pass.
-It uses the same staged coordinator, without changing the grain fit order,
-command options or dashboard. Smaller caches retain the existing extraction path.
+mode now shares frame reads across up to 128 grains per worker task, using the
+same staged coordinator. Parallel tasks have similar grain counts to avoid a
+short final wave leaving most workers idle. Each grain keeps its own tolerance
+passes, fitted parameters, refit and output; results retain input order. Command
+options and dashboard layout are unchanged. Smaller caches and single-grain
+tasks retain the existing extraction path.
 
 `image_cache.mode` accepts `auto` (default), `lazy` and `eager`. Lazy readers
 open files on demand, share an aggregate cache across detector/ROI views in
@@ -87,12 +90,13 @@ immutable byte blocks, optionally compressed losslessly with C-Blosc. Resizing
 the cache evicts entries without migrating their representation. Each compressed
 array decodes to at most 1 MiB; one decoded key/value pair is memoized. Without
 the native codec, entries use raw byte blocks within the same allowance.
-Grain mode retains raw pixels only until that grain finishes, avoiding compression
-and growth with the number of grains. Its 512 MiB workspace comes from the existing
-per-worker allowance: decoder/index storage and retained pixels each receive at
-most 128 MiB, leaving room for planned geometry and live windows. Oversized plans
-use the existing bounded extraction fallback. `reuse_pixels: false` disables
-retained source pixels while preserving shared frame reads.
+Single-grain tasks retain raw pixels until that grain finishes. Shared batches
+use the staged lossless cache and clear it after the batch. Their 512 MiB workspace
+comes from the existing per-worker allowance; planning, decoder/index storage,
+retained pixels and live windows share the same accounting. Groups that exceed
+the workspace are split, and oversized individual plans use the existing bounded
+extraction fallback. `reuse_pixels: false` disables retained source pixels while
+preserving shared frame reads.
 All pixel-cache requests use the native query path. Unsupported requests bypass
 the cache and use the regular reader. HDF5 fallback sampling uses one chunk
 accessor and releases its borrowed chunk on completion or cancellation.
@@ -146,6 +150,53 @@ sequentially and keep BLAS single-threaded. Compare all example studies in both
 measurement modes with master, as well as the Sven fits, extracted spots and
 spot files. Guarded master validation uses bounded pixel input when eager
 loading would exceed local RAM.
+
+### Shared reads between grains (current)
+
+The current change is measured against `8b981bdf`, the previous optimization,
+not master. Each worker shares exact sparse reads across a bounded batch of
+independent grains. No optimizer, threshold, segmentation or floating-point
+rules change.
+
+| Sven grains | Fitting workers | Before | After | Speedup | After peak tree RSS |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 4 | 1 | 19.1 s | 14.2 s | 1.34× | 0.76 GiB |
+| 13 | 1 | 54.8 s | 24.8 s | 2.21× | 0.80 GiB |
+| 32 | 2 | 68.5 s | 32.6 s | 2.10× | 1.69 GiB |
+| 160 | 2 | 304.0 s | 73.5 s | 4.14× | 2.25 GiB |
+
+The 4/13/32-grain figures are medians of two runs per revision. The 160-grain
+comparison is one run per revision using evenly sampled real estimates. All
+runs write spot files, use direct FCH5 reads and allocate 512 MiB of workspace
+per worker. Serial benchmarks have a 4 GiB address-space limit; two-worker runs
+have 1.5 GiB per process and a 3 GiB process-tree RSS watchdog. The largest
+comparison increases peak RSS from 1.58 to
+2.25 GiB while keeping the workspace allowance unchanged.
+
+This adds 37 net runtime lines, reuses the existing C++ reader/statistics kernels
+and lossless Blosc cache, and requires no binary rebuild or new dependency.
+The sparse path already avoids full detector-frame expansion. A separate
+13-grain instrumented comparison reduced frame visits from
+70,769 to 10,795 and FCH5 sampling calls from
+30,368 to 5,270. Only the original small angular windows
+are reconstructed for unchanged segmentation and centroid arithmetic.
+
+All 450 focused tests pass, all 18 example runs match master bitwise, and the
+bounded four-grain Sven comparison matches the master scientific reference.
+Benchmark fits and returned spot arrays are bitwise identical; all 461 spot
+files and generated `grains.out` files match byte for byte, with identical
+`grains.npz` arrays. During actual FCH5 work, grain-mode cancellation cleaned
+up within 0.23 seconds after the Cancel/CTRL+C request was received. The full
+TUI dispatch and cleanup timings are recorded separately in the validation JSON.
+
+A 2,000-grain synthetic orchestration check validates repeated batches, cleanup,
+result ordering and progress. Full 920/2,000-grain default-mode throughput and
+remote HDD performance remain unmeasured. The eager Inconel check took
+6.16 → 6.16 seconds; explicit staged Sven took
+53.69 → 55.42 seconds. These paths receive no new speedup.
+See [the validation record](fit-grains-validation.json) for measurements and scope.
+
+### Shared reads within a grain (previous)
 
 The additional per-grain batching change is compared with `0596c332`, the branch
 revision before this change (not master):
