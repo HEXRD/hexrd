@@ -149,6 +149,22 @@ def report_fit_metrics(snapshot):
         old = dashboard.fit_workers.get(snapshot['worker'])
         if old is None or snapshot['sequence'] > old['sequence']:
             dashboard.fit_workers[snapshot['worker']] = snapshot
+            fitting = dashboard.stages.get('Fit grains')
+            if fitting is not None and fitting.status == 'running':
+                workers = [
+                    s
+                    for s in dashboard.fit_workers.values()
+                    if s['state'] == 'Extracting' and s['batch_total']
+                ]
+                detail = snapshot['phase']
+                if workers:
+                    done = sum(s['batch_done'] for s in workers)
+                    total = sum(s['batch_total'] for s in workers)
+                    detail += (
+                        f'\nCurrent batches: {done:,}/{total:,} frames '
+                        f'· {len(workers)} workers'
+                    )
+                fitting.detail = detail
             grain = snapshot['grain']
             if grain is not None:
                 dashboard.fit_grain_metrics.pop(grain, None)

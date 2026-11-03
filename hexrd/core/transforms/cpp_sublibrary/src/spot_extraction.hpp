@@ -86,7 +86,8 @@ class BloscReader {
 
   int decodeData(const unsigned char *source, int64_t size,
                  unsigned char *target, int64_t expected, int64_t itemsize,
-                 int mask, int64_t first, int64_t last) const {
+                 int mask, int64_t first, int64_t last,
+                 uint64_t requested = 0) const {
     int result = -1;
     if (mask == 1) {
       if (size != expected)
@@ -104,6 +105,39 @@ class BloscReader {
       sizes(source, &raw, &compressed, &block);
       meta(source, &type, &flags);
       if (type == size_t(itemsize) && block && block % itemsize == 0) {
+        if (requested) {
+          // A bit covers 16 KiB, independent of the codec's block size.
+          // Decode only codec blocks intersecting requested source samples.
+          int total = 0;
+          int64_t begin = -1;
+          for (int64_t left = 0; left <= expected; left += block) {
+            const int64_t right = std::min(expected, left + int64_t(block));
+            bool needed = false;
+            if (left < expected) {
+              const int lo = int(left / 16384), hi = int((right - 1) / 16384);
+              const uint64_t bits =
+                  hi == 63 ? UINT64_MAX : (uint64_t(1) << (hi + 1)) - 1;
+              needed = (requested & (bits & (UINT64_MAX << lo))) != 0;
+            }
+            if (needed && begin < 0)
+              begin = left;
+            if (begin >= 0 && (!needed || right == expected)) {
+              const int64_t end = needed ? right : left;
+              result =
+                  begin == 0 && end == expected
+                      ? decompress(source, target, size_t(expected), 1)
+                      : getitem(source, int(begin / itemsize),
+                                int((end - begin) / itemsize), target + begin);
+              if (result != end - begin)
+                return -3;
+              total += result;
+              begin = -1;
+            }
+            if (right == expected)
+              break;
+          }
+          return total;
+        }
         const int64_t left = first * itemsize / block * block;
         const int64_t right = std::min(
             expected, int64_t((last * itemsize + block - 1) / block * block));

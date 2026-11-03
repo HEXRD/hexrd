@@ -416,7 +416,7 @@ class FitGrainsDashboard(WorkflowDashboard):
         table.tooltip = (
             'Latest 32 grains. Work shows frame sampling within a patch batch, '
             'then reflections processed in the current pass. Age is time since '
-            'the worker last reported activity, not an estimate of time remaining.'
+            'this grain was updated. Shared scans appear in stage details.'
         )
         for column in (
             'Grain',
@@ -471,5 +471,5 @@ class FitGrainsDashboard(WorkflowDashboard):
                     if table.get_cell(str(grain), column) != value:
                         table.update_cell(str(grain), column, value, update_width=True)
         table.border_subtitle = (
-            'Age = time since worker activity' if rows else 'Waiting for fitting'
+            'Age = time since grain update' if rows else 'Waiting for fitting'
         )

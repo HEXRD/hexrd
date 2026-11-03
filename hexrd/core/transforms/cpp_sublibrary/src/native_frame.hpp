@@ -55,13 +55,21 @@ class FrameSampler {
   };
   struct Span {
     int64_t first, last;
+    uint64_t requested = 0;
   };
   struct Job {
     int64_t index, first, last;
+    uint64_t requested;
     std::unique_ptr<unsigned char[]> data;
   };
   using Jobs = std::map<int64_t, std::shared_ptr<Job>>;
   using Store = void (*)(void *, int64_t, const unsigned char *, int64_t);
+
+  static uint64_t requestedBytes(int64_t first, int64_t last) {
+    const int lo = int(first / 16384), hi = int((last - 1) / 16384);
+    const uint64_t bits = hi == 63 ? UINT64_MAX : (uint64_t(1) << (hi + 1)) - 1;
+    return bits & (UINT64_MAX << lo);
+  }
 
   BloscReader &reader;
   const FrameDirectory &coordinates, &values;
@@ -180,7 +188,7 @@ class FrameSampler {
              job->data.reset(new unsigned char[size_t(expected)]);
              return reader.decodeData(source, size, job->data.get(), expected,
                                       directory.itemsize, mask, job->first,
-                                      job->last);
+                                      job->last, job->requested);
            }});
     }
     return runReads(std::move(reads));
@@ -221,7 +229,7 @@ class FrameSampler {
                          auto decoded = buffer.output();
                          const int result = reader.decodeData(
                              source, size, decoded, expected, values.itemsize,
-                             mask, span.first, span.last);
+                             mask, span.first, span.last, span.requested);
                          if (result < 0)
                            return result;
                          for (size_t i = first; i < last; ++i) {
@@ -240,6 +248,7 @@ class FrameSampler {
     output->index = index;
     output->first = span.first;
     output->last = span.last;
+    output->requested = span.requested;
     return output;
   }
   template <typename T>
@@ -320,6 +329,7 @@ public:
         auto &span = inserted.first->second;
         span.first = std::min(span.first, incoming.first);
         span.last = std::max(span.last, incoming.last);
+        span.requested |= requestedBytes(incoming.first * 2, incoming.last * 2);
         if (spans.size() > 128 ||
             int64_t(spans.size()) * coordinates.chunk * 2 +
                     n * int64_t(sizeof(Query)) + 65536 >
@@ -415,6 +425,8 @@ public:
       auto &span = inserted.first->second;
       span.first = std::min(span.first, offset);
       span.last = std::max(span.last, offset + 1);
+      span.requested |= requestedBytes(offset * values.itemsize,
+                                      (offset + 1) * values.itemsize);
       if (spans.size() > 128 || !allocated(values, 0, index))
         return 2;
     }

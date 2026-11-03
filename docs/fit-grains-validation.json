@@ -1,6 +1,179 @@
 {
   "latest_improvement": {
     "date": "2026-11-03",
+    "performance_reference_commit": "8c9eda8d30852a37aff3200ddb8fab9227a3bf78",
+    "scope": "Selective codec-block decoding in native FCH5 sampling, plus startup visibility in the existing fit-grains dashboard. No scientific settings or arithmetic changed.",
+    "changes": [
+      "Track requested source bytes with a 64-bit mask per chunk; skip unneeded interior codec blocks while retaining complete queried-row validation.",
+      "Retain the full decoder when every codec block is requested; no additional read workers, dependencies, scratch image files or floating-point compiler relaxations.",
+      "Report planning and chunk indexing before expensive work; show current-batch frame counts across workers before completed-grain counts move.",
+      "Attribute shared scans to their batch, not the last planned grain; retain existing UI layout and controls."
+    ],
+    "net_runtime_lines": 84,
+    "new_runtime_modules": 0,
+    "native_extension_changed": true,
+    "native_extension_sha256": "4ce676e426595eb1d05dea9b3fa0d8191d4e01d74e0d26db4ea5028fc4d415fb",
+    "cli_options_and_dashboard_layout_changed": false,
+    "guard": {
+      "sequential_dataset_runs": true,
+      "direct_fch5_reads": true,
+      "image_scratch": false,
+      "blas_threads": 1,
+      "single_process_address_limit_mib": 4096,
+      "two_worker_per_process_address_limit_mib": 1536,
+      "two_worker_tree_rss_watchdog_mib": 3072
+    },
+    "benchmarks": [
+      {
+        "grains": 13,
+        "fitting_workers": 1,
+        "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+        "grains_sha256": "19c42ecd80b00abcf215ac8cf1403d032efc8e93d2edf7249ec8bd0b9c3307e9",
+        "aggregate_cache_mib": 512.0,
+        "before_seconds": [
+          26.94531098599873,
+          25.809480893998625
+        ],
+        "after_seconds": [
+          24.16761284399945,
+          23.365714203000607
+        ],
+        "speedup": 1.1098485033003143,
+        "before_peak_tree_rss_bytes": 854450176,
+        "after_peak_tree_rss_bytes": 857276416
+      },
+      {
+        "grains": 160,
+        "fitting_workers": 2,
+        "config_sha256": "1c170617684c23bdd81f30ecdd59148d63b60ee1a85ad210959a5b0a0817c9df",
+        "grains_sha256": "55a1a824dd9f13e9ad15003dd630779825b9f8fcd49c7bfe098380f1ab958ba7",
+        "aggregate_cache_mib": 1024.0,
+        "before_seconds": [
+          73.55026437199922
+        ],
+        "after_seconds": [
+          74.12110407699947
+        ],
+        "speedup": 0.9922985536695832,
+        "before_peak_tree_rss_bytes": 2415382528,
+        "after_peak_tree_rss_bytes": 2416345088
+      }
+    ],
+    "timing_interpretation": "13 grains: median of two runs per revision. 160 real stratified grains: one run per revision; effectively unchanged. Timings include fit_grains image setup and spot writing. Compressed chunks are still read in full; selective decoding reduces codec work, not physical read size.",
+    "additional_2x_goal_met": false,
+    "correctness": {
+      "focused_tests_passed": 452,
+      "focused_test_address_limit_mib": 1536,
+      "master_example_runs_bitwise_identical": 18,
+      "sven_four_grains_bitwise_master": true,
+      "comparisons": {
+        "arrays": 82611,
+        "scalars": 66360
+      },
+      "cases": [
+        {
+          "case": "final-after13",
+          "grains": 13,
+          "spot_files_byte_identical": 13,
+          "fit_arrays_bitwise_identical": true,
+          "grains_out_byte_identical": true,
+          "grains_npz_arrays_bitwise_identical": true,
+          "returned_spot_arrays_compared": true
+        },
+        {
+          "case": "final-after160",
+          "grains": 160,
+          "spot_files_byte_identical": 160,
+          "fit_arrays_bitwise_identical": true,
+          "grains_out_byte_identical": true,
+          "grains_npz_arrays_bitwise_identical": true,
+          "returned_spot_arrays_compared": false
+        }
+      ],
+      "returned_spot_array_scope": "13-grain pair and four-grain master reference; the 160-grain pair compares fits and written spots, not returned spot arrays."
+    },
+    "startup": {
+      "grains": 13,
+      "fitting_workers": 1,
+      "measurement_mode": "grain",
+      "interpretation": "Seconds from fit_grains entry with dashboard telemetry active. This measures visibility of work before the first completed grain, not a reduction in first-grain latency.",
+      "first_report_seconds": 0.6780561969990231,
+      "first_planning_report_seconds": 0.6781420699990122,
+      "first_indexing_report_seconds": 1.0370675989997835,
+      "first_sampled_frames_report_seconds": 3.083252241000082,
+      "first_sampled_frames_count": 33,
+      "first_completed_grain_seconds": 23.362364012999024,
+      "total_seconds": 23.459743506999075,
+      "memory": {
+        "peak_bytes": {
+          "rss": 852160512,
+          "pss": 844064768,
+          "uss": 840859648
+        },
+        "peak_processes": 1,
+        "samples": 220,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "cancellation": {
+      "runs": [
+        {
+          "mode": "staged",
+          "method": "button",
+          "seconds_from_cancel_request_to_cleanup": 0.0502804110001307,
+          "seconds_including_simulated_ui_dispatch": 3.369080970000141,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "mode": "staged",
+          "method": "ctrl+c",
+          "seconds_from_cancel_request_to_cleanup": 0.0019872200009558583,
+          "seconds_including_simulated_ui_dispatch": 0.2213343299990811,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "mode": "grain",
+          "method": "button",
+          "seconds_from_cancel_request_to_cleanup": 0.10533572799977264,
+          "seconds_including_simulated_ui_dispatch": 0.7294525179986522,
+          "cancelled_during_real_fch5_reads": true
+        },
+        {
+          "mode": "grain",
+          "method": "ctrl+c",
+          "seconds_from_cancel_request_to_cleanup": 0.2543712759998016,
+          "seconds_including_simulated_ui_dispatch": 0.2647136239993415,
+          "cancelled_during_real_fch5_reads": true
+        }
+      ],
+      "per_process_address_limit_mib": 2048,
+      "memory": {
+        "peak_bytes": {
+          "rss": 1399078912,
+          "pss": 1234470912,
+          "uss": 1108353024
+        },
+        "peak_processes": 3,
+        "samples": 144,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "scaling": {
+      "orchestration_regression_grains": 2000,
+      "regression_scope": "Small synthetic source checks exact measurements and cleanup over repeated batches; a separate 2,000-result test checks pool ordering, balanced dispatch and dashboard completion. Neither measures dataset throughput.",
+      "largest_real_grain_performance_sample": 160,
+      "real_grain_selection": "160 evenly spaced rows from the 920 Sven estimates, IDs renumbered; original row mapping retained in local artifacts.",
+      "full_920_or_2000_default_mode_throughput_measured": false,
+      "remote_hdd_performance_measured": false
+    },
+    "discarded_experiments": [
+      "Native row sharding",
+      "Speculative neighboring-pixel cache"
+    ],
+    "artifacts": ".local-bench/speed4 (ignored local benchmark outputs)"
+  },
+  "shared_batch_improvement": {
+    "date": "2026-11-03",
     "performance_reference_commit": "8b981bdf58ca6d8dcfd81761b4ad841eb90bc6aa",
     "scope": "Default grain mode on large FCH5 scans with at least 512 MiB per worker and multiple grains per worker task. No new speedup claimed for explicit staged mode or eager Inconel.",
     "changes": [

@@ -480,6 +480,13 @@ def fit_staged(params, bar, cancel_callback=None, grain_ids=None):
             return
         check_cancelled()
         activity(f'Segment peaks: {len(group.plans)} grains · shared frame reads')
+        reporter = current_reporter()
+        if reporter is not None:
+            # The scan belongs to the group, not the last grain planned.
+            reporter.data.update(grain=None, batch_done=0, batch_total=0)
+            reporter.phase(
+                f'Preparing shared reads: {len(group.plans)} grains', force=True
+            )
         group.measure(cache, check_cancelled)
         for plan in group.plans:
             check_cancelled()
@@ -510,9 +517,16 @@ def fit_staged(params, bar, cancel_callback=None, grain_ids=None):
         while pending:
             responses = {}
             group = MeasurementGroup(budget)
-            for grain, request in pending.items():
+            for index, (grain, request) in enumerate(pending.items(), 1):
                 check_cancelled()
                 activity(f'Planning peak windows: grain {grain}')
+                reporter = current_reporter()
+                if reporter is not None:
+                    reporter.data.update(grain=grain, batch_done=0, batch_total=0)
+                    reporter.phase(
+                        f'Planning peak windows: {index}/{len(pending)} grains',
+                        force=index == 1,
+                    )
                 plan = MeasurementPlan(
                     params['instrument'], request, max_bytes=budget
                 ).prepare()

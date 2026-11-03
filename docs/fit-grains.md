@@ -9,6 +9,13 @@ profiling. Worker-pool ownership is separate from fit setup; serial, staged
 and worker results share completion-event formatting. These internal helpers
 do not change command options or the dashboard presentation.
 
+During startup, the existing stage-details panel reports window planning and
+image-chunk indexing. During extraction it shows frame counts across workers'
+current batches, even while the completed-grain count is zero. These counters
+reset as batches advance; they are not a percentage of the entire fit. Shared
+scans belong to a group rather than its last planned grain. The layout and
+controls are unchanged; no separate Fit Activity panel is added.
+
 ## Configuration
 
 Keep the experiment's existing threshold, tolerances, refit and material
@@ -58,6 +65,10 @@ the native decoder, including after worker serialization or a process change.
 The reader count also respects the CPU share available to each fitting process.
 Adjacent chunks are read together in physical order, retaining enough batches
 for the available readers. No Python executor or image scratch files are created.
+Within a compressed chunk, the native sampler now skips codec blocks that
+contain no requested pixels. Complete queried rows are still checked for sparse
+coordinate ordering, and fully requested chunks use the existing full decoder.
+This reduces decompression work; compressed chunks are still read in full.
 
 On Linux, `HEXRD_FIT_GRAINS_DIRECT_IO=1` uses aligned direct FCH5 reads to avoid
 filling the OS page cache with a large source file. It does not change the pixel
@@ -151,9 +162,48 @@ measurement modes with master, as well as the Sven fits, extracted spots and
 spot files. Guarded master validation uses bounded pixel input when eager
 loading would exceed local RAM.
 
-### Shared reads between grains (current)
+### Selective decompression and startup progress (current)
 
-The current change is measured against `8b981bdf`, the previous optimization,
+Compared with `8c9eda8d`, native FCH5 sampling skips unused interior codec
+blocks as well as unused ends of chunks. A small bit mask tracks requested
+source bytes; pixels, sparse-coordinate validation, segmentation and fitting
+arithmetic are unchanged. This requires rebuilding the native extension, with
+no new dependency or floating-point compiler relaxation.
+
+| Sven grains | Fitting workers | Before | After | Speedup | After peak tree RSS |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 13 | 1 | 26.38 s | 23.77 s | 1.11× | 0.80 GiB |
+| 160 | 2 | 73.55 s | 74.12 s | 0.99× | 2.25 GiB |
+
+The 13-grain figures are medians of two runs per revision. The 160-grain case
+uses one run per revision with real, evenly sampled estimates. The larger case
+is effectively unchanged; this work does **not** achieve another 2× speedup.
+Both comparisons write spot files and use direct reads, one BLAS thread, and
+512 MiB workspace per worker. Serial runs have a 4 GiB address-space limit;
+two-worker runs have 1.5 GiB per process and a 3 GiB aggregate RSS watchdog.
+
+Startup reporting now exposes planning, chunk indexing and current-batch frame
+counts in the existing details panel. Completed-grain counts remain truthful:
+a shared batch can scan many frames before its first grain finishes. This is
+a visibility fix, not a claim that the first completed grain arrives sooner.
+In a separate 13-grain run with telemetry enabled, planning appeared at 0.68 s,
+the first sampled-frame update at 3.08 s, and the first completed grain at
+23.36 s, measured from entry into `fit_grains`.
+Row-sharding and larger speculative pixel-cache experiments were discarded
+because their measured benefit did not justify their complexity.
+
+All 452 focused tests pass. All 18 example runs and the bounded four-grain Sven
+case match the master scientific reference bitwise. The before/after Sven fits,
+all 173 written spot files, `grains.out` files and `grains.npz` arrays match
+exactly. Returned spot arrays were also compared for 13 grains; the 160-grain
+run retained written spots only. Grain-mode cancellation during actual FCH5
+reads cleaned up within 0.26 s after the request reached the workflow. Full UI
+dispatch timings, startup measurements and comparison scope are in the
+[validation record](fit-grains-validation.json).
+
+### Shared reads between grains (previous)
+
+The shared-batch change is measured against `8b981bdf`, the previous optimization,
 not master. Each worker shares exact sparse reads across a bounded batch of
 independent grains. No optimizer, threshold, segmentation or floating-point
 rules change.

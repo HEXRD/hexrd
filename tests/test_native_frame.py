@@ -166,6 +166,64 @@ def test_native_frame_handles_partial_codec_blocks_and_large_positions(tmp_path)
         reference.close()
 
 
+def test_native_sampling_skips_unrequested_interior_codec_blocks(tmp_path):
+    from hexrd.hedm._image_cache import FileReader
+
+    height, width = 1024, 128
+    rows, cols = np.indices((height, width), dtype='u2')
+    data = np.arange(rows.size, dtype='f8')
+    data[0], data[-1] = np.nan, -0.0
+    path = tmp_path / 'blocks.h5'
+    with h5py.File(path, 'w') as handle:
+        handle['frame_ids'] = [0, rows.size]
+        for name, values in (
+            ('indices', np.column_stack((rows.ravel(), cols.ravel()))),
+            ('data', data[:, None]),
+        ):
+            handle.create_dataset(
+                name,
+                data=values,
+                chunks=(rows.size, 1),
+                **hdf5plugin.Blosc(cname='zstd'),
+            )
+    reader = FileReader(
+        str(path), 'fch5', {}, (height, width), data.dtype, 1, estimate=1024**3
+    )
+    cache = FrameCache(64 * 1024**2)
+    cache.chunk_workers = 4
+    try:
+        sampler = reader._chunk_reader(cache)
+        sampler.reporter, sampler.read_bytes = None, 0
+        ptr = sampler._offsets(0, cache)
+        backend = sampler.chunk_reader
+        specs = backend._spec(sampler.indices), backend._spec(sampler.values)
+        decoded_bytes = []
+        for positions in ([0, rows.size - 1], [0, 40000, 80000, rows.size - 1]):
+            positions = np.array(positions, dtype='i8')
+            result, status, decoded, _ = backend.pool.native_reader.read_pixels(
+                backend.fd,
+                *specs,
+                ptr,
+                0,
+                rows.size,
+                positions // width,
+                positions % width,
+                width,
+                False,
+                16 * 1024**2,
+                lambda: None,
+            )
+            assert status == 1
+            assert (
+                result.tobytes()
+                == (np.zeros(len(positions)) + data[positions]).tobytes()
+            )
+            decoded_bytes.append(decoded)
+        assert decoded_bytes[0] < decoded_bytes[1]
+    finally:
+        cache.close()
+
+
 def test_cancellation_drains_native_jobs_and_reader_can_be_reused(tmp_path):
     from test_fch5_pixels import make_reader
     from hexrd.hedm._chunk_io import ChunkReader

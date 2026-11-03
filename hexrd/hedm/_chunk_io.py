@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from hexrd.hedm._fit_progress import current_reporter
 from hexrd.hedm._progress import check_cancelled
 
 _MIB = 1024**2
@@ -121,11 +122,18 @@ class ChunkReader:
         masks = np.zeros(shape, dtype='u4')
         visited = 0
         chunk_size = dataset.chunks[0]
+        reporter = current_reporter()
 
         def record(info):
             nonlocal visited
             if visited % 512 == 0:
                 check_cancelled()
+                if reporter is not None:
+                    reporter.phase(
+                        f'Indexing {dataset.name}: '
+                        f'{visited:,}/{count * dataset.shape[1]:,} chunks',
+                        force=visited == 0,
+                    )
             visited += 1
             index, column = info.chunk_offset
             index //= chunk_size

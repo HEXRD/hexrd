@@ -99,6 +99,38 @@ def test_parent_retains_bounded_grain_details_and_ignores_stale_updates():
         dashboard.close()
 
 
+def test_shared_scan_reports_progress_before_any_grain_finishes():
+    dashboard = Dashboard(FIT_STAGES)
+    dashboard.start()
+    try:
+        with stage('Fit grains'), progress_bar(total=128, unit='grains'):
+            reporter = FitReporter()
+            reporter.grain(0, 'Extracting', 1, 3)
+            reporter.phase('Planning peak windows: 1/128 grains', force=True)
+            fitting = dashboard.stages['Fit grains']
+            assert fitting.detail == 'Planning peak windows: 1/128 grains'
+            reporter.data['grain'] = None
+            reporter.batch(3600)
+            reporter.data['batch_done'] = 7
+            reporter.publish(force=True)
+            assert '7/3,600 frames' in fitting.detail
+            assert fitting.count == 0
+            stale = {**reporter.data, 'sequence': 0, 'phase': 'Waiting'}
+            report_fit_metrics(stale)
+            assert '7/3,600 frames' in fitting.detail
+            report_fit_metrics(
+                {
+                    **reporter.data,
+                    'worker': reporter.data['worker'] + 1,
+                    'batch_done': 3,
+                    'batch_total': 10,
+                }
+            )
+            assert '10/3,610 frames · 2 workers' in fitting.detail
+    finally:
+        dashboard.close()
+
+
 @pytest.mark.parametrize('size', [(120, 38), (190, 55)])
 def test_dashboard_shows_grain_progress_without_fit_activity_panel(size, tmp_path):
     from hexrd.hedm._dashboard import FitGrainsDashboard
@@ -136,6 +168,7 @@ def test_dashboard_shows_grain_progress_without_fit_activity_panel(size, tmp_pat
                 await pilot.pause(0.3)
                 assert started.is_set() and not app.finished.is_set()
                 assert dashboard.stages['Fit grains'].count == 0
+                assert '71/200 frames' in dashboard.stages['Fit grains'].detail
                 assert len(app.query('#fit-metrics')) == 0
                 assert (
                     app.query_one('#reflections', DataTable).get_row('12')[5]
