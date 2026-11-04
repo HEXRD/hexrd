@@ -12,7 +12,7 @@ import hexrd.core.resources
 from hexrd.core import constants
 from hexrd.core.material import Material, symbols, symmetry
 from hexrd.core.material.spacegroup import SpaceGroup
-from hexrd.core.material.unitcell import _calcstar, _rqpDict, unitcell
+from hexrd.core.material.unitcell import _calcstar, _prepare_betaij, _rqpDict, unitcell
 from hexrd.core.valunits import _nm, valWUnit
 from hexrd.powder.wppf.xtal import (
     _calc_absorption_factor,
@@ -453,7 +453,7 @@ class Material_Rietveld(Material_LeBail):
             self.CalcWavelength()
             self.CalcPositions()
 
-    def _init_from_materials(self, material_obj):
+    def _init_from_materials(self, material_obj: Material) -> None:
         # Initialize the same stuff as LeBail
         super()._init_from_materials(material_obj)
 
@@ -492,6 +492,7 @@ class Material_Rietveld(Material_LeBail):
         # the unit cell
         self.numat = material_obj.unitcell.numat
         self.asym_pos = material_obj.unitcell.asym_pos
+        self.orbit_rotations = material_obj.unitcell.orbit_rotations
         self.InitializeInterpTable()
 
     def _readHDF(self, fhdf, xtal):
@@ -587,50 +588,8 @@ class Material_Rietveld(Material_LeBail):
     def getMultiplicity(self, hkls):
         return np.array([self.CalcStar(g, 'r', applyLaue=True).shape[0] for g in hkls])
 
-    def CalcPositions(self):
-        """
-        calculate the asymmetric positions in the fundamental unitcell
-        used for structure factor calculations
-        """
-        numat = []
-        asym_pos = []
-
-        # using the wigner-seitz notation
-        for i in range(self.atom_ntype):
-            n = 1
-            r = self.atom_pos[i, 0:3]
-            r = np.hstack((r, 1.0))
-
-            asym_pos.append(np.broadcast_to(r[0:3], [1, 3]))
-
-            for symmat in self.SYM_SG:
-                # get new position
-                rnew = np.dot(symmat, r)
-
-                # reduce to fundamental unitcell with fractional
-                # coordinates between 0-1
-                rr = rnew[0:3]
-                rr = np.modf(rr)[0]
-                rr[rr < 0.0] += 1.0
-                rr[np.abs(rr) < 1.0e-6] = 0.0
-
-                # check if this is new, with the same test as the unitcell,
-                # so that rounded coordinates such as 0.3333 are not doubled
-                isnew = True
-                for j in range(n):
-                    if self.CalcLength(rr - asym_pos[i][j, :], 'd') < 1e-3:
-                        isnew = False
-                        break
-
-                # if its new add this to the list
-                if isnew:
-                    asym_pos[i] = np.vstack((asym_pos[i], rr))
-                    n += 1
-
-            numat.append(n)
-
-        self.numat = np.array(numat)
-        self.asym_pos = asym_pos
+    CalcOrbit = unitcell.CalcOrbit
+    CalcPositions = unitcell.CalcPositions
 
     def InitializeInterpTable(self):
         f_anomalous_data = []
@@ -662,7 +621,9 @@ class Material_Rietveld(Material_LeBail):
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
-    def CalcXRSF(self, wavelength, w_int):
+    def CalcXRSF(
+        self, wavelength: float, w_int: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units
@@ -677,7 +638,7 @@ class Material_Rietveld(Material_LeBail):
         if aniU:
             # recompute in case U or the lattice changed in place
             self.calcBetaij()
-            betaij = self.betaij
+            betaij = _prepare_betaij(self.betaij, self.orbit_rotations, self.numat)
         else:
             betaij = self.U
 
