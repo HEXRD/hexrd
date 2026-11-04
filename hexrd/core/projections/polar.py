@@ -1,4 +1,5 @@
 import warnings
+from typing import TypedDict
 
 import numpy as np
 
@@ -10,6 +11,23 @@ from hexrd.hed.xrdutil.utils import (
     _project_on_detector_cylinder,
     _project_on_detector_plane,
 )
+
+
+class BilinearInterpolation(TypedDict):
+    cc: np.ndarray
+    fc: np.ndarray
+    cf: np.ndarray
+    ff: np.ndarray
+    i_floor_img: np.ndarray
+    j_floor_img: np.ndarray
+    i_ceil_img: np.ndarray
+    j_ceil_img: np.ndarray
+
+
+class PanelCoordinateMapping(TypedDict):
+    xypts: np.ndarray
+    on_panel_idx: np.ndarray
+    bilinear_interp_dict: BilinearInterpolation
 
 
 def num_valid_azimuthal_pixels(pv: np.ndarray) -> np.ma.MaskedArray:
@@ -202,7 +220,13 @@ class PolarView:
         return (self.neta, self.ntth)
 
     @property
-    def angular_grid(self):
+    def angular_grid(self) -> tuple[np.ndarray, np.ndarray]:
+        return self._generate_angular_grid()
+
+    def _generate_angular_grid(
+        self, eta_slice: slice | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Generate all two-theta columns and optionally a slice of eta rows."""
         tth_vec = (
             np.radians(self.tth_pixel_size * (np.arange(self.ntth)))
             + self.tth_min
@@ -213,6 +237,8 @@ class PolarView:
             + self.eta_min
             + 0.5 * np.radians(self.eta_pixel_size)
         )
+        if eta_slice is not None:
+            eta_vec = eta_vec[eta_slice]
         return np.meshgrid(eta_vec, tth_vec, indexing='ij')
 
     @property
@@ -313,7 +339,9 @@ class PolarView:
             do_interpolation=do_interpolation,
         )
 
-    def _generate_coordinate_mapping(self) -> dict[str, dict[str, np.ndarray]]:
+    def _generate_coordinate_mapping(
+        self, eta_slice: slice | None = None
+    ) -> dict[str, PanelCoordinateMapping]:
         """Generate mapping of detector coordinates to generate polar view
 
         This function is, in general, the most time consuming part of creating
@@ -333,10 +361,16 @@ class PolarView:
         The nested dict has "xypts" and "on_panel" as keys, and the
         respective arrays as the values.
         """
-        angpts = self.angular_grid
-        dummy_ome = np.zeros(self.ntth * self.neta)
+        # Slice the canonical grid before making 2D arrays, retaining exact bin
+        # centers while bounding memory. Mapping row indices are slice-relative.
+        angpts = (
+            self.angular_grid
+            if eta_slice is None
+            else self._generate_angular_grid(eta_slice)
+        )
+        dummy_ome = np.zeros(angpts[0].size)
 
-        mapping = {}
+        mapping: dict[str, PanelCoordinateMapping] = {}
         for detector_id, panel in self.detectors.items():
             _project_on_detector = self._func_project_on_detector(panel)
             gvec_angs = np.vstack(
@@ -367,7 +401,7 @@ class PolarView:
 
     def _generate_nan_mask(
         self,
-        coordinate_map: dict[str, dict[str, np.ndarray]],
+        coordinate_map: dict[str, PanelCoordinateMapping],
     ) -> np.ndarray:
         """Generate the nan mask
 
@@ -405,10 +439,10 @@ class PolarView:
     def _warp_image_from_coordinate_map(
         self,
         image_dict: dict[str, np.ndarray],
-        coordinate_map: dict[str, dict[str, np.ndarray]],
+        coordinate_map: dict[str, PanelCoordinateMapping],
         nan_mask: np.ndarray,
         pad_with_nans: bool = False,
-        do_interpolation=True,
+        do_interpolation: bool = True,
     ) -> np.ma.MaskedArray:
         first_det = next(iter(self.detectors))
         # This is a flat image. We'll reshape at the end.

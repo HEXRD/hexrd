@@ -2061,7 +2061,7 @@ def _interpolate_bilinear(
 ) -> NDArray[np.float64]:
     # The math is faster and uses the GIL less (which is more
     # multi-threading friendly) when we run this code in numba.
-    result = np.zeros(i_floor_img.shape[0], dtype=img.dtype)
+    result = np.zeros(i_floor_img.shape[0], dtype=np.float64)
     on_panel_idx = np.arange(i_floor_img.shape[0])
     _interpolate_bilinear_in_place(
         img,

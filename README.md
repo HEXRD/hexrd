@@ -26,7 +26,9 @@ conda install -c hexrd/label/prerelease -c conda-forge hexrd
 
 # Run
 
-There is currently a CLI for far-field HEDM analysis (a.k.a. 3DXRD). Other CLI's for high-level functions are under development.
+The CLI provides far-field HEDM analysis (a.k.a. 3DXRD) and powder caking.
+See the [cake-data guide](docs/source/users/cake-data.md) for reusable cake
+matrices, GUI export, and processing image series from YAML.
 
 ```bash
 > hexrd --help
@@ -37,13 +39,11 @@ High energy diffraction data analysis
 
 positional arguments:
   command
-    help                Displays a list of available conda commands and their help strings.
-    test                runs the hexrd test suite
+    help                Display available HEXRD commands and their help
     documentation       Launches the hexrd documentation (work in progress) in a web browser
     find-orientations   Process rotation image series to find grain orientations
     fit-grains          Extracts G vectors, grain position and strain
-    pickle23            modify old material files (pickles) to be compatible with hexrd3; it makes a backup and overwrites the
-                        original file
+    cake-data           Create azimuthally segmented powder profiles from detector data
 
 optional arguments:
   -h, --help            show this help message and exit

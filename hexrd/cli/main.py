@@ -4,23 +4,24 @@ import argparse
 import logging
 import sys
 import os
+from importlib import import_module
 from importlib.metadata import version, PackageNotFoundError
 
 if 'find-orientations' in sys.argv:
     os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 
-# These can't be relative imports on Windows because of the hack
-# in main() for multiprocessing.freeze_support()
-from hexrd.hedm.cli import help
-from hexrd.hedm.cli import test
-from hexrd.hedm.cli import documentation
 from hexrd.core.utils import profiler
 
-from hexrd.hedm.cli import find_orientations
-from hexrd.hedm.cli import fit_grains
-from hexrd.hedm.cli import pickle23
-from hexrd.hedm.cli import preprocess
 
+# Register workflow commands here, outside core.
+COMMAND_MODULES = (
+    'hexrd.cli.help',
+    'hexrd.cli.documentation',
+    'hexrd.hedm.cli.find_orientations',
+    'hexrd.hedm.cli.fit_grains',
+    'hexrd.hedm.cli.preprocess',
+    'hexrd.powder.cli.cake_data',
+)
 
 try:
     _version = version("hexrd")
@@ -28,7 +29,7 @@ except PackageNotFoundError:
     _version = None
 
 
-def main():
+def main() -> None:
     if sys.platform.startswith('win'):
         import multiprocessing
 
@@ -63,14 +64,8 @@ def main():
         dest='cmd',
     )
 
-    help.configure_parser(sub_parsers)
-    test.configure_parser(sub_parsers)
-    documentation.configure_parser(sub_parsers)
-
-    find_orientations.configure_parser(sub_parsers)
-    fit_grains.configure_parser(sub_parsers)
-    pickle23.configure_parser(sub_parsers)
-    preprocess.configure_parser(sub_parsers)
+    for module_name in COMMAND_MODULES:
+        import_module(module_name).configure_parser(sub_parsers)
 
     try:
         import argcomplete
@@ -79,7 +74,14 @@ def main():
     except ImportError:
         pass
 
-    args = p.parse_args()
+    argv = sys.argv[1:]
+    if (
+        len(argv) == 1
+        and argv[0] in sub_parsers.choices
+        and argv[0] not in ('help', 'documentation')
+    ):
+        argv.append('--help')
+    args = p.parse_args(argv)
     logging.info(f'HEXRD version: {_version}')
 
     log_level = logging.DEBUG if args.debug else logging.INFO
@@ -93,6 +95,7 @@ def main():
 
     if args.inst_profile:
         profiler.dump_results(args.inst_profile)
+
 
 if __name__ == '__main__':
     main()
