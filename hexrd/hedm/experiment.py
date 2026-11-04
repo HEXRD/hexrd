@@ -8,7 +8,7 @@ import enum
 import os
 import threading
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 from pydantic import Field, TypeAdapter, field_validator
@@ -399,6 +399,7 @@ class FitGrains:
     tth_max: bool | float
     reset_exclusions: bool
     exclusion_parameters: dict
+    output_format: Literal['text', 'hdf5', 'both'] = 'text'
 
     @classmethod
     def from_dict(cls, d: dict, path) -> 'FitGrains':
@@ -413,7 +414,8 @@ class FitGrains:
                    d.get('threshold'),
                    FitGrainsTolerance.from_dict(d.get('tolerance', {})),
                    _pair(d.get('refit')), d.get('tth_max', True),
-                   d.get('reset_exclusions', True), exclusions)
+                   d.get('reset_exclusions', True), exclusions,
+                   d.get('output_format', 'text'))
 
 
 class HedmExperiment(Experiment):
