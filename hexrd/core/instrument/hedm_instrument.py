@@ -1797,7 +1797,7 @@ class HEDMInstrument(object):
         ome_period: Optional[tuple] = None,
         dirname: str = 'results',
         filename: Optional[str] = None,
-        output_format: Literal['text', 'hdf5'] = 'text',
+        output_format: Literal['text', 'hdf5', 'both'] = 'text',
         return_spot_list: bool = False,
         check_only: bool = False,
         interp: Literal['nearest', 'bilinear'] = 'nearest',
@@ -1836,7 +1836,7 @@ class HEDMInstrument(object):
         filename : str, optional
             Base filename for output. If None, no files are written. Default None.
         output_format : str, optional
-            Format for output files, either 'text' or 'hdf5'. Default 'text'.
+            Format for output files: 'text', 'hdf5', or 'both'. Default 'text'.
         return_spot_list : bool, optional
             If True, the returned dictionary contains full patch data (images, coordinates)
             rather than just summary statistics. Default False.
@@ -1880,8 +1880,8 @@ class HEDMInstrument(object):
         if not isinstance(output_format, str):
             raise TypeError("output_format must be a string type")
 
-        write_hdf5 = filename is not None and output_format == 'hdf5'
-        write_text = filename is not None and output_format == 'text'
+        write_hdf5 = filename is not None and output_format in ('hdf5', 'both')
+        write_text = filename is not None and output_format in ('text', 'both')
 
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = np.asarray(grain_params[3:6])
@@ -1917,8 +1917,10 @@ class HEDMInstrument(object):
         )
 
         if write_hdf5:
+            output_dir = Path(dirname)
+            output_dir.mkdir(parents=True, exist_ok=True)
             writer_hdf5 = GrainDataWriter_h5(
-                Path(dirname) / str(filename),
+                str(output_dir / filename),
                 self.write_config(),
                 grain_params,
             )
@@ -2096,7 +2098,7 @@ class HEDMInstrument(object):
                         xy_centers[patch_id],
                         meas_xy,
                     )
-                elif write_hdf5:
+                if write_hdf5:
                     writer_hdf5.dump_patch(
                         detector_id,
                         patch_id,
