@@ -967,6 +967,12 @@ def test_interpolate_bilinear_single_and_multiple_points():
     expected = np.array([3.7, 7.7], dtype=float)
     np.testing.assert_allclose(res2, expected, rtol=1e-12, atol=0)
 
+    # Integer detector images must not truncate the interpolated values
+    res3 = _interpolate_bilinear(
+        img.astype(np.uint32), cc2, fc2, cf2, ff2, i_floor2, j_floor2, i_ceil2, j_ceil2
+    )
+    np.testing.assert_allclose(res3, expected, rtol=1e-12, atol=0)
+
 
 def test_interpolate_bilinear_in_place_dtype_and_inplace_behavior():
     """Call the in-place function directly and verify dtype preservation and accumulation.
