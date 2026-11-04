@@ -685,7 +685,7 @@ class unitcell:
         vv = np.asarray(v).astype(float)
         return _calcstar(vv, sym, mat)
 
-    def CalcPositions(self):
+    def CalcPositions(self) -> None:
         """
         Expand independent sites into distinct unit-cell positions and
         retain their rotations for structure factor calculations.
@@ -904,7 +904,7 @@ class unitcell:
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
-    def CalcXRSF(self, hkl):
+    def CalcXRSF(self, hkl: np.ndarray) -> np.ndarray:
         # TODO: Resolve extra-core dependency
         from hexrd.powder.wppf.xtal import _calcxrsf
 

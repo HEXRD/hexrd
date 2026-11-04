@@ -453,7 +453,7 @@ class Material_Rietveld(Material_LeBail):
             self.CalcWavelength()
             self.CalcPositions()
 
-    def _init_from_materials(self, material_obj):
+    def _init_from_materials(self, material_obj: Material) -> None:
         # Initialize the same stuff as LeBail
         super()._init_from_materials(material_obj)
 
@@ -621,7 +621,9 @@ class Material_Rietveld(Material_LeBail):
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
-    def CalcXRSF(self, wavelength, w_int):
+    def CalcXRSF(
+        self, wavelength: float, w_int: float
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         the 1E-2 is to convert to A^-2
         since the fitting is done in those units

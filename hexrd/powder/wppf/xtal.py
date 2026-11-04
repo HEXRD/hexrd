@@ -106,24 +106,24 @@ def _calcxrayformfactor(
 
 @njit(cache=True, nogil=True, parallel=True)
 def _calcxrsf(
-    hkls,
-    nref,
-    multiplicity,
-    w_int,
-    wavelength,
-    rmt,
-    atom_type,
-    atom_ntype,
-    betaij,
-    occ,
-    asym_pos_arr,
-    numat,
-    scatfac,
-    fNT,
-    frel,
-    f_anomalous_data,
-    f_anomalous_data_sizes,
-):
+    hkls: np.ndarray,
+    nref: int,
+    multiplicity: np.ndarray,
+    w_int: float,
+    wavelength: float,
+    rmt: np.ndarray,
+    atom_type: np.ndarray,
+    atom_ntype: int,
+    betaij: np.ndarray,
+    occ: np.ndarray,
+    asym_pos_arr: np.ndarray,
+    numat: np.ndarray,
+    scatfac: np.ndarray,
+    fNT: np.ndarray,
+    frel: np.ndarray,
+    f_anomalous_data: np.ndarray,
+    f_anomalous_data_sizes: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     """Return weighted and raw squared structure-factor magnitudes.
 
     betaij is either a 1-D array of isotropic U values in angstrom squared,
