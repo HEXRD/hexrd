@@ -628,6 +628,9 @@ class unitcell:
             isnew = True
             for j in range(n):
                 v = rr - asym_pos[j]
+                if reduceToUC:
+                    # coordinates 0 and 1 are the same atom
+                    v = v - np.round(v)
                 dist = self.CalcLength(v, "d")
                 if dist < 1e-3:
                     isnew = False

@@ -182,6 +182,8 @@ def test_calc_orbit_returns_aligned_rotations(tetragonal_material):
     assert count == expanded_count == 4
     np.testing.assert_array_equal(positions, expanded)
     np.testing.assert_allclose((rotations @ position) % 1.0, positions, atol=1e-14)
+    # A coordinate of 1 is the same atom as 0, so it is counted once.
+    assert cell.CalcOrbit(np.array([1.0, 0.2, 0.3]))[1] == 4
 
 
 @pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
