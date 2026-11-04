@@ -2,25 +2,25 @@ import numpy as np
 import pytest
 
 from hexrd.core.material import Material
+from hexrd.core.material.unitcell import unitcell
 from hexrd.core.valunits import _kev, _nm
 from hexrd.powder.wppf.phase import Material_Rietveld
 
+U_GENERAL = [0.020, 0.005, 0.010, 0.003, 0.002, 0.001]
+
 
 @pytest.fixture
-def tetragonal_material():
+def tetragonal_material() -> Material:
     material = Material(dmin=_nm(0.2), kev=_kev(80.0))
     material.sgnum = 75  # P4: four rotations about the tetragonal axis.
     material.latticeParameters = [5, 5, 6, 90, 90, 90]
-    material._set_atomdata(
-        [28],
-        [[0.1, 0.2, 0.3, 0.7]],
-        [[0.020, 0.005, 0.010, 0.003, 0.002, 0.001]],
-        ['0'],
-    )
+    material._set_atomdata([28], [[0.1, 0.2, 0.3, 0.7]], [U_GENERAL], ['0'])
     return material
 
 
-def _calculate_raw(target, hkls):
+def _calculate_raw(
+    target: unitcell | Material_Rietveld, hkls: np.ndarray
+) -> np.ndarray:
     if isinstance(target, Material_Rietveld):
         target.hkls = hkls
         target.multiplicity = target.getMultiplicity(hkls)
@@ -30,7 +30,9 @@ def _calculate_raw(target, hkls):
     return target.CalcXRSF(hkls)
 
 
-def _attenuation_ratio(target, hkls):
+def _attenuation_ratio(
+    target: unitcell | Material_Rietveld, hkls: np.ndarray
+) -> np.ndarray:
     # Divide out the common form factor and occupancy using zero displacement.
     saved_u = target.U.copy()
     try:
@@ -41,43 +43,58 @@ def _attenuation_ratio(target, hkls):
     return _calculate_raw(target, hkls) / reference
 
 
-def _p4_attenuation_ratio(target, hkls):
-    """Independent Cartesian Gaussian-displacement reference for a P4 site."""
-    lengths_angstrom = 10.0 * np.asarray(target.lparms[:3])
+def _full_group_ratio(
+    target: unitcell | Material_Rietveld, hkls: np.ndarray
+) -> np.ndarray:
+    """Independent Cartesian reference summed over every space-group op.
+
+    U is first averaged over the ops that leave the site in place, which
+    imposes the site symmetry. Those ops reach the same atom, so each
+    site's sums are also divided by their count.
+    """
+    direct = np.linalg.cholesky(np.linalg.inv(target.rmt)).T  # a, b, c
+    reciprocal = np.linalg.inv(direct).T  # a*, b*, c* in inverse nm
+    to_cif = reciprocal / np.linalg.norm(reciprocal, axis=0)
+    from_cif = np.linalg.inv(to_cif)
+    q = 0.2 * np.pi * hkls @ reciprocal.T  # Inverse angstroms.
+    cartesian_rotations = [
+        direct @ op[:3, :3] @ np.linalg.inv(direct) for op in target.SYM_SG
+    ]
     displaced = np.zeros(len(hkls), dtype=complex)
     undisplaced = np.zeros(len(hkls), dtype=complex)
 
     for u, atom in zip(target.U, target.atom_pos):
         xx, yy, zz, xy, xz, yz = u
-        x, y, z, occupancy = atom
-        # Write the four rotated tensors explicitly, including cross-term signs.
-        tensors = np.array(
-            [
-                [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]],
-                [[yy, -xy, -yz], [-xy, xx, xz], [-yz, xz, zz]],
-                [[xx, xy, -xz], [xy, yy, -yz], [-xz, -yz, zz]],
-                [[yy, -xy, yz], [-xy, xx, -xz], [yz, -xz, zz]],
-            ]
-        )
-        positions = np.array([[x, y, z], [-y, x, z], [-x, -y, z], [y, -x, z]])
-        if x == y == 0:
-            # A site on the fourfold axis contributes one atom.
-            tensors = tensors[:1]
-            positions = positions[:1]
+        cif_u = np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
+        cartesian_u = from_cif.T @ cif_u @ from_cif
+        site, occupancy = atom[:3], atom[3]
+        stabilizer = []
+        for operation, cartesian_rotation in zip(target.SYM_SG, cartesian_rotations):
+            shift = operation[:3, :3] @ site + operation[:3, 3] - site
+            if np.allclose(shift, np.round(shift), atol=1e-6):
+                stabilizer.append(cartesian_rotation)
+        cartesian_u = np.mean([s @ cartesian_u @ s.T for s in stabilizer], axis=0)
 
-        for index, hkl in enumerate(hkls):
-            q = 2.0 * np.pi * hkl / lengths_angstrom
-            phases = np.exp(-2j * np.pi * (positions @ hkl))
-            amplitudes = np.array([np.exp(-0.5 * q @ U @ q) for U in tensors])
-            displaced[index] += occupancy * np.sum(amplitudes * phases)
-            undisplaced[index] += occupancy * np.sum(phases)
+        site_displaced = np.zeros(len(hkls), dtype=complex)
+        site_undisplaced = np.zeros(len(hkls), dtype=complex)
+        for operation, cartesian_rotation in zip(target.SYM_SG, cartesian_rotations):
+            position = operation[:3, :3] @ site + operation[:3, 3]
+            rotated_u = cartesian_rotation @ cartesian_u @ cartesian_rotation.T
+            phases = np.exp(-2j * np.pi * (hkls @ position))
+            debye_waller = np.exp(-0.5 * np.einsum('ni,ij,nj->n', q, rotated_u, q))
+            site_displaced += debye_waller * phases
+            site_undisplaced += phases
+        displaced += occupancy * site_displaced / len(stabilizer)
+        undisplaced += occupancy * site_undisplaced / len(stabilizer)
 
     return abs(displaced / undisplaced) ** 2
 
 
 @pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
 @pytest.mark.parametrize('change', [None, 'U', 'lattice', 'position'])
-def test_p4_anisotropic_structure_factors(tetragonal_material, caller, change):
+def test_p4_anisotropic_structure_factors(
+    tetragonal_material: Material, caller: str, change: str | None
+) -> None:
     target = tetragonal_material.unitcell
     if caller == 'rietveld':
         target = Material_Rietveld(material_obj=tetragonal_material)
@@ -101,7 +118,7 @@ def test_p4_anisotropic_structure_factors(tetragonal_material, caller, change):
 
     np.testing.assert_allclose(
         _attenuation_ratio(target, hkls),
-        _p4_attenuation_ratio(target, hkls),
+        _full_group_ratio(target, hkls),
         rtol=1e-12,
     )
     raw = _calculate_raw(target, hkls)
@@ -110,23 +127,66 @@ def test_p4_anisotropic_structure_factors(tetragonal_material, caller, change):
 
 
 @pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
-def test_p4_special_position(tetragonal_material, caller):
-    tetragonal_material._set_atomdata(
-        [28], [[0, 0, 0.3, 0.7]], [[0.020, 0.020, 0.010, 0, 0, 0]], ['0']
-    )
+@pytest.mark.parametrize(
+    'sgnum,lattice,atoms,U,numat',
+    [
+        # The second P4 site is on the fourfold axis, so its orbit is 1 atom.
+        pytest.param(
+            75,
+            [5, 5, 6, 90, 90, 90],
+            [[0.1, 0.2, 0.3, 0.7], [0, 0, 0.125, 0.4]],
+            [U_GENERAL, [0.015, 0.015, 0.025, 0, 0, 0]],
+            [4, 1],
+            id='P4-two-sites',
+        ),
+        # P6 rotations are not orthogonal in fractional axes.
+        pytest.param(
+            168,
+            [5, 5, 6, 90, 90, 120],
+            [[0.13, 0.27, 0.31, 0.7]],
+            [U_GENERAL],
+            [6],
+            id='P6',
+        ),
+        # U12 and U23 break the mirror at y = 1/4, so they must average out.
+        pytest.param(
+            62,
+            [5, 6, 7, 90, 90, 90],
+            [[0.1, 0.25, 0.3, 0.7]],
+            [U_GENERAL],
+            [4],
+            id='Pnma-mirror-site',
+        ),
+    ],
+)
+def test_anisotropic_matches_full_group_sum(
+    tetragonal_material: Material,
+    caller: str,
+    sgnum: int,
+    lattice: list[float],
+    atoms: list[list[float]],
+    U: list[list[float]],
+    numat: list[int],
+) -> None:
+    tetragonal_material.sgnum = sgnum
+    tetragonal_material.latticeParameters = lattice
+    n = len(atoms)
+    tetragonal_material._set_atomdata([28] * n, atoms, U, ['0'] * n)
     target = tetragonal_material.unitcell
     if caller == 'rietveld':
         target = Material_Rietveld(material_obj=tetragonal_material)
 
-    # All four rotations map to the same atom: include it exactly once.
-    np.testing.assert_array_equal(target.numat, [1])
-    assert target.orbit_rotations[0].shape == (1, 3, 3)
-    hkls = np.array([[1, 0, 0], [2, 1, 3]], dtype=float)
+    np.testing.assert_array_equal(target.numat, numat)
+    hkls = np.array([[1, 1, 1], [2, 1, 1], [2, 1, 3]], dtype=float)
     np.testing.assert_allclose(
         _attenuation_ratio(target, hkls),
-        _p4_attenuation_ratio(target, hkls),
+        _full_group_ratio(target, hkls),
         rtol=1e-12,
     )
+    # Every reflection equivalent to (2, 1, 3) must have the same intensity.
+    equivalents = target.CalcStar(np.array([2, 1, 3]), 'r', applyLaue=True)
+    raw = _calculate_raw(target, equivalents)
+    np.testing.assert_allclose(raw, raw[0], rtol=1e-12)
 
 
 @pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
@@ -140,8 +200,12 @@ def test_p4_special_position(tetragonal_material, caller):
     ],
 )
 def test_equal_diagonal_anisotropic_matches_isotropic(
-    tetragonal_material, caller, U, sgnum, lattice
-):
+    tetragonal_material: Material,
+    caller: str,
+    U: float,
+    sgnum: int,
+    lattice: list[float],
+) -> None:
     # Equal diagonal U entries with zero cross terms describe isotropic
     # displacement in orthogonal crystal axes, including unequal cell lengths.
     tetragonal_material.sgnum = sgnum
@@ -172,7 +236,7 @@ def test_equal_diagonal_anisotropic_matches_isotropic(
     )
 
 
-def test_calc_orbit_returns_aligned_rotations(tetragonal_material):
+def test_calc_orbit_returns_aligned_rotations(tetragonal_material: Material) -> None:
     cell = tetragonal_material.unitcell
     position = cell.atom_pos[0, :3]
     positions, count = cell.CalcOrbit(position)
@@ -181,68 +245,14 @@ def test_calc_orbit_returns_aligned_rotations(tetragonal_material):
     )
     assert count == expanded_count == 4
     np.testing.assert_array_equal(positions, expanded)
-    np.testing.assert_allclose((rotations @ position) % 1.0, positions, atol=1e-14)
-    # A coordinate of 1 is the same atom as 0, so it is counted once.
-    assert cell.CalcOrbit(np.array([1.0, 0.2, 0.3]))[1] == 4
+    for rotation, expected in zip(rotations, positions):
+        # P4 is symmorphic, so the rotations alone give the positions.
+        np.testing.assert_allclose((rotation @ position) % 1.0, [expected])
 
-
-@pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
-def test_multiple_sites_with_different_orbit_sizes(tetragonal_material, caller):
-    tetragonal_material._set_atomdata(
-        [28, 28],
-        [[0.1, 0.2, 0.3, 0.7], [0, 0, 0.125, 0.4]],
-        [
-            [0.020, 0.005, 0.010, 0.003, 0.002, 0.001],
-            [0.015, 0.015, 0.025, 0, 0, 0],
-        ],
-        ['0', '0'],
+    # A coordinate of 1 is the same atom as 0, so it is counted once, and the
+    # identity still lands on the original site.
+    positions, count, rotations = cell.CalcOrbit(
+        np.array([1.0, 0.2, 0.3]), return_rotations=True
     )
-    target = tetragonal_material.unitcell
-    if caller == 'rietveld':
-        target = Material_Rietveld(material_obj=tetragonal_material)
-
-    np.testing.assert_array_equal(target.numat, [4, 1])
-    hkls = np.array([[1, 0, 0], [1, 1, 0], [2, 1, 3]], dtype=float)
-    np.testing.assert_allclose(
-        _attenuation_ratio(target, hkls),
-        _p4_attenuation_ratio(target, hkls),
-        rtol=1e-12,
-    )
-
-
-@pytest.mark.parametrize('caller', ['unitcell', 'rietveld'])
-def test_hexagonal_anisotropic_structure_factors(tetragonal_material, caller):
-    material = tetragonal_material
-    material.sgnum = 168  # P6: rotations are not orthogonal in fractional axes.
-    material.latticeParameters = [5, 5, 6, 90, 90, 120]
-    cell = material.unitcell
-    cartesian_u = np.array(
-        [[0.020, 0.003, 0.002], [0.003, 0.005, 0.001], [0.002, 0.001, 0.010]]
-    )
-    reciprocal_directions = cell.rsm / np.linalg.norm(cell.rsm, axis=0)
-    cif_u = reciprocal_directions.T @ cartesian_u @ reciprocal_directions
-    material._set_atomdata(
-        [28],
-        [[0.13, 0.27, 0.31, 0.7]],
-        [cif_u[[0, 1, 2, 0, 0, 1], [0, 1, 2, 1, 2, 2]]],
-        ['0'],
-    )
-    cell = material.unitcell
-    target = cell if caller == 'unitcell' else Material_Rietveld(material_obj=material)
-    hkls = np.array([[1, 0, 0], [0, 1, 0], [1, 1, 0], [2, 1, 3]], dtype=float)
-
-    expected = []
-    for hkl in hkls:
-        q = 2.0 * np.pi * (cell.rsm @ hkl) * 0.1  # Inverse angstroms.
-        displaced = 0j
-        undisplaced = 0j
-        for operation in cell.SYM_SG:
-            cartesian_rotation = cell.dsm @ operation[:3, :3] @ np.linalg.inv(cell.dsm)
-            rotated_u = cartesian_rotation @ cartesian_u @ cartesian_rotation.T
-            position = operation[:3, :3] @ cell.atom_pos[0, :3] + operation[:3, 3]
-            phase = np.exp(-2j * np.pi * (hkl @ position))
-            displaced += np.exp(-0.5 * q @ rotated_u @ q) * phase
-            undisplaced += phase
-        expected.append(abs(displaced / undisplaced) ** 2)
-
-    np.testing.assert_allclose(_attenuation_ratio(target, hkls), expected, rtol=1e-12)
+    assert count == 4
+    np.testing.assert_array_equal(rotations[0], [np.eye(3)])

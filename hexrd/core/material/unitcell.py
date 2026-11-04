@@ -61,12 +61,17 @@ def _calcstar(v, sym, mat):
     return vsym[0:n, :]
 
 
-def _prepare_betaij(betaij, orbit_rotations, numat):
+def _prepare_betaij(
+    betaij: np.ndarray,
+    orbit_rotations: list[list[np.ndarray]],
+    numat: np.ndarray,
+) -> np.ndarray:
     """Return per-atom coefficients ordered as:
     beta_xx, beta_yy, beta_zz, 2*beta_xy, 2*beta_xz, 2*beta_yz.
 
     Rotations act on fractional coordinates, as does the beta tensor.
-    The input tensors must satisfy each independent atom's site symmetry.
+    Each atom's tensor is averaged over every operation that maps its
+    independent site onto it, which imposes the site symmetry on beta.
     """
     number_of_sites = len(numat)
     maximum_atoms_per_site = int(np.max(numat))
@@ -79,10 +84,13 @@ def _prepare_betaij(betaij, orbit_rotations, numat):
         original_tensor = betaij[:, :, site_index]
 
         for atom_index in range(numat[site_index]):
-            rotation = orbit_rotations[site_index][atom_index]
+            rotations = orbit_rotations[site_index][atom_index]
 
-            # Rotate the tensor into this equivalent atom's orientation.
-            rotated_tensor = rotation @ original_tensor @ rotation.T
+            # Average the rotated tensor over the operations landing here.
+            rotated_tensor = np.mean(
+                rotations @ original_tensor @ rotations.transpose(0, 2, 1),
+                axis=0,
+            )
 
             # Off-diagonal terms occur twice in h.T @ beta @ h.
             coefficients[site_index, atom_index] = (
@@ -586,7 +594,12 @@ class unitcell:
             self._ipf_sym[mode] = np.einsum("ij,njk,lk->nil", Q, sym, Q)
             self._ipf_sub[mode] = np.einsum("ij,njk,lk->nil", Q, sub, Q)
 
-    def CalcOrbit(self, v, reduceToUC=True, return_rotations=False):
+    def CalcOrbit(
+        self,
+        v: np.ndarray,
+        reduceToUC: bool = True,
+        return_rotations: bool = False,
+    ) -> tuple:
         """
         @date 03/04/2021 SS 1.0 original
 
@@ -597,8 +610,9 @@ class unitcell:
         @params v is the factional coordinates in direct space
                 reduceToUC reduces the position to the
                 fundamental fractional unit cell (0-1)
-                return_rotations also returns the fractional-coordinate
-                rotation associated with each distinct position
+                return_rotations also returns, for each distinct
+                position, the fractional-coordinate rotations of every
+                operation that maps v onto it
         """
 
         asym_pos = []
@@ -610,7 +624,7 @@ class unitcell:
         r = np.hstack((r, 1.0))
 
         asym_pos = np.broadcast_to(r[0:3], [1, 3])
-        rotations = [np.eye(3)]
+        rotations = [[]]
 
         for symmat in self.SYM_SG:
             # get new position
@@ -625,7 +639,7 @@ class unitcell:
                 rr[np.abs(rr) < 1.0e-6] = 0.0
 
             # check if this is new
-            isnew = True
+            match = None
             for j in range(n):
                 v = rr - asym_pos[j]
                 if reduceToUC:
@@ -633,19 +647,22 @@ class unitcell:
                     v = v - np.round(v)
                 dist = self.CalcLength(v, "d")
                 if dist < 1e-3:
-                    isnew = False
+                    match = j
                     break
 
             # if its new add this to the list
-            if isnew:
+            if match is None:
                 asym_pos = np.vstack((asym_pos, rr))
-                rotations.append(symmat[:3, :3].copy())
+                rotations.append([])
+                match = n
                 n += 1
+
+            rotations[match].append(symmat[:3, :3])
 
         numat = n
 
         if return_rotations:
-            return asym_pos, numat, np.asarray(rotations, dtype=np.float64)
+            return asym_pos, numat, [np.array(r) for r in rotations]
         return asym_pos, numat
 
     def CalcStar(self, v, space, applyLaue=False):
