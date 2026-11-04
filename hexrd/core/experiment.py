@@ -386,7 +386,13 @@ def _load_instrument(path: str) -> dict:
                     return _h5_to_dict(archive['instrument'])
             offset = 2 * offset if offset else 512
         f.seek(0)
-        return yaml.load(f, Loader=_YamlLoader)
+        try:
+            return yaml.load(f, Loader=_YamlLoader)
+        except yaml.constructor.ConstructorError:
+            from hexrd.core.config.loader import NumPyIncludeLoader
+
+            f.seek(0)
+            return yaml.load(f, Loader=NumPyIncludeLoader)
 
 
 class Experiment:

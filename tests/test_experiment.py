@@ -133,6 +133,21 @@ def test_transform_rotation_matrix():
     assert np.allclose(rmat @ [1, 0, 0], [0, 1, 0])
 
 
+def test_load_instrument_numpy_include(tmp_path, monkeypatch):
+    from hexrd.core.experiment import _load_instrument
+
+    directory = tmp_path / 'instrument'
+    directory.mkdir()
+    mask = np.array([[True, False], [False, True]])
+    np.save(directory / 'mask.npy', mask)
+    path = directory / 'instrument.yml'
+    path.write_text('detectors:\n  GE:\n    buffer: !include mask.npy\n')
+    monkeypatch.chdir(tmp_path)
+
+    loaded = _load_instrument(str(path))
+    np.testing.assert_array_equal(loaded['detectors']['GE']['buffer'], mask)
+
+
 @pytest.mark.parametrize('userblock', [0, 512, 4096])
 def test_load_instrument_hdf5(tmp_path, userblock):
     """A .hexrd HDF5 instrument archive loads like its yaml equivalent."""
