@@ -2,12 +2,12 @@
 HEDM analyses, as typed, frozen config sections.
 
 :class:`HedmExperiment` extends :class:`hexrd.core.experiment.Experiment`
-with the ``find_orientations`` section of the config.
+with the settings for find-orientations and fit-grains.
 """
 import enum
 import os
 import threading
-from functools import lru_cache
+from functools import cached_property, lru_cache
 from typing import Any, Optional
 
 import numpy as np
@@ -397,7 +397,7 @@ class FitGrains:
 
 
 class HedmExperiment(Experiment):
-    """An :class:`Experiment` plus the HEDM find-orientations parameters."""
+    """Shared experiment inputs and settings for HEDM analyses."""
 
     def __init__(self, filename: str, study: int | None = None, *,
                  working_dir: str | None = None, new_file_placement: bool = False):
@@ -409,10 +409,19 @@ class HedmExperiment(Experiment):
     def _configure_hedm(self):
         if self.active_material.two_theta_width is None:
             self.active_material.two_theta_width = 0.25
-        self.find_orientations = FindOrientations.from_dict(
-            self.config['find_orientations'])
         self.fit_grains = FitGrains.from_dict(
             self.config.get('fit_grains', {}), self._path)
+
+    @cached_property
+    def find_orientations(self) -> FindOrientations:
+        return FindOrientations.from_dict(self.config.get('find_orientations') or {})
+
+    @property
+    def eta_ranges(self) -> np.ndarray:
+        if 'find_orientations' in self.__dict__:
+            return self.find_orientations.eta.range
+        config = self.config.get('find_orientations') or {}
+        return Eta.from_dict(config.get('eta') or {}).range
 
     @classmethod
     def from_objects(cls, instrument, image_series, plane_data, config):
