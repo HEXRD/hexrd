@@ -7,7 +7,7 @@ with the settings for find-orientations and fit-grains.
 import enum
 import os
 import threading
-from functools import cached_property, lru_cache
+from functools import lru_cache
 from typing import Any, Optional
 
 import numpy as np
@@ -407,19 +407,27 @@ class HedmExperiment(Experiment):
         self._configure_hedm()
 
     def _configure_hedm(self):
+        self._find_orientations: FindOrientations | None = None
         if self.active_material.two_theta_width is None:
             self.active_material.two_theta_width = 0.25
         self.fit_grains = FitGrains.from_dict(
             self.config.get('fit_grains', {}), self._path)
 
-    @cached_property
+    @property
     def find_orientations(self) -> FindOrientations:
+        """Read current configuration; assign settings to override, or None to reset."""
+        if self._find_orientations is not None:
+            return self._find_orientations
         return FindOrientations.from_dict(self.config.get('find_orientations') or {})
+
+    @find_orientations.setter
+    def find_orientations(self, value: FindOrientations | None):
+        self._find_orientations = value
 
     @property
     def eta_ranges(self) -> np.ndarray:
-        if 'find_orientations' in self.__dict__:
-            return self.find_orientations.eta.range
+        if self._find_orientations is not None:
+            return self._find_orientations.eta.range
         config = self.config.get('find_orientations') or {}
         return Eta.from_dict(config.get('eta') or {}).range
 
