@@ -454,3 +454,52 @@ def test_texture_factor_fully_masked_ring(texture_instrument: HEDMInstrument) ->
     eta_mask = {hkl: np.ones_like(hm.intensities_rings[hkl], dtype=bool)}
     tf = hm.calc_texture_factor(params, eta_step=np.radians(5), eta_mask=eta_mask)
     np.testing.assert_allclose(tf, expected)
+
+
+def test_harmonic_model_fits_superposed_overlap():
+    # 333 and 511 of fcc Ni sit at the same 2theta; the data of the pair is
+    # sum_k c_k P_k / sum_k c_k with c = m |F|^2 (8 : 24, equal |F|^2)
+    import contextlib
+    import io
+
+    from hexrd.valunits import _kev
+
+    ni = Material(kev=_kev(100.0), dmin=_angstrom(0.6))
+    ni.planeData.exclusions = None
+    mat = Material_Rietveld(material_obj=ni)
+    hkls = np.array([[1, 1, 1], [2, 0, 0], [3, 3, 3], [5, 1, 1]])
+
+    rng = np.random.default_rng(0)
+    dirs = rng.normal(size=(400, 3))
+    dirs[:, 2] = np.abs(dirs[:, 2])
+    dirs /= np.linalg.norm(dirs, axis=1, keepdims=True)
+
+    truth = HarmonicModel(material=mat, ssym='triclinic', ell_max=6)
+    true = truth.get_parameters()
+    for name in true:
+        true[name].value = 0.3 * rng.normal()
+    truth.calc_new_pole_figure(true, hkls=hkls, pfgrid=dirs)
+    P = {tuple(h): truth.intensities_new[tuple(h)] for h in hkls}
+
+    c = np.array([8.0, 24.0])
+    pair = (c[0] * P[(3, 3, 3)] + c[1] * P[(5, 1, 1)]) / c.sum()
+
+    def fit(superposition):
+        model = HarmonicModel(material=mat, ssym='triclinic', ell_max=6)
+        model.superposition = superposition
+        model.pfdata = {
+            (1, 1, 1): np.column_stack((dirs, P[(1, 1, 1)])),
+            (2, 0, 0): np.column_stack((dirs, P[(2, 0, 0)])),
+            (3, 3, 3): np.column_stack((dirs, pair)),
+        }
+        params = model.get_parameters()
+        with contextlib.redirect_stdout(io.StringIO()):
+            model.calculate_harmonic_coefficients(params)
+        return np.array([params[name].value for name in true])
+
+    expected = np.array([true[name].value for name in true])
+    superposed = fit({(3, 3, 3): ([(3, 3, 3), (5, 1, 1)], c)})
+    np.testing.assert_allclose(superposed, expected, atol=1e-6)
+
+    # Read as a pure 333 pole figure, the same data give the wrong texture
+    assert np.max(np.abs(fit({}) - expected)) > 1e-2

@@ -2660,6 +2660,7 @@ class Rietveld(AbstractWPPF):
         bvec: np.ndarray | None = None,
         evec: np.ndarray | None = None,
         azimuthal_interval: float = 5,
+        overlap_tol: float | None = 1e-4,
     ):
         """Compute texture data to use in texture refinement
 
@@ -2668,6 +2669,15 @@ class Rietveld(AbstractWPPF):
         compute a dictionary of texture contributions. These texture
         contributions are automatically set on the `pfdata` of the texture
         models.
+
+        Reflections of a phase whose 2theta values agree to within
+        `overlap_tol` degrees (e.g. 333/511 in fcc, 411/330 in bcc) cannot be
+        separated by LeBail. Their summed intensity, divided by their summed
+        computed intensity, is stored once, under the first reflection of the
+        group, and the texture model fits it as the superposition
+        sum_k Ic_k P_k / sum_k Ic_k of their pole figures (Ic_k is proportional
+        to m |F|^2 at a common 2theta). `overlap_tol=None` keeps every
+        reflection separate.
 
         A simulated spectrum is returned.
         """
@@ -2723,7 +2733,13 @@ class Rietveld(AbstractWPPF):
             phases=mats,
             wavelength=self.wavelength,
             bkgmethod=bkg_method,
-            intensity_init=ints_computed,
+            intensity_init={
+                mat_key: {
+                    lam: dict(zip(map(tuple, self.hkls[mat_key][lam]), ints))
+                    for lam, ints in by_lambda.items()
+                }
+                for mat_key, by_lambda in ints_computed.items()
+            },
             termination_condition={
                 "rwp_perct_change": 0.01,
                 "max_iter": 20,
@@ -2751,6 +2767,7 @@ class Rietveld(AbstractWPPF):
             )
 
             pfdata = {}
+            superposition = {}
             for ii, nnz in enumerate(results[3]):
                 eta = self.eta_min + (nnz + 1) * np.radians(azimuthal_interval)
                 t = results[2][ii][mat_key][lambda_key]
@@ -2758,17 +2775,22 @@ class Rietveld(AbstractWPPF):
                 ints = results[0][ii][mat_key][lambda_key]
 
                 nn = np.min((t.shape[0], ints.shape[0]))
-                for jj in range(nn):
-                    hkey = tuple(hkl[jj, :])
-                    if hkey not in ints_comp:
-                        continue
+                rows = [
+                    jj for jj in range(nn) if tuple(hkl[jj, :]) in ints_comp
+                ]
+                for group in _overlap_groups(t, rows, overlap_tol):
+                    members = [tuple(hkl[jj, :]) for jj in group]
+                    hkey = members[0]
+                    computed = np.array([ints_comp[h] for h in members])
+                    if len(members) > 1:
+                        superposition[hkey] = (members, computed)
 
-                    angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
+                    angs = np.atleast_2d([np.radians(t[group[0]]), eta, 0])
                     v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
                     data = np.hstack(
                         (
                             v,
-                            np.atleast_2d(ints[jj] / ints_comp[hkey]),
+                            np.atleast_2d(ints[group].sum() / computed.sum()),
                         )
                     )
 
@@ -2779,6 +2801,7 @@ class Rietveld(AbstractWPPF):
                     pfdata[hkey] = data
 
             # Now set the texture data on the texture model
+            model.superposition = superposition
             model.pfdata = pfdata
 
         return results[4]
@@ -2860,10 +2883,14 @@ def extract_intensities(
                              computation
                  bkgmethod: "spline" or "chebyshev" or "snip"
                              default is chebyshev
-                 intensity_init: initial intensities for each reflection.
-                                 If none, then it is specified to some power
-                                 of 10 depending on maximum intensity in
-                                 spectrum (only used for powder simulator)
+                 intensity_init: initial intensities for each reflection,
+                                 {phase: {wavelength: {hkl tuple: I}}}.
+                                 Matched to each azimuthal row by hkl, since
+                                 rows can hold different reflections. Exactly
+                                 overlapping reflections keep their initial
+                                 ratio, so these set how LeBail splits them.
+                                 If none, every reflection starts at the same
+                                 power of 10.
     """
 
     # prepare the data file to distribute suing multiprocessing
@@ -2892,6 +2919,7 @@ def extract_intensities(
         "phases": phases,
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
+        "intensity_init": intensity_init,
         "termination_condition": termination_condition,
         "peakshape": peakshape,
         "amorphous_model": amorphous_model,
@@ -2962,10 +2990,11 @@ def single_azimuthal_extraction(
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
         "peakshape": peakshape,
-        "intensity_init": intensity_init,
         "amorphous_model": amorphous_model,
     }
     L = LeBail(**kwargs)
+    if intensity_init is not None and _apply_intensity_init(L, intensity_init):
+        L.computespectrum()
 
     # get termination conditions for the LeBail refinement
     del_rwp = termination_condition["rwp_perct_change"]
@@ -2984,6 +3013,50 @@ def single_azimuthal_extraction(
 
     res = (L.spectrum_sim._x, L.spectrum_sim._y, L.Rwp, L.Iobs, L.hkls, L.tth)
     return res
+
+
+def _apply_intensity_init(lebail, intensity_init):
+    """
+    Set the starting intensities of a LeBail object by hkl.
+
+    intensity_init is {phase: {wavelength: {hkl tuple: I}}}. Reflections it
+    does not list keep LeBail's default start. Returns True if anything
+    changed.
+    """
+    changed = False
+    for p, by_lambda in lebail.Icalc.items():
+        table = intensity_init.get(p)
+        if table is None:
+            table = intensity_init.get(p.replace('-', '_'), {})
+        for k, Ic in by_lambda.items():
+            lookup = table.get(k)
+            if not lookup:
+                continue
+            hkls = lebail.hkls[p][k]
+            for jj in range(min(len(Ic), len(hkls))):
+                value = lookup.get(tuple(int(x) for x in hkls[jj]))
+                if value is not None and np.isfinite(value) and value > 0:
+                    Ic[jj] = value
+                    changed = True
+    return changed
+
+
+def _overlap_groups(tth, rows, tol):
+    """
+    Split the row indices into groups of reflections at the same 2theta
+    (within tol degrees); every group is a list of indices into tth. With
+    tol=None each reflection is its own group.
+    """
+    if tol is None or len(rows) == 0:
+        return [[jj] for jj in rows]
+    rows = sorted(rows, key=lambda jj: tth[jj])
+    groups = [[rows[0]]]
+    for jj in rows[1:]:
+        if abs(tth[jj] - tth[groups[-1][0]]) <= tol:
+            groups[-1].append(jj)
+        else:
+            groups.append([jj])
+    return groups
 
 
 peakshape_dict = {

@@ -846,6 +846,9 @@ class HarmonicModel:
         self.bvec = bvec
         self.etavec = evec
         self.sample_rmat = sample_rmat
+        # pfdata keys whose data are superposed reflections:
+        # key -> (member hkls, coefficients proportional to m |F|^2)
+        self.superposition = {}
         self.pfdata = pfdata
 
     @property
@@ -1020,6 +1023,21 @@ class HarmonicModel:
         return smat
 
     def get_sph_c_matrix(self, h, ell, gridtype=None):
+        if gridtype is None and h in getattr(self, 'superposition', {}):
+            # The pole figure is linear in the crystal-side harmonics, so the
+            # superposition sum_k c_k P_k / sum_k c_k of the members' pole
+            # figures uses the c-weighted mean of their harmonics.
+            members, coeffs = self.superposition[h]
+            coeffs = np.asarray(coeffs, dtype=float)
+            coeffs = coeffs / coeffs.sum()
+            hkls_c = self.convert_hkls_to_cartesian(
+                np.asarray(members, dtype=float)
+            )
+            theta = np.arccos(np.clip(hkls_c[:, 2], -1.0, 1.0))
+            phi = np.arctan2(hkls_c[:, 1], hkls_c[:, 0])
+            Ylm = calc_sym_sph_harm(ell, theta, phi, sym=self.csym)
+            return (coeffs @ Ylm).reshape(-1, 1)
+
         nc = get_num_sym_harm(ell, sym=self.csym)
 
         ngrid = 1

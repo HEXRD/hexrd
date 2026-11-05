@@ -554,9 +554,72 @@ def test_texture_data_matches_intensities_by_hkl(
     )
     ceo2_rietveld.compute_texture_data(np.tile(expt_spectrum[:, 1], (2, 1)))
 
-    # Each point should be I_lebail(hkl) / I_rietveld(hkl), which is 2 here
-    for hkl in map(tuple, hkls):
-        np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
+    # Each point should be I_lebail / I_rietveld, which is 2 here. Exactly
+    # overlapping reflections (333/511, 442/600, ... for CeO2) share one
+    # entry, and between them the entries cover every hkl once
+    covered = []
+    for key, data in model.pfdata.items():
+        np.testing.assert_allclose(data[:, 3], 2.0)
+        covered += model.superposition.get(key, ([key], None))[0]
+    assert sorted(covered) == sorted(map(tuple, hkls))
+
+    # The coefficients of a superposed entry are the computed intensities
+    by_hkl = dict(zip(map(tuple, hkls), ints))
+    assert model.superposition
+    for members, coeffs in model.superposition.values():
+        np.testing.assert_allclose(coeffs, [by_hkl[h] for h in members])
+        assert np.ptp([tths[list(map(tuple, hkls)).index(h)] for h in members]) < 1e-4
+
+
+def test_texture_data_keeps_overlaps_separate_when_asked(
+    ceo2_rietveld: Rietveld,
+    expt_spectrum: np.ndarray,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hkls = ceo2_rietveld.hkls['CeO2']['synchrotron']
+    tths = ceo2_rietveld.tth['CeO2']['synchrotron']
+    ints = ceo2_rietveld.compute_intensities()['CeO2']['synchrotron']
+    model = SimpleNamespace(pfdata=None)
+    ceo2_rietveld.texture_model = {'CeO2': model}
+    one_row = lambda values: [{'CeO2': {'synchrotron': values}}]
+
+    def extract_intensities(**kwargs: Any) -> tuple:
+        return one_row(2 * ints), one_row(hkls), one_row(tths), np.arange(1), None
+
+    monkeypatch.setattr(
+        'hexrd.powder.wppf.WPPF.extract_intensities', extract_intensities
+    )
+    ceo2_rietveld.compute_texture_data(
+        np.tile(expt_spectrum[:, 1], (1, 1)), overlap_tol=None
+    )
+    assert model.superposition == {}
+    assert sorted(model.pfdata) == sorted(map(tuple, hkls))
+
+
+def test_lebail_initial_intensities_set_exact_overlap_split(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    from hexrd.powder.wppf.WPPF import single_azimuthal_extraction
+
+    wavelength = {'synchrotron': [_angstroms(0.15358835358711712), 1.0]}
+    kwargs = dict(
+        phases=[ceo2_material],
+        wavelength=wavelength,
+        bkgmethod={'chebyshev': 3},
+        termination_condition={'rwp_perct_change': 0.01, 'max_iter': 5},
+        peakshape='pvtch',
+    )
+    _, _, _, Iobs, hkl, _ = single_azimuthal_extraction(expt_spectrum, **kwargs)
+    split = dict(zip(map(tuple, hkl['CeO2']['synchrotron']), Iobs['CeO2']['synchrotron']))
+    # LeBail cannot separate an exact overlap: by default it stays 1:1
+    np.testing.assert_allclose(split[(3, 3, 3)] / split[(5, 1, 1)], 1.0)
+
+    init = {'CeO2': {'synchrotron': {(3, 3, 3): 1.0, (5, 1, 1): 3.0}}}
+    _, _, _, Iobs, hkl, _ = single_azimuthal_extraction(
+        expt_spectrum, intensity_init=init, **kwargs
+    )
+    split = dict(zip(map(tuple, hkl['CeO2']['synchrotron']), Iobs['CeO2']['synchrotron']))
+    np.testing.assert_allclose(split[(5, 1, 1)] / split[(3, 3, 3)], 3.0)
 
 
 def test_lp_factor_follows_lattice_and_ph(ceo2_rietveld: Rietveld) -> None:
