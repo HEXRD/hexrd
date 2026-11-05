@@ -109,6 +109,25 @@ def test_find_orientations(multiruby_experiment):
         assert angles.min() <= np.radians(0.05)
 
 
+def test_minimum_cluster_size_preserves_seeded_grains(
+    multiruby_experiment: HedmExperiment,
+) -> None:
+    from hexrd.hedm.find_orientations import estimate_min_samples
+
+    experiment = multiruby_experiment
+    plane = experiment.get_active_material().plane_data
+    rings = np.arange(len(plane.symm_hkls))
+    settings = experiment.find_orientations
+    experiment.find_orientations = replace(settings,
+        seed_search=replace(settings.seed_search, hkl_seeds=rings),
+        clustering=replace(settings.clustering, completeness=1.))
+    state = np.random.get_state()
+    for _ in range(2):
+        assert estimate_min_samples(experiment, plane, SimpleNamespace(ring_ids=rings)) == 182
+    for before, after in zip(state, np.random.get_state()):
+        np.testing.assert_array_equal(before, after)
+
+
 def test_grid_sampler_preserves_legacy_order():
     from hexrd.core import constants
     from hexrd.hedm.sampleOrientations.conversions import cu2ro, ro2qu

@@ -981,7 +981,7 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
         idx = np.searchsorted(spans, values, side='right')
         return (idx % 2 == 1) & (values >= spans[0]) & (values < spans[-1])
 
-    rng = np.random.default_rng(0)
+    rng = np.random.RandomState(0)
     quats = rng.normal(size=(4, n_grains))
     quats /= np.linalg.norm(quats, axis=0)
 
