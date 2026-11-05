@@ -825,6 +825,9 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
 
     bmat = np.ascontiguousarray(plane_data.B)
     beam_vector = np.ascontiguousarray(experiment.beam.vector, dtype=np.float64)
+    # Spherical coordinates leave roundoff at the nominal beam's zero components.
+    if np.allclose(beam_vector, const.beam_vec, rtol=0, atol=np.finfo(float).eps):
+        beam_vector = const.beam_vec
     n = q_fibers.shape[1]
     workers = max(1, min(experiment.max_workers, max(1, n // 2048)))
     shape = (len(maps.ring_ids), len(maps.omega_edges)-1, len(maps.eta_edges)-1)

@@ -422,6 +422,55 @@ def _reference_hit(eta, ome, de, do, ring, threshold):
     return (1 if events[0] > threshold else -1) if len(events) else 0
 
 
+def test_quaternion_rotations_preserve_legacy_rounding() -> None:
+    from hexrd.core.rotations import _rotmatofquat
+
+    quats = np.random.default_rng(52).normal(size=(4, 100))
+    quats /= np.linalg.norm(quats, axis=0)
+    expected = _rotmatofquat.py_func(quats)
+    np.testing.assert_array_equal(native.quaternionRotations(quats.T.copy()), expected)
+
+
+@pytest.mark.parametrize('beam', [
+    [0., 0., -1.], [-np.cos(np.pi / 2), -np.cos(np.pi / 2), -1.], [.2, -.1, -1.],
+])
+def test_scoring_preserves_omega_boundary(
+    tmp_path: Path, beam: list[float],
+) -> None:
+    from hexrd.core.rotations import _rotmatofquat
+    from hexrd.core.transforms import xfcapi
+    from hexrd.hedm.find_orientations import _fiber, _prepare_fiber, score_orientations
+
+    hkl, bmat = np.ones(3), np.eye(3) * .1
+    prepared = _prepare_fiber(hkl, bmat, 120)
+    quats = _fiber(*prepared, 2*np.arcsin(.05*np.sqrt(3)), 1., np.pi, 0., np.eye(4)[None])
+    values = np.zeros((1, 20, 32))
+    values[:, 9:11] = 1
+    edges = np.linspace(-np.pi, np.pi, 33), np.linspace(0., 2*np.pi, 21)
+    span = np.array([-np.pi, np.pi])
+    maps = SimpleNamespace(ring_maps=values, ring_ids=np.array([0]),
+                           eta_edges=edges[0], omega_edges=edges[1])
+    plane = SimpleNamespace(unexcluded_hkls=hkl[None], symm_hkls=[hkl[:, None]],
+                            B=bmat, wavelength=1.)
+    settings = SimpleNamespace(threshold=.5,
+        eta=SimpleNamespace(range=span[None], tolerance=0.),
+        omega=SimpleNamespace(period=span, tolerance=0.))
+    experiment = SimpleNamespace(find_orientations=settings, max_workers=1,
+        beam=SimpleNamespace(vector=np.array(beam)), analysis_dir=str(tmp_path))
+    reference_beam = np.array([0., 0., -1.] if abs(beam[0]) < 1e-16 else beam)
+    rmats = _rotmatofquat.py_func(quats)
+    angles = np.asarray([xfcapi.oscill_angles_of_hkls(
+        hkl[None], 0., rmat, bmat, 1., beam_vec=reference_beam) for rmat in rmats])
+    args = [rmats, hkl[None], bmat, 1., reference_beam, *edges, span, span,
+            -np.pi, values, np.array([0]), 0, 0, .5]
+    expected = _reference_scores(angles, args)
+    if reference_beam[0] == 0:
+        assert 0 < np.count_nonzero(expected) < len(expected)
+    np.testing.assert_array_equal(score_orientations(experiment, plane, maps, quats), expected)
+    # The derived-bin cache must preserve the same boundary decisions.
+    np.testing.assert_array_equal(score_orientations(experiment, plane, maps, quats), expected)
+
+
 def test_cpp_predictor_analytic_bragg_solutions():
     angle = np.arcsin(0.05)
     first, second = native.oscillAnglesOfHKLs(

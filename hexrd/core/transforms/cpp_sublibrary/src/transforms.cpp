@@ -929,11 +929,16 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
 }
 
 static void quaternionRotation(double a, double b, double c, double d, double *r) {
-  r[0] = a*a + b*b - c*c - d*d;
-  r[1] = 2*b*c - 2*a*d; r[2] = 2*a*c + 2*b*d;
-  r[3] = 2*a*d + 2*b*c; r[4] = a*a - b*b + c*c - d*d;
-  r[5] = 2*c*d - 2*a*b; r[6] = 2*b*d - 2*a*c;
-  r[7] = 2*a*b + 2*c*d; r[8] = a*a - b*b - c*c + d*d;
+  // Round products before adding, as in the legacy NumPy/Numba conversion.
+  // Fused operations can move reflections across an angular boundary.
+  volatile double aa = a*a, bb = b*b, cc = c*c, dd = d*d;
+  volatile double ab = 2*a*b, ac = 2*a*c, ad = 2*a*d;
+  volatile double bc = 2*b*c, bd = 2*b*d, cd = 2*c*d;
+  r[0] = aa + bb - cc - dd;
+  r[1] = bc - ad; r[2] = ac + bd;
+  r[3] = ad + bc; r[4] = aa - bb + cc - dd;
+  r[5] = cd - ab; r[6] = bd - ac;
+  r[7] = ab + cd; r[8] = aa - bb - cc + dd;
 }
 
 static py::array_t<double> quaternionRotations(CArray<double> quats) {
@@ -1181,13 +1186,12 @@ struct VectorScorer {
       unsigned lanes = _mm256_movemask_pd(mask.value);
       if (!lanes) return;
       unsigned matesMask = _mm256_movemask_pd(opposite.value);
-      double rotations[9][4];
-      for (int k = 0; k < 9; ++k) r[k].store_unaligned(rotations[k]);
       int32_t hv[4] = {}, tv[4] = {};
       for (int j = 0; j < 4; ++j) if (lanes & (1u << j)) {
         Index reflection = matesMask & (1u << j) ? mates[h] : h;
         double rotation[9], angles[6];
-        for (int k = 0; k < 9; ++k) rotation[k] = rotations[k][j];
+        const double *v = q+j*step;
+        quaternionRotation(v[0], v[stride], v[2*stride], v[3*stride], rotation);
         geometry->predict(1, reciprocal+3*reflection, rotation, angles, angles+3);
         const double *a = angles+3*solution;
         if (std::isnan(a[0])) continue;
