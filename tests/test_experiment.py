@@ -254,6 +254,37 @@ def test_image_series_lazy_frames(tmp_path):
     assert ims.images is images                    # cached, not re-read
 
 
+def test_roi_pixel_chunks_do_not_cache_frames(tmp_path: Path) -> None:
+    from hexrd.core.experiment import RoiImageSeries
+    from hexrd.hedm.find_orientations import _temporary_roi_cache
+
+    frames = [np.arange(48).reshape(6, 8), np.zeros((6, 8), dtype=int)]
+    path = tmp_path / 'frames.npz'
+    _write_frame_cache(path, frames, [[0., 1.], [1., 2.]])
+    parent = ImageSeries('parent', str(path))
+    roi = RoiImageSeries('crop', parent, roi=[2, 3], shape=(3, 4))
+
+    actual = np.zeros((2, 12))
+    with _temporary_roi_cache([roi]):
+        for ids, values, offsets, rows in roi.pixel_chunks(np.arange(2), max_pixels=16):
+            for frame, start, stop in zip(rows, offsets[:-1], offsets[1:]):
+                actual[frame, ids[start:stop]] = values[start:stop]
+    expected = np.array([frame[2:5, 3:7].ravel() for frame in frames])
+    np.testing.assert_array_equal(actual, expected)
+    assert parent._images is None
+    assert roi._images is None
+
+    with pytest.raises(RuntimeError), _temporary_roi_cache([roi]):
+        next(roi.pixel_chunks(np.arange(2)))
+        raise RuntimeError('cancelled')
+    assert parent._images is None
+
+    cached = parent.images
+    with _temporary_roi_cache([roi]):
+        list(roi.pixel_chunks(np.arange(2)))
+    assert parent._images is cached
+
+
 def test_roi_image_series_slices_parent(tmp_path):
     from hexrd.core.experiment import RoiImageSeries
 

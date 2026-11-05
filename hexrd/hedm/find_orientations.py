@@ -2,7 +2,8 @@
 import os
 import logging
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from contextlib import nullcontext
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
 from contextvars import copy_context
 from typing import Callable, Optional
 
@@ -13,6 +14,7 @@ from hexrd.core import constants as const
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core import matrixutil as mutil
 from hexrd.core import rotations
+from hexrd.core.experiment import ImageSeries, RoiImageSeries
 from hexrd.hedm.experiment import (
     ClusteringAlgorithm, HedmExperiment, SeedSearchMethod,
 )
@@ -263,6 +265,19 @@ def _resolve_active_rings(active_hkls: Optional[np.ndarray],
     return rings
 
 
+@contextmanager
+def _temporary_roi_cache(series: list[ImageSeries | RoiImageSeries]) -> Iterator[None]:
+    """Release parent frames loaded for binning, preserving existing caches"""
+    parents = {id(ims._parent): ims._parent for ims in series
+               if isinstance(ims, RoiImageSeries)}
+    unloaded = [parent for parent in parents.values() if parent._images is None]
+    try:
+        yield
+    finally:
+        for parent in unloaded:
+            parent._images = None
+
+
 def build_eta_omega_maps(experiment: HedmExperiment,
                          plane_data: PlaneData) -> EtaOmegaMaps:
     """Bin streamed detector frames into per-ring eta-omega intensity maps.
@@ -293,8 +308,11 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     active = [ims for ims in experiment.image_series_list
               if ims.panel in experiment.detectors]
 
-    with progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
-                      unit='frames', disable=None) as progress:
+    with (
+        _temporary_roi_cache(active),
+        progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
+                     unit='frames', disable=None) as progress,
+    ):
         for ims, (eta_bin, ring_masks, coverage) in _iter_panel_bins(
                 experiment, active, two_theta_ranges, eta_edges):
             activity(f'Binning frames from {ims.panel}')

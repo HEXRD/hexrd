@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import threading
+from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import field
 from typing import Optional, TYPE_CHECKING
@@ -326,6 +327,25 @@ class RoiImageSeries:
             self._images = [image[r0:r0 + rows, c0:c0 + cols]
                             for image in self._parent.images]
         return self._images
+
+    def pixel_chunks(
+        self,
+        row_of_frame: np.ndarray,
+        max_pixels: int = 8_000_000,
+        threshold: float | None = None,
+    ) -> Iterator[tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]]:
+        """Stream cropped pixels without retaining ROI frame copies"""
+        r0, c0 = self._roi
+        rows, cols = self._shape
+
+        def pixels() -> Iterator[tuple[np.ndarray, np.ndarray]]:
+            for image in self._parent.images:
+                frame = image[r0:r0 + rows, c0:c0 + cols]
+                ids = np.empty(frame.nnz, dtype=np.int64)
+                transforms._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
+                yield ids, frame.data
+
+        yield from _pixel_chunks(pixels(), row_of_frame, max_pixels)
 
     def __len__(self):
         return len(self._parent)
