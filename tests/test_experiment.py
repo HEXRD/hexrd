@@ -532,6 +532,35 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.find_orientations.clustering.radius == 1.0
 
 
+def test_map_images_use_detector_shape(synthetic_config: Path) -> None:
+    from types import SimpleNamespace
+    from hexrd.hedm.find_orientations import build_eta_omega_maps
+
+    experiment = HedmExperiment(str(synthetic_config))
+    plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 0, 0]]),
+                            exclusions=np.array([False]), two_thetas=np.radians([0.1]))
+    expected = build_eta_omega_maps(experiment, plane).ring_maps
+    assert np.nanmax(expected) == 40_000
+
+    frames = [frame.toarray() for frame in experiment.image_series_list[0].images]
+    config = next(yaml.safe_load_all(synthetic_config.read_text()))
+    path = synthetic_config.parent / 'padded.npz'
+    padded = [np.pad(frame, ((0, 1), (0, 1)), constant_values=60_000) for frame in frames]
+    _write_frame_cache(path, padded, [[0., 120.], [120., 240.], [240., 360.]])
+    config['image_series']['data'][0]['file'] = str(path)
+    synthetic_config.write_text(yaml.safe_dump(config))
+    actual = build_eta_omega_maps(HedmExperiment(str(synthetic_config)), plane).ring_maps
+    np.testing.assert_array_equal(actual, expected)
+
+    config['instrument'] = 'larger-instrument.yml'
+    instrument = yaml.safe_load((synthetic_config.parent / 'instrument.yml').read_text())
+    instrument['detectors']['p0']['pixels']['rows'] = 6
+    (synthetic_config.parent / config['instrument']).write_text(yaml.safe_dump(instrument))
+    synthetic_config.write_text(yaml.safe_dump(config))
+    with pytest.raises(ValueError, match='smaller than detector'):
+        build_eta_omega_maps(HedmExperiment(str(synthetic_config)), plane)
+
+
 @pytest.mark.parametrize('style', ['npz', 'fch5'])
 def test_experiment_from_objects(synthetic_config, ruby_materials_file, monkeypatch, style):
     from copy import deepcopy

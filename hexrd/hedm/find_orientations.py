@@ -305,8 +305,18 @@ def build_eta_omega_maps(experiment: HedmExperiment,
             check_cancelled()
             ring[start:start + 256].fill(np.nan)
 
-    active = [ims for ims in experiment.image_series_list
-              if ims.panel in experiment.detectors]
+    active = []
+    for ims in experiment.image_series_list:
+        if ims.panel not in experiment.detectors:
+            continue
+        detector = experiment.detectors[ims.panel]
+        shape = (detector.pixels.rows, detector.pixels.columns)
+        if ims.shape != shape:
+            if any(actual < required for actual, required in zip(ims.shape, shape)):
+                raise ValueError(f'Image shape {ims.shape} is smaller than detector '
+                                 f'{ims.panel!r} shape {shape}')
+            ims = RoiImageSeries(ims.panel, ims, [0, 0], shape)
+        active.append(ims)
 
     with (
         _temporary_roi_cache(active),

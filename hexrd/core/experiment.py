@@ -245,6 +245,10 @@ class ImageSeries:
         self._lock = threading.Lock()
 
     @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
+
+    @property
     def images(self) -> list[csr_array]:
         with self._lock:
             if self._images is None:
@@ -318,6 +322,10 @@ class RoiImageSeries:
         self._shape = shape
         self.omega = parent.omega
         self._images: list[csr_array] | None = None
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
 
     @property
     def images(self) -> list[csr_array]:
