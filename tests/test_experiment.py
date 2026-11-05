@@ -943,6 +943,22 @@ def test_load_materials(ruby_materials_file):
                           ruby.plane_data.hkls)
 
 
+def test_material_energy_matches_legacy_loading(ruby_materials_file: str) -> None:
+    from hexrd.core.material import Material as CoreMaterial
+    from hexrd.core.material.material_data import Material
+    from hexrd.core.valunits import valWUnit
+
+    original = CoreMaterial('ruby', material_file=ruby_materials_file)
+    energy = original.beamEnergy.getVal('keV')
+    for requested in (energy * (1 + 1e-6), energy / 2):
+        expected = CoreMaterial('ruby', material_file=ruby_materials_file)
+        expected.beamEnergy = valWUnit('kev', 'energy', requested, 'keV')
+        actual = Material('ruby', ruby_materials_file, beam_energy=requested)
+        assert actual.plane_data.wavelength == expected.planeData.wavelength
+        np.testing.assert_array_equal(actual.plane_data.two_thetas,
+                                      expected.planeData.getTTh(allHKLs=True))
+
+
 def test_material_bridge_parameters(ruby_materials_file):
     from dataclasses import replace
     from hexrd.core.material.material_data import Material

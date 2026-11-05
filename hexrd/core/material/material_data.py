@@ -126,11 +126,12 @@ class Material:
         kwargs = {}
         if reset_exclusions and dmin is not None:
             kwargs['dmin'] = valunits.valWUnit('dmin', 'length', dmin, 'angstrom')
-        if beam_energy is not None:
-            kwargs['kev'] = valunits.valWUnit('kev', 'energy', beam_energy, 'keV')
         self._material = _material.Material(
             name, material_file=definitions, **kwargs
         )
+        if beam_energy is not None:
+            self._material.beamEnergy = valunits.valWUnit(
+                'kev', 'energy', beam_energy, 'keV')
         self.plane_data = self._make_plane_data()
 
     def _make_plane_data(self) -> PlaneData:
