@@ -8,6 +8,7 @@ example repo (gated on ``HEXRD_EXAMPLE_REPO_PATH`` like the other
 example-data tests).
 """
 import os
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -761,6 +762,20 @@ def test_fch5_filter_coalesces_before_thresholding(tmp_path, dtype, index_dtype)
             keep = np.ones(reference.nnz, bool) if threshold is None else ~(reference.data.astype(float) < threshold)
             np.testing.assert_array_equal(ids, reference.col[keep])
             np.testing.assert_array_equal(values, reference.data[keep])
+
+
+def test_singleton_panel_list_uses_cropped_frames(synthetic_config: Path) -> None:
+    config = next(yaml.safe_load_all(synthetic_config.read_text()))
+    config['image_series']['data'][0]['panel'] = ['p0']
+    synthetic_config.write_text(yaml.safe_dump(config))
+    instrument_path = synthetic_config.parent / 'instrument.yml'
+    instrument = yaml.safe_load(instrument_path.read_text())
+    instrument['detectors']['p0']['pixels']['roi'] = [4, 6]
+    instrument_path.write_text(yaml.safe_dump(instrument))
+
+    series, = HedmExperiment(str(synthetic_config)).image_series_list
+    assert series.panel == 'p0'
+    assert series[0, 1:2, 2:3].item() == 40_000
 
 
 def test_grouped_panel_roi_config(synthetic_config):

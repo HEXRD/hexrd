@@ -418,6 +418,8 @@ class Experiment:
 
         self.image_series_list = []
         for d in config['image_series']['data']:
+            if isinstance(d.get('panel'), (list, tuple)) and len(d['panel']) == 1:
+                d = dict(d, panel=d['panel'][0])
             panel, parent = self._load_image_series(d)
             if isinstance(panel, str):
                 self.image_series_list.append(parent)
