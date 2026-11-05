@@ -2,7 +2,7 @@
 import os
 import logging
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from contextvars import copy_context
 from typing import Callable, Optional
 
@@ -13,6 +13,7 @@ from hexrd.core import constants as const
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core import matrixutil as mutil
 from hexrd.core import rotations
+from hexrd.core.experiment import RoiImageSeries
 from hexrd.hedm.experiment import (
     ClusteringAlgorithm, HedmExperiment, SeedSearchMethod,
 )
@@ -267,6 +268,18 @@ def _resolve_active_rings(active_hkls: Optional[np.ndarray],
     return rings
 
 
+@contextmanager
+def _temporary_roi_cache(series):
+    """Release parent frames loaded for map building; preserve preloaded frames."""
+    parents = {id(ims._parent): ims._parent for ims in series if isinstance(ims, RoiImageSeries)}
+    unloaded = [parent for parent in parents.values() if parent._images is None]
+    try:
+        yield
+    finally:
+        for parent in unloaded:
+            parent._images = None
+
+
 def build_eta_omega_maps(experiment: HedmExperiment,
                          plane_data: PlaneData) -> EtaOmegaMaps:
     """Bin streamed detector frames into per-ring eta-omega intensity maps.
@@ -294,11 +307,22 @@ def build_eta_omega_maps(experiment: HedmExperiment,
             check_cancelled()
             ring[start:start + 256].fill(np.nan)
 
-    active = [ims for ims in experiment.image_series_list
-              if ims.panel in experiment.detectors]
+    active = []
+    for ims in experiment.image_series_list:
+        if ims.panel not in experiment.detectors:
+            continue
+        detector = experiment.detectors[ims.panel]
+        shape = (detector.pixels.rows, detector.pixels.columns)
+        if ims.shape != shape:
+            if any(actual < required for actual, required in zip(ims.shape, shape)):
+                raise ValueError(f'Image shape {ims.shape} is smaller than detector '
+                                 f'{ims.panel!r} shape {shape}')
+            ims = RoiImageSeries(ims.panel, ims, [0, 0], shape)
+        active.append(ims)
 
-    with progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
-                      unit='frames', disable=None) as progress:
+    with (_temporary_roi_cache(active),
+          progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
+                       unit='frames', disable=None) as progress):
         for ims, (eta_bin, ring_masks, coverage) in _iter_panel_bins(
                 experiment, active, two_theta_ranges, eta_edges):
             activity(f'Binning frames from {ims.panel}')
@@ -976,7 +1000,7 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
         idx = np.searchsorted(spans, values, side='right')
         return (idx % 2 == 1) & (values >= spans[0]) & (values < spans[-1])
 
-    rng = np.random.default_rng(0)
+    rng = np.random.RandomState(0)
     quats = rng.normal(size=(4, n_grains))
     quats /= np.linalg.norm(quats, axis=0)
 

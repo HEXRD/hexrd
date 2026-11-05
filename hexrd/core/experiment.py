@@ -244,6 +244,10 @@ class ImageSeries:
         self._lock = threading.Lock()
 
     @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
+
+    @property
     def images(self) -> list[csr_array]:
         with self._lock:
             if self._images is None:
@@ -319,6 +323,10 @@ class RoiImageSeries:
         self._images: list[csr_array] | None = None
 
     @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
+
+    @property
     def images(self) -> list[csr_array]:
         if self._images is None:
             r0, c0 = self._roi
@@ -326,6 +334,23 @@ class RoiImageSeries:
             self._images = [image[r0:r0 + rows, c0:c0 + cols]
                             for image in self._parent.images]
         return self._images
+
+    def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
+        """Pack cropped pixels without retaining extra ROI frame copies."""
+        r0, c0 = self._roi
+        rows, cols = self._shape
+
+        def pixels():
+            frames = self._images
+            if frames is None:
+                frames = (image[r0:r0 + rows, c0:c0 + cols]
+                          for image in self._parent.images)
+            for frame in frames:
+                ids = np.empty(frame.nnz, dtype=np.int64)
+                transforms._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
+                yield ids, frame.data
+
+        yield from _pixel_chunks(pixels(), row_of_frame, max_pixels)
 
     def __len__(self):
         return len(self._parent)
@@ -418,6 +443,8 @@ class Experiment:
 
         self.image_series_list = []
         for d in config['image_series']['data']:
+            if isinstance(d.get('panel'), (list, tuple)) and len(d['panel']) == 1:
+                d = dict(d, panel=d['panel'][0])
             panel, parent = self._load_image_series(d)
             if isinstance(panel, str):
                 self.image_series_list.append(parent)

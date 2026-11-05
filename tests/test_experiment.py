@@ -763,6 +763,27 @@ def test_fch5_filter_coalesces_before_thresholding(tmp_path, dtype, index_dtype)
             np.testing.assert_array_equal(values, reference.data[keep])
 
 
+def test_map_images_use_detector_shape(synthetic_config):
+    from types import SimpleNamespace
+    from hexrd.hedm.find_orientations import build_eta_omega_maps
+
+    experiment = HedmExperiment(str(synthetic_config))
+    plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 0, 0]]),
+                            exclusions=np.array([False]), two_thetas=np.radians([0.1]))
+    expected = build_eta_omega_maps(experiment, plane).ring_maps
+    series = experiment.image_series_list[0]
+    frames = [np.pad(frame.toarray(), ((0, 1), (0, 1)), constant_values=60_000)
+              for frame in series.images]
+    path = synthetic_config.parent / 'padded.npz'
+    _write_frame_cache(path, frames, np.degrees(series.omega))
+    config = next(yaml.safe_load_all(synthetic_config.read_text()))
+    config['image_series']['data'][0].update(file=str(path), panel=['p0'])
+    synthetic_config.write_text(yaml.safe_dump(config))
+    experiment = HedmExperiment(str(synthetic_config))
+    np.testing.assert_array_equal(build_eta_omega_maps(experiment, plane).ring_maps, expected)
+    assert experiment.image_series_list[0]._images is None
+
+
 def test_grouped_panel_roi_config(synthetic_config):
     with open(synthetic_config) as stream:
         config = next(yaml.safe_load_all(stream))
