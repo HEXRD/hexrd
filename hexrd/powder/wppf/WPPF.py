@@ -1755,6 +1755,16 @@ class Rietveld(AbstractWPPF):
             texture_model=self.texture_model,
         )
 
+    @AbstractWPPF.params.setter
+    def params(self, param_info):
+        """Set parameters and synchronize the phase fractions."""
+        AbstractWPPF.params.fset(self, param_info)
+        self._set_phase_fractions(self.params)
+
+    def _set_phase_fractions(self, params: lmfit.Parameters):
+        pf = np.array([params[f"{p}_phase_fraction"].value for p in self.phases])
+        self.phases.phase_fraction = pf / np.sum(pf)
+
     def _add_phase_params(self, params: lmfit.Parameters):
         for p in self.phases:
             for lpi in self.phases[p]:
@@ -1768,15 +1778,7 @@ class Rietveld(AbstractWPPF):
         updated_lp = False
         updated_atominfo = False
 
-        pf = np.zeros(
-            [
-                self.phases.num_phases,
-            ]
-        )
-        for ii, p in enumerate(self.phases):
-            name = f"{p}_phase_fraction"
-            pf[ii] = params[name].value
-
+        for p in self.phases:
             for lpi in self.phases[p]:
                 mat = self.phases[p][lpi]
 
@@ -1891,7 +1893,7 @@ class Rietveld(AbstractWPPF):
         if updated_lp or updated_atominfo:
             self.calcsf()
 
-        self.phases.phase_fraction = pf / np.sum(pf)
+        self._set_phase_fractions(params)
 
     def on_smoothing_modified(self):
         self.update_tds_model_smoothing()
@@ -2552,6 +2554,13 @@ class Rietveld(AbstractWPPF):
                     self._phases[p][k].rqd_index,
                     self._phases[p][k].trig_ptype,
                 ) = wppfsupport._required_shkl_names(self._phases[p][k])
+
+        # Fraction parameters may not exist yet during initialization or
+        # when adding phases. Restore them when rebuilding existing phases.
+        if hasattr(self, "params") and all(
+            f"{p}_phase_fraction" in self.params for p in self.phases
+        ):
+            self._set_phase_fractions(self.params)
 
     @property
     def texture_model(self):
