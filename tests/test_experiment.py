@@ -284,6 +284,14 @@ def test_roi_pixel_chunks_do_not_cache_frames(tmp_path: Path) -> None:
         list(roi.pixel_chunks(np.arange(2)))
     assert parent._images is cached
 
+    cropped = roi.images
+    cropped[0].data *= 2
+    parent._images = None
+    values = next(roi.pixel_chunks(np.arange(2)))[1]
+    np.testing.assert_array_equal(values, cropped[0].data)
+    assert roi._images is cropped
+    assert parent._images is None
+
 
 def test_roi_image_series_slices_parent(tmp_path):
     from hexrd.core.experiment import RoiImageSeries

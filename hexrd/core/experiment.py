@@ -347,8 +347,11 @@ class RoiImageSeries:
         rows, cols = self._shape
 
         def pixels() -> Iterator[tuple[np.ndarray, np.ndarray]]:
-            for image in self._parent.images:
-                frame = image[r0:r0 + rows, c0:c0 + cols]
+            frames = self._images
+            if frames is None:
+                frames = (image[r0:r0 + rows, c0:c0 + cols]
+                          for image in self._parent.images)
+            for frame in frames:
                 ids = np.empty(frame.nnz, dtype=np.int64)
                 transforms._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
                 yield ids, frame.data
