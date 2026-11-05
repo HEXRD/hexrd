@@ -7,14 +7,19 @@ from typing import Tuple
 # hexrd imports
 # -------------
 from hexrd.core.transforms.xfcapi import angles_to_gvec
-from hexrd.core import constants
+from hexrd.core import constants, rotations
 from hexrd.powder.wppf.phase import Material_Rietveld
+from hexrd.phase_transition.texture.composite_odf import CompositeODF
+from hexrd.phase_transition.texture.kernels import DeLaValleePoussinKernel
+from hexrd.phase_transition.texture.pole_figure import equivalent_directions
+from hexrd.phase_transition.texture.unimodal_odf import UnimodalODF
 
 # 3rd party imports
 # -----------------
 from lmfit import Parameters, Minimizer
 import numba
 import numpy as np
+from scipy.optimize import lsq_linear, nnls
 from scipy.special import sph_harm_y
 from matplotlib import pyplot as plt
 
@@ -1420,7 +1425,9 @@ class HarmonicModel:
         if not hasattr(self, 'fig_new'):
             return False
 
-        return self.fig_new.canvas.isVisible()
+        # a figure closed with plt.close() gets a non-GUI canvas
+        is_visible = getattr(self.fig_new.canvas, 'isVisible', None)
+        return bool(is_visible()) if is_visible is not None else False
 
     def plot_new_pf(
         self,
@@ -1900,6 +1907,703 @@ class HarmonicModel:
                 dg = h
                 sz = v.shape[0]
         return dg
+
+
+class DeLaValleePoussinModel(HarmonicModel):
+    """Texture model built from de la Vallee Poussin kernels on a grid of
+    orientations, fitted to pole figure data.
+
+    The ODF is
+
+        f(g) = c0 + sum_l w_l K(g, g_l),     c0 >= 0, w_l >= 0,
+
+    where K is :class:`hexrd.phase_transition.texture.DeLaValleePoussinKernel`
+    averaged over crystal and sample symmetry, g_l are the orientations of an
+    (approximately) equispaced grid of the crystal fundamental zone, and c0 is
+    an optional uniform (random) component. Every kernel has mean 1 MRD, so
+    the mean of f is c0 + sum w_l.
+
+    The pole figure of f is evaluated with the closed-form Radon transform of
+    the kernel, (1 + kappa) ((1 + t) / 2)^kappa, so there is no series
+    truncation (no Gibbs ringing) and pole densities are never negative.
+    Because f is linear in (c0, w), fitting pole figure data is a
+    non-negative linear least squares problem; it is solved with
+    :func:`scipy.optimize.nnls`, not with lmfit, so the (possibly
+    thousands of) kernel weights are not lmfit parameters.
+
+    The model is a drop-in replacement for :class:`HarmonicModel` in
+    :class:`hexrd.powder.wppf.Rietveld`: it takes ``pfdata`` (and the
+    ``superposition`` of exactly overlapping reflections) in the same
+    format, provides ``calc_texture_factor`` / ``calc_pf_rings`` for the
+    spectrum, ``calc_new_pole_figure`` / ``plot_pf`` for pole figures, and is
+    fitted by ``Rietveld.RefineTexture`` through :meth:`fit_texture`. It
+    reuses the pole figure bookkeeping (pfdata, angles, plotting) of
+    :class:`HarmonicModel`.
+
+    Parameters
+    ----------
+    material : Material_Rietveld
+        Material whose ``hkls`` the texture factors are computed for.
+    ssym : str
+        Sample symmetry: 'triclinic', 'monoclinic', 'orthorhombic' or
+        'axial'. 'axial' (fibre) symmetry is approximated by ``n_axial``
+        equally spaced rotations about the sample z axis.
+    halfwidth : float
+        Kernel halfwidth in radians (angle at which a kernel falls to half
+        its maximum). Sets the sharpest texture feature the model can
+        represent.
+    grid_spacing : float, optional
+        Average spacing of the kernel centres in radians. Default: equal to
+        ``halfwidth``.
+    orientations : ndarray, optional
+        Kernel centres as rotation matrices, shape (n, 3, 3), mapping crystal
+        to sample coordinates. Default: hexrd's cubochoric sampling of the
+        crystal fundamental zone (``hexrd.hedm.sampleOrientations``).
+    uniform_component : bool
+        Include the uniform component c0 (default True).
+    normalize : bool
+        After fitting, rescale the ODF to mean 1 MRD (default True). The
+        overall level of the data, which carries any error in the Rietveld
+        scale or phase fraction, is then treated as a nuisance factor (stored
+        in ``data_scale``) and does not leak into the texture factors.
+    regularization : float
+        Weight of a ridge penalty on the kernel weights (default 0).
+    intensity_weighting : bool
+        Weight residuals by 1/I as HarmonicModel does (default False:
+        unweighted least squares in MRD).
+    n_axial : int, optional
+        Number of rotations used for 'axial' sample symmetry. Default: a
+        rotation step of half the kernel halfwidth.
+    bvec, evec, sample_rmat, pfdata
+        As for :class:`HarmonicModel`.
+    """
+
+    def __init__(
+        self,
+        material=None,
+        ssym='triclinic',
+        halfwidth=np.radians(10.0),
+        grid_spacing=None,
+        orientations=None,
+        uniform_component=True,
+        normalize=True,
+        regularization=0.0,
+        intensity_weighting=False,
+        n_axial=None,
+        bvec=bvec_ref,
+        evec=eta_ref,
+        sample_rmat=np.eye(3),
+        pfdata=None,
+    ):
+        # deliberately not calling HarmonicModel.__init__: there is no ell_max
+        self.material = material
+        self.csym = self.material.sg.laueGroup
+        self.ssym = ssym
+        self.bvec = bvec
+        self.etavec = evec
+        self.sample_rmat = sample_rmat
+
+        self.halfwidth = float(halfwidth)
+        self.grid_spacing = float(halfwidth if grid_spacing is None else grid_spacing)
+        self.uniform_component = bool(uniform_component)
+        self.normalize = bool(normalize)
+        self.regularization = float(regularization)
+        self.intensity_weighting = bool(intensity_weighting)
+        if n_axial is None:
+            n_axial = int(np.ceil(2.0 * np.pi / (0.5 * self.halfwidth)))
+        self.n_axial = int(n_axial)
+
+        self.kernel = DeLaValleePoussinKernel(
+            self.halfwidth,
+            crystal_symmetry=self.csym,
+            sample_symmetry=self._sample_symmetry(),
+        )
+        if orientations is None:
+            orientations = _fundamental_zone_grid(self.csym, self.grid_spacing)
+        self.orientations = np.ascontiguousarray(
+            np.asarray(orientations, dtype=float).reshape(-1, 3, 3)
+        )
+
+        # start from the random texture: no kernels, uniform level 1 MRD
+        self._kernel_weights = np.zeros(len(self.orientations))
+        self._uniform = 1.0
+        self._version = 0
+        self._ring_cache = {}
+        self.data_scale = 1.0
+        self.fit_result = None
+
+        self.superposition = {}
+        self.pfdata = pfdata
+
+    # ------------------------------------------------------------ symmetry
+
+    def _sample_symmetry(self):
+        if self.ssym == 'triclinic':
+            return None
+        if self.ssym in ('monoclinic', 'orthorhombic'):
+            return self.ssym
+        # 'axial': n rotations about the sample z axis, as quaternions (4, n)
+        phi = 2.0 * np.pi * np.arange(self.n_axial) / self.n_axial
+        z = np.zeros_like(phi)
+        return np.vstack((np.cos(phi / 2), z, z, np.sin(phi / 2)))
+
+    # ------------------------------------------------------------ state
+
+    @property
+    def kernel_weights(self):
+        """Kernel weights w_l (MRD), one per grid orientation. (``weights``
+        is HarmonicModel's per-point data weighting, set with pfdata.)"""
+        return self._kernel_weights.copy()
+
+    @property
+    def uniform(self):
+        """Uniform component c0 (MRD)."""
+        return self._uniform
+
+    def set_odf(self, weights, uniform=0.0):
+        """Set the kernel weights and uniform component directly."""
+        weights = np.asarray(weights, dtype=float).reshape(-1)
+        if weights.shape != (len(self.orientations),):
+            raise ValueError('one weight per grid orientation is required')
+        if np.any(weights < 0) or uniform < 0:
+            raise ValueError('weights and uniform component must be non-negative')
+        self._kernel_weights = weights.copy()
+        self._uniform = float(uniform)
+        self._version += 1
+        self._ring_cache = {}
+
+    @property
+    def active(self):
+        """Indices of the grid orientations with non-zero weight."""
+        return np.flatnonzero(self._kernel_weights > 0)
+
+    @property
+    def odf(self):
+        """The ODF as a hexrd.phase_transition.texture CompositeODF."""
+        active = self.active
+        if len(active) == 0:
+            return CompositeODF([], constant=self._uniform)
+        w = self._kernel_weights[active]
+        component = UnimodalODF(self.orientations[active], self.kernel, weights=w / w.sum())
+        return CompositeODF([component], coefficients=[w.sum()], constant=self._uniform)
+
+    # ------------------------------------------------------------ lmfit interface
+
+    @property
+    def coefficients_parameter_name(self):
+        """Name of the lmfit parameter standing for all kernel coefficients."""
+        return f'{self.material.name}_kernel_coefficients'
+
+    @property
+    def parameter_names(self):
+        return [self.coefficients_parameter_name]
+
+    def get_parameters(self, params=None, vary=True):
+        """One lmfit parameter represents all kernel coefficients. Its
+        ``vary`` flag selects whether RefineTexture fits them, its ``min``
+        and ``max`` bound every coefficient in the fit (default 0 to
+        infinity: non-negative least squares), and after a fit its value is
+        the mean of the non-zero coefficients and its ``stderr`` their mean
+        standard error. The coefficients themselves are fitted by linear
+        least squares, never by lmfit."""
+        if params is None:
+            params = Parameters()
+        params.add(
+            self.coefficients_parameter_name,
+            value=self._mean_active_coefficient(),
+            min=0.0,
+            max=np.inf,
+            vary=vary,
+        )
+        return params
+
+    def _mean_active_coefficient(self):
+        active = self.active
+        return float(self._kernel_weights[active].mean()) if len(active) else 0.0
+
+    def coefficient_bounds(self, params=None):
+        """Bounds on every kernel coefficient, from the coefficients parameter."""
+        name = self.coefficients_parameter_name
+        if params is None or name not in params:
+            return 0.0, np.inf
+        lo, hi = float(params[name].min), float(params[name].max)
+        lo = 0.0 if not np.isfinite(lo) else lo
+        if lo < 0:
+            raise ValueError(
+                f'{name}: the minimum must be >= 0, since an ODF cannot be negative'
+            )
+        if not hi > lo:
+            raise ValueError(f'{name}: the maximum must be larger than the minimum')
+        return lo, hi
+
+    # ------------------------------------------------------------ pole figures
+
+    def _crystal_direction(self, hkl):
+        return self.convert_hkls_to_cartesian(np.atleast_2d(np.asarray(hkl, dtype=float)))[0]
+
+    def _sample_images(self, dirs):
+        """dirs (n, 3) in the sample frame -> s^T dirs for every sample operator, (n, ns, 3)."""
+        ops = self.kernel.sample_symmetry_operations
+        return np.ascontiguousarray(np.einsum('ni,sij->nsj', dirs, ops))
+
+    def pole_figure_operator(self, hkl, sample_dirs, columns=None):
+        """Matrix A with A[i, l] the pole density at sample_dirs[i] of a unit
+        kernel centred on grid orientation l, for crystal direction hkl.
+
+        Exact closed form; contributions below 1e-12 of the kernel peak are
+        skipped.
+        """
+        columns = np.arange(len(self.orientations)) if columns is None else columns
+        eq = equivalent_directions(
+            self._crystal_direction(hkl), self.kernel.crystal_symmetry_operations, antipodal=True
+        )
+        poles = np.ascontiguousarray(np.einsum('lij,ej->lei', self.orientations[columns], eq))
+        dirs = np.asarray(sample_dirs, dtype=float).reshape(-1, 3)
+        images = self._sample_images(dirs / np.linalg.norm(dirs, axis=1, keepdims=True))
+        kappa = self.kernel.kappa
+        tmin = 2.0 * 1e-12 ** (1.0 / kappa) - 1.0
+        out = np.empty((images.shape[0], len(columns)))
+        _kernel_pf_operator(poles, images, kappa, tmin, out)
+        return out
+
+    def _group(self, key):
+        """Members and normalised coefficients of a pfdata entry."""
+        members, coeffs = self.superposition.get(key, ([key], [1.0]))
+        coeffs = np.asarray(coeffs, dtype=float)
+        return members, coeffs / coeffs.sum()
+
+    def pole_density(self, hkl, sample_dirs, members=None):
+        """Pole density of the current ODF (MRD) at sample-frame directions.
+        ``members`` = (hkls, coefficients) evaluates a superposition."""
+        sample_dirs = np.asarray(sample_dirs, dtype=float).reshape(-1, 3)
+        hkls, coeffs = ([hkl], [1.0]) if members is None else members
+        coeffs = np.asarray(coeffs, dtype=float) / np.sum(coeffs)
+        out = np.full(len(sample_dirs), self._uniform)
+        active = self.active
+        if len(active):
+            for h, c in zip(hkls, coeffs):
+                out += c * (self.pole_figure_operator(h, sample_dirs, active) @ self._kernel_weights[active])
+        return out
+
+    def _sample_frame(self, vectors):
+        v = np.asarray(vectors, dtype=float).reshape(-1, 3)
+        v = v / np.linalg.norm(v, axis=1, keepdims=True)
+        return np.dot(self.ref_frame_rmat, v.T).T
+
+    def recalculated_pf(self, params=None, new=False):
+        if not new:
+            self.intensities_recalc = {}
+            for h in self.pfdata:
+                members = self.superposition.get(h)
+                self.intensities_recalc[h] = self.pole_density(
+                    h, self._sample_frame(self.gvecs[h]), members=members
+                )
+        else:
+            self.intensities_new = {}
+            for h in self.hkls_new_keys:
+                self.intensities_new[h] = self.pole_density(h, self._sample_dirs_new)
+
+    def calc_new_pfdata(self, params, hkls, pfgrid=None):
+        if pfgrid is None:
+            t = np.radians(np.linspace(0, 90, 19))
+            e = np.radians(np.linspace(-180, 180, 73))
+            tt, ee = np.meshgrid(t, e)
+            tt, ee = tt.flatten(), ee.flatten()
+            v = np.vstack((np.cos(ee) * np.sin(tt), np.sin(ee) * np.sin(tt), np.cos(tt))).T
+        else:
+            v = np.asarray(pfgrid, dtype=float).reshape(-1, 3)
+            v = v / np.linalg.norm(v, axis=1, keepdims=True)
+        tt = np.arccos(np.clip(v[:, 2], -1.0, 1.0))
+        ee = np.arctan2(v[:, 1], v[:, 0])
+        vr = self._sample_frame(v)
+        rotated = np.vstack((np.arccos(np.clip(vr[:, 2], -1.0, 1.0)), np.arctan2(vr[:, 1], vr[:, 0]))).T
+
+        self._sample_dirs_new = vr
+        self.hkls_new_keys = [tuple(h) for h in np.atleast_2d(hkls)]
+        self.angs_new, self.rotated_angs_new = {}, {}
+        for hkey in self.hkls_new_keys:
+            self.angs_new[hkey] = np.vstack((tt, ee)).T
+            self.rotated_angs_new[hkey] = rotated.copy()
+        self.stereo_radius_new = self.stereographic_radius(new=True)
+        self.recalculated_pf(params, new=True)
+
+    def plot_pf(
+        self,
+        filled=False,
+        grid=False,
+        cmap='jet',
+        colorbar=True,
+        colorbar_label='m.r.d.',
+        show=True,
+        recalculated=False,
+    ):
+        """Plot the pole figure data, one panel per pfdata entry.
+
+        Extracted pole figure data usually lie on single rings (one 2theta,
+        many azimuths), which cannot be triangulated for contouring, so the
+        measured intensities are drawn as points. With ``recalculated=True``
+        the fitted model pole figure is drawn as contours over the whole
+        hemisphere behind the measured points, on the same colour scale, so
+        model and data can be compared directly.
+        """
+        keys = list(self.pfdata)
+        n = len(keys)
+        if n == 0:
+            raise RuntimeError('no pole figure data to plot')
+        nrows = int(np.ceil(n / 3))
+        ncols = min(3, n)
+        self.fig, self.ax = plt.subplots(
+            nrows=nrows,
+            ncols=ncols,
+            subplot_kw={'projection': 'polar'},
+            figsize=(4 * ncols, 4 * nrows),
+            squeeze=False,
+        )
+        for ax in self.ax.flatten():
+            ax.set_axis_off()
+
+        if recalculated:
+            # model pole figures on the default hemisphere grid (same frame
+            # as the data angles), evaluated exactly
+            t = np.radians(np.linspace(0, 90, 46))
+            e = np.radians(np.linspace(-180, 180, 145))
+            tt, ee = (x.flatten() for x in np.meshgrid(t, e))
+            v = np.vstack((np.cos(ee) * np.sin(tt), np.sin(ee) * np.sin(tt), np.cos(tt))).T
+            dirs = self._sample_frame(v)
+            radius = np.sin(tt) / (1 + np.abs(np.cos(tt)))
+
+        for ii, h in enumerate(keys):
+            ax = self.ax[ii // 3][ii % 3]
+            ax.set_axis_on()
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_ylim(0, 1)
+            ax.grid(grid)
+
+            rho = self.angs[h][:, 1]
+            r = self.stereo_radius[h]
+            I = np.asarray(self.intensities[h], dtype=float)
+            ok = np.isfinite(I)
+            vmin, vmax = np.nanmin(I), np.nanmax(I)
+
+            mappable = None
+            if recalculated:
+                model = self.pole_density(h, dirs, members=self.superposition.get(h))
+                if self.normalize:
+                    model = model * self.data_scale  # data units
+                vmin, vmax = min(vmin, model.min()), max(vmax, model.max())
+                if vmax > vmin:
+                    levels = np.linspace(vmin, vmax, 21)
+                    func = ax.tricontourf if filled else ax.tricontour
+                    mappable = func(ee, radius, model, levels=levels, cmap=cmap)
+
+            points = ax.scatter(
+                rho[ok], r[ok], c=I[ok], cmap=cmap, vmin=vmin, vmax=vmax,
+                s=18, edgecolors='k' if recalculated else 'none', linewidths=0.3,
+            )
+            if mappable is None:
+                mappable = points
+
+            members = self.superposition.get(h, ([h], None))[0]
+            title = ' + '.join('(' + ', '.join(str(int(x)) for x in m) + ')' for m in members)
+            ax.set_title(title)
+            if colorbar:
+                self.fig.colorbar(mappable, ax=ax, label=colorbar_label)
+
+        self.fig.tight_layout()
+        if show:
+            self.fig.show()
+        return self.fig
+
+    def update_new_pf_plots(self):
+        """As HarmonicModel.update_new_pf_plots, but a uniform pole figure
+        (the random texture, e.g. before any fit) is drawn as one filled
+        level instead of an empty contour plot."""
+        for ii, h in enumerate(self.angs_new):
+            ax = self.ax_new[ii // 3][ii % 3]
+            rho = self.angs_new[h][:, 1]
+            r = self.stereo_radius_new[h]
+            I = self.intensities_new[h]
+            mask = np.isclose(np.abs(rho), np.pi)
+            if np.any(mask):
+                rho = np.concatenate((rho, -rho[mask]))
+                r = np.concatenate((r, r[mask]))
+                I = np.concatenate((I, I[mask]))
+
+            if hasattr(ax, '_plt_colorbar'):
+                ax._plt_colorbar.remove()
+            if hasattr(ax, '_plt_pf'):
+                ax._plt_pf.remove()
+
+            lo, hi = float(np.min(I)), float(np.max(I))
+            if hi - lo < 1e-6 * max(abs(hi), 1.0):
+                pad = 1e-3 * max(abs(hi), 1.0)
+                pf = ax.tricontourf(rho, r, I, levels=[lo - pad, hi + pad], cmap=self.new_pf_cmap)
+            else:
+                func = ax.tricontourf if self.new_pf_filled else ax.tricontour
+                pf = func(rho, r, I, levels=20, cmap=self.new_pf_cmap)
+            ax._plt_pf = pf
+            ax.set_axis_on()
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.grid(self.new_pf_grid)
+            ax.set_title('(' + ', '.join(str(int(x)) for x in h) + ')')
+            ax._plt_colorbar = self.fig_new.colorbar(pf, ax=ax, label=self.new_pf_colorbar_label)
+
+    # ------------------------------------------------------------ Rietveld interface
+
+    def calc_pf_rings(
+        self,
+        params=None,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(0.1),
+        calc_type='texture_factor',
+    ):
+        """Pole density along the Debye-Scherrer ring of every hkl of the
+        material (same geometry as HarmonicModel.calc_pf_rings). Results are
+        cached until the ODF changes."""
+        if calc_type not in ('texture_factor', 'spectrum_2d'):
+            raise ValueError(f'unknown calc_type {calc_type!r}')
+
+        nspec = int((eta_max - eta_min) / eta_step) - 1
+        eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
+        tth = np.radians(self.material.getTTh(self.material.wavelength))
+        key = (self._version, float(eta_min), float(eta_max), float(eta_step), tth.tobytes())
+
+        rings = self._ring_cache.get(key)
+        if rings is None:
+            rings = {}
+            for t, h in zip(tth, self.material.hkls):
+                angs = np.vstack((np.full(nspec, t), eta_grid, np.zeros(nspec))).T
+                g = angles_to_gvec(angs, beam_vec=self.bvec, eta_vec=self.etavec)
+                rings[tuple(h)] = self.pole_density(h, self._sample_frame(g))
+            self._ring_cache = {key: rings}
+
+        if calc_type == 'texture_factor':
+            self.intensities_rings = rings
+        else:
+            self.intensities_rings_2d = rings
+
+    def J(self, params=None, n_orientations=100000, seed=0):
+        """Texture index J = <f^2> (Monte Carlo over Haar-random orientations;
+        exactly 1 for the random texture). Cached until the ODF changes."""
+        active = self.active
+        if len(active) == 0:
+            return self._uniform ** 2
+        key = (self._version, int(n_orientations), seed)
+        cached = getattr(self, '_J_cache', None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        from scipy.spatial.transform import Rotation
+
+        q = rotations.quatOfRotMat(
+            Rotation.random(n_orientations, random_state=seed).as_matrix()
+        ).T
+        cs = self.kernel.crystal_symmetry_operations
+        ss = self.kernel.sample_symmetry_operations
+        images = np.einsum('sij,ljk,ckm->lscim', ss, self.orientations[active], cs).reshape(-1, 3, 3)
+        p = np.ascontiguousarray(rotations.quatOfRotMat(images).T)
+        nsym = len(cs) * len(ss)
+        w = np.repeat(self._kernel_weights[active], nsym) * self.kernel.norm_constant / nsym
+        f = np.empty(len(q))
+        _kernel_odf_values(np.ascontiguousarray(q), p, w, self.kernel.kappa, f)
+        f += self._uniform
+        J = float(np.mean(f ** 2))
+        self._J_cache = (key, J)
+        return J
+
+    def texture_index(self, params=None):
+        return self.J(params)
+
+    # ------------------------------------------------------------ fitting
+
+    def _design(self):
+        """Stacked operator, data and residual weights for all pfdata."""
+        blocks, data, weights = [], [], []
+        for key in self.pfdata:
+            dirs = self._sample_frame(self.gvecs[key])
+            members, coeffs = self._group(key)
+            block = sum(c * self.pole_figure_operator(h, dirs) for h, c in zip(members, coeffs))
+            I = np.asarray(self.intensities[key], dtype=float)
+            if self.intensity_weighting:
+                w = np.where(I > 0, 1.0 / np.where(I > 0, I, 1.0), 0.0)
+                w[w > 1e2] = 0.0
+            else:
+                w = np.ones_like(I)
+            ok = np.isfinite(I) & np.all(np.isfinite(block), axis=1) & (w > 0)
+            blocks.append(block[ok])
+            data.append(I[ok])
+            weights.append(np.sqrt(w[ok]))
+        A = np.vstack(blocks)
+        if self.uniform_component:
+            A = np.hstack((A, np.ones((A.shape[0], 1))))
+        return A, np.concatenate(data), np.concatenate(weights)
+
+    def fit_texture(self, params=None, method='nnls', max_iter=None):
+        """Fit the kernel weights (and uniform component) to ``pfdata`` by
+        non-negative least squares.
+
+        method 'nnls' (default) is the Lawson-Hanson active-set solver
+        (:func:`scipy.optimize.nnls`), which returns an exactly sparse
+        solution; 'bvls' and 'trf' use :func:`scipy.optimize.lsq_linear`.
+        Returns (solution, relative residual); the details are kept in
+        ``fit_result``.
+        """
+        if not self.pfdata:
+            raise RuntimeError('no pole figure data: set pfdata first')
+        A, b, sw = self._design()
+        A, b = A * sw[:, None], b * sw
+        n = len(self.orientations)
+        if self.regularization > 0:
+            R = np.zeros((n, A.shape[1]))
+            R[np.arange(n), np.arange(n)] = np.sqrt(self.regularization)
+            A_fit, b_fit = np.vstack((A, R)), np.concatenate((b, np.zeros(n)))
+        else:
+            A_fit, b_fit = A, b
+
+        lo, hi = self.coefficient_bounds(params)
+        if (lo, hi) != (0.0, np.inf) and method == 'nnls':
+            # nnls only knows x >= 0; other bounds need bounded least squares
+            method = 'bvls'
+        if method == 'nnls':
+            maxiter = 50 * A_fit.shape[1] if max_iter is None else max_iter
+            x, _ = nnls(A_fit, b_fit, maxiter=maxiter)
+        elif method in ('bvls', 'trf'):
+            lower = np.full(A_fit.shape[1], lo)
+            upper = np.full(A_fit.shape[1], hi)
+            if self.uniform_component:
+                # the uniform component is only kept non-negative
+                lower[-1], upper[-1] = 0.0, np.inf
+            x = lsq_linear(
+                A_fit, b_fit, bounds=(lower, upper), method=method, max_iter=max_iter
+            ).x
+        else:
+            raise ValueError(f'unknown method {method!r}')
+        x = np.maximum(x, 0.0)
+        if lo == 0.0:
+            x[x < 1e-12 * max(x.max(), 1e-300)] = 0.0
+
+        residual = float(np.linalg.norm(A @ x - b) / np.linalg.norm(b))
+        weights, uniform = x[:n], (x[n] if self.uniform_component else 0.0)
+        total = weights.sum() + uniform
+        self.data_scale = float(total)
+        if self.normalize and total > 0:
+            weights, uniform = weights / total, uniform / total
+        self.set_odf(weights, uniform)
+
+        stderr = self._coefficient_stderr(A, b, x, lo, hi)
+        if self.normalize and total > 0:
+            stderr = stderr / total
+        self.coefficient_stderr = stderr[:n]
+        finite = np.isfinite(self.coefficient_stderr)
+        mean_stderr = float(self.coefficient_stderr[finite].mean()) if finite.any() else None
+
+        self.fit_result = {
+            'method': method,
+            'bounds': (lo, hi),
+            'relative_residual': residual,
+            'n_data': int(A.shape[0]),
+            'n_active': int(np.count_nonzero(weights)),
+            'data_scale': self.data_scale,
+            'mean_stderr': mean_stderr,
+        }
+
+        name = self.coefficients_parameter_name
+        if params is not None and name in params:
+            params[name].value = self._mean_active_coefficient()
+            params[name].stderr = mean_stderr
+
+        self.recalculated_pf(params)
+        return x, residual
+
+    @staticmethod
+    def _coefficient_stderr(A, b, x, lo, hi):
+        """Standard errors of the coefficients that are not at a bound
+        (NaN for those that are, and for all of them if there are no more
+        free coefficients than data): sigma^2 (A_f^T A_f)^-1 on the free
+        set f, with sigma^2 the residual variance."""
+        stderr = np.full(len(x), np.nan)
+        tol = 1e-12 * max(float(np.max(np.abs(x))), 1e-300)
+        free = np.flatnonzero((x > lo + tol) & (x < hi - tol))
+        dof = A.shape[0] - len(free)
+        if len(free) == 0 or dof <= 0:
+            return stderr
+        r = A @ x - b
+        sigma2 = float(r @ r) / dof
+        Af = A[:, free]
+        cov = sigma2 * np.linalg.pinv(Af.T @ Af)
+        stderr[free] = np.sqrt(np.clip(np.diag(cov), 0.0, None))
+        return stderr
+
+    def calculate_harmonic_coefficients(self, params=None, hkls=None):
+        """Alias of :meth:`fit_texture`, for code written for HarmonicModel."""
+        return self.fit_texture(params)
+
+    def calc_residual(self, params=None):
+        measured = np.concatenate([self.intensities[h] for h in self.pfdata])
+        self.recalculated_pf(params)
+        calculated = np.concatenate([self.intensities_recalc[h] for h in self.pfdata])
+        if self.normalize:
+            calculated = calculated * self.data_scale
+        return measured - calculated
+
+    def __repr__(self):
+        return (
+            f'DeLaValleePoussinModel({self.material.name}, csym={self.csym}, '
+            f'ssym={self.ssym}, halfwidth={np.degrees(self.halfwidth):.2f} deg, '
+            f'{len(self.orientations)} grid orientations, {len(self.active)} active, '
+            f'uniform={self._uniform:.3f})'
+        )
+
+
+_LAUE_TO_PROPER = {
+    'ci': 'c1', 'c2h': 'c2', 'd2h': 'd2', 'c4h': 'c4', 'd4h': 'd4', 's6': 'c3',
+    'd3d': 'd3', 'c6h': 'c6', 'd6h': 'd6', 'th': 't', 'oh': 'o',
+}
+
+
+def _fundamental_zone_grid(laue_group, spacing):
+    """Rotation matrices sampling the fundamental zone of the rotation group
+    of a Laue class, spaced about `spacing` radians apart (cubochoric
+    sampling, Singh & De Graef, MSMSE 24, 085013 (2016))."""
+    from hexrd.hedm.sampleOrientations.sampleRFZ import sampleRFZ
+
+    pgnum = constants.SYM_PG_to_PGNUM[_LAUE_TO_PROPER[laue_group]]
+    quats = sampleRFZ(pgnum, average_angular_spacing=np.degrees(spacing)).orientations
+    return rotations.rotMatOfQuat(np.ascontiguousarray(quats.T)).reshape(-1, 3, 3)
+
+
+@numba.njit(parallel=True, fastmath=True, cache=True, nogil=True)
+def _kernel_pf_operator(poles, images, kappa, tmin, out):
+    """out[i, l] = mean over sample images a and crystal equivalents e of
+    (1 + kappa) ((1 + <poles[l, e], images[i, a]>) / 2)^kappa"""
+    n, na = images.shape[0], images.shape[1]
+    M, m = poles.shape[0], poles.shape[1]
+    scale = (1.0 + kappa) / (na * m)
+    for i in numba.prange(n):
+        for l in range(M):
+            s = 0.0
+            for a in range(na):
+                x, y, z = images[i, a, 0], images[i, a, 1], images[i, a, 2]
+                for e in range(m):
+                    t = poles[l, e, 0] * x + poles[l, e, 1] * y + poles[l, e, 2] * z
+                    if t > tmin:
+                        s += np.exp(kappa * np.log(0.5 * (1.0 + t)))
+            out[i, l] = scale * s
+
+
+@numba.njit(parallel=True, fastmath=True, cache=True, nogil=True)
+def _kernel_odf_values(q, p, w, kappa, out):
+    """out[i] = sum_j w[j] <q[i], p[j]>^(2 kappa), quaternions as rows"""
+    for i in numba.prange(q.shape[0]):
+        s = 0.0
+        for j in range(p.shape[0]):
+            d = q[i, 0] * p[j, 0] + q[i, 1] * p[j, 1] + q[i, 2] * p[j, 2] + q[i, 3] * p[j, 3]
+            d2 = min(d * d, 1.0)
+            if d2 > 0.0:
+                s += w[j] * np.exp(kappa * np.log(d2))
+        out[i] = s
 
 
 class InversePoleFigures:

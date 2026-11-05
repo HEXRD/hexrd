@@ -503,3 +503,213 @@ def test_harmonic_model_fits_superposed_overlap():
 
     # Read as a pure 333 pole figure, the same data give the wrong texture
     assert np.max(np.abs(fit({}) - expected)) > 1e-2
+
+
+# ---------------------------------------------------------------------------
+# DeLaValleePoussinModel
+# ---------------------------------------------------------------------------
+
+
+def _ni_rietveld_material(dmin=0.6):
+    from hexrd.valunits import _kev
+
+    ni = Material(kev=_kev(100.0), dmin=_angstrom(dmin))
+    ni.planeData.exclusions = None
+    return Material_Rietveld(material_obj=ni)
+
+
+@pytest.mark.parametrize('ssym', ['triclinic', 'orthorhombic', 'axial'])
+def test_kernel_model_operator_matches_hexrd_pole_density(ssym):
+    import hexrd.phase_transition.texture as hx
+    from hexrd.wppf.texture import DeLaValleePoussinModel
+
+    model = DeLaValleePoussinModel(
+        material=_ni_rietveld_material(), ssym=ssym, halfwidth=np.radians(10)
+    )
+    rng = np.random.default_rng(0)
+    dirs = rng.normal(size=(100, 3))
+    cols = rng.choice(len(model.orientations), 4, replace=False)
+    for hkl in [(1, 1, 1), (3, 1, 1)]:
+        A = model.pole_figure_operator(hkl, dirs, cols)
+        hc = model._crystal_direction(hkl)
+        ref = np.column_stack(
+            [
+                hx.pole_density(hx.UnimodalODF(model.orientations[c], model.kernel), hc, dirs)
+                for c in cols
+            ]
+        )
+        np.testing.assert_allclose(A, ref, rtol=1e-9, atol=1e-9 * ref.max())
+
+
+def test_kernel_model_recovers_texture_from_single_rings():
+    import hexrd.phase_transition.texture as hx
+    from scipy.spatial.transform import Rotation
+    from hexrd.transforms.xfcapi import angles_to_gvec
+    from hexrd.wppf.texture import DeLaValleePoussinModel, bvec_ref, eta_ref
+
+    mat = _ni_rietveld_material()
+    sample_rmat = rotMatOfQuat(
+        quatOfAngleAxis(np.array([np.radians(22.5)]), np.atleast_2d([0, 1, 0]).T)
+    ).reshape(3, 3)
+
+    # truth: two 8 degree components on 20 % random
+    centres = Rotation.from_euler('ZXZ', [[35, 45, 10], [80, 20, 60]], degrees=True)
+    truth = hx.CompositeODF(
+        [
+            hx.UnimodalODF(
+                centres.as_matrix(),
+                hx.DeLaValleePoussinKernel(np.radians(8), crystal_symmetry='oh'),
+                weights=[0.6, 0.4],
+            )
+        ],
+        coefficients=[0.8],
+        constant=0.2,
+    )
+    tth = dict(zip(map(tuple, mat.hkls), np.radians(mat.getTTh(mat.wavelength))))
+    eta = np.radians(np.arange(-180, 180, 5) + 2.5)
+
+    def ring(hkl):
+        angs = np.vstack((np.full(eta.size, tth[hkl]), eta, np.zeros(eta.size))).T
+        g = angles_to_gvec(angs, beam_vec=bvec_ref, eta_vec=eta_ref)
+        return g, (sample_rmat @ g.T).T
+
+    def model_for(scale):
+        model = DeLaValleePoussinModel(
+            material=mat, ssym='triclinic', halfwidth=np.radians(7.5), sample_rmat=sample_rmat
+        )
+        pfdata = {}
+        for hkl in [(1, 1, 1), (2, 0, 0), (2, 2, 0), (3, 1, 1)]:
+            g, y = ring(hkl)
+            pfdata[hkl] = np.column_stack(
+                (g, scale * hx.pole_density(truth, model._crystal_direction(hkl), y))
+            )
+        model.pfdata = pfdata
+        model.fit_texture()
+        return model
+
+    model = model_for(1.0)
+    assert model.fit_result['relative_residual'] < 0.05
+
+    # one lmfit parameter stands for all coefficients: its bounds bound
+    # every coefficient, and the fit reports their mean standard error
+    params = model.get_parameters()
+    name = model.coefficients_parameter_name
+    assert (params[name].min, params[name].max) == (0, np.inf)
+    model.fit_texture(params)
+    assert model.fit_result['bounds'] == (0.0, np.inf)
+    mean = model.fit_result['mean_stderr']
+    assert mean is None or (mean > 0 and params[name].stderr == mean)
+    assert params[name].value == pytest.approx(model.kernel_weights[model.active].mean())
+    params[name].set(max=0.004)
+    model.fit_texture(params)
+    assert model.fit_result['method'] == 'bvls'
+    assert model.kernel_weights.max() * model.data_scale <= 0.004 + 1e-9
+    params[name].set(min=-1.0)
+    with pytest.raises(ValueError, match='>= 0'):
+        model.fit_texture(params)
+    model = model_for(1.0)
+    for hkl in [(2, 2, 2), (3, 3, 1), (4, 2, 0)]:   # rings that were not fitted
+        _, y = ring(hkl)
+        true = hx.pole_density(truth, model._crystal_direction(hkl), y)
+        assert np.linalg.norm(model.pole_density(hkl, y) - true) < 0.15 * np.linalg.norm(true)
+
+    # the ODF is normalised to 1 MRD: an error in the data scale is absorbed
+    scaled = model_for(1.07)
+    assert np.isclose(scaled.data_scale, 1.07 * model.data_scale)
+    np.testing.assert_allclose(
+        scaled.kernel_weights, model.kernel_weights, rtol=1e-6, atol=1e-12
+    )
+
+    # the fitted ODF survives new or cleared pole figure data
+    active = model.active
+    model.pfdata = {}
+    np.testing.assert_array_equal(model.active, active)
+    model.pfdata = scaled.pfdata
+    np.testing.assert_array_equal(model.active, active)
+    tf = scaled.calc_texture_factor(None, eta_step=np.radians(5))
+    assert tf.shape == (len(mat.hkls),) and np.all(tf > 0)
+
+    # pole figures on a new grid, and plots of the ring data (which
+    # tricontour alone cannot triangulate)
+    import matplotlib
+
+    matplotlib.use('Agg')
+    model.calc_new_pole_figure(None, hkls=np.array([[1, 1, 1], [2, 0, 0]]))
+    assert set(model.intensities_new) == {(1, 1, 1), (2, 0, 0)}
+    assert all(np.all(v >= 0) for v in model.intensities_new.values())
+    model.plot_new_pf(show=False)
+    assert model.plot_pf(show=False) is model.fig
+    fig = model.plot_pf(show=False, recalculated=True, filled=True)
+    assert len(fig.axes) >= 2 * len(model.pfdata)   # panels and colorbars
+    matplotlib.pyplot.close('all')
+    assert not model.new_pf_plots_visible
+
+
+def test_wppf_kernel_texture(texture_instrument, texture_img_dict):
+    from hexrd.wppf.texture import DeLaValleePoussinModel
+
+    instr = texture_instrument
+    q = quatOfAngleAxis(np.array([np.radians(22.5)]), np.atleast_2d(np.array([0, 1, 0])).T)
+    mat = Material(dmin=_angstrom(0.5), kev=_kev(instr.beam_energy))
+    mat.planeData.exclusions = np.zeros_like(mat.planeData.exclusions).astype(bool)
+    model = DeLaValleePoussinModel(
+        material=Material_Rietveld(material_obj=mat),
+        ssym='axial',
+        halfwidth=np.radians(10),
+        bvec=instr.beam_vector,
+        evec=instr.eta_vector,
+        sample_rmat=rotMatOfQuat(q),
+    )
+    polar_obj = PolarView(
+        (2, 40), instr, eta_min=-180.0, eta_max=180.0, pixel_size=(0.05, 0.1),
+        cache_coordinate_map=True,
+    )
+    pv = polar_obj.warp_image(texture_img_dict, pad_with_nans=True, do_interpolation=True)
+    ttharray = np.degrees(polar_obj.angular_grid[1][0, :])
+    lo = get_lineout(pv)
+    R = Rietveld(
+        expt_spectrum=np.vstack((ttharray[~lo.mask], lo.data[~lo.mask])).T,
+        wavelength={'XFEL': [_angstrom(instr.beam_wavelength), 1.0]},
+        bkgmethod={'chebyshev': 1},
+        peakshape='pvtch',
+        phases=[mat],
+        texture_model={'Ni': model},
+        eta_min=-180,
+        eta_max=180,
+        eta_step=5,
+    )
+    # before any fit the model is the random texture
+    assert R.texture_index['Ni'] == 1.0
+
+    for names in (['scale', 'bkg_0', 'bkg_1'], ['U', 'V', 'W'], ['scale']):
+        R.params_vary_off()
+        for name in names:
+            R.params[name].vary = True
+        if 'bkg_0' in names:
+            R.params['Ni_X'].value = 0
+            R.params['Ni_Y'].value = 0
+        R.Refine()
+    rwp_random = R.Rwp
+
+    R.compute_texture_data(
+        bin_polar_view(polar_obj, pv, 5, 1),
+        bvec=instr.beam_vector,
+        evec=instr.eta_vector,
+        azimuthal_interval=5,
+    )
+    R.params_vary_off()
+    R.RefineTexture()   # coefficients not marked as vary: nothing is fitted
+    assert len(model.active) == 0
+
+    R.texture_parameters_vary(True)
+    coefficients = R.params['Ni_kernel_coefficients']
+    assert coefficients.vary and (coefficients.min, coefficients.max) == (0, np.inf)
+    R.RefineTexture()
+
+    assert 0 < len(model.active) < len(model.orientations)
+    assert coefficients.value == pytest.approx(model.kernel_weights[model.active].mean())
+    assert coefficients.stderr is None or coefficients.stderr > 0
+    assert R.Rwp < rwp_random - 0.02
+    assert R.texture_index['Ni'] > 1.5
+    R.computespectrum_2D()
+    assert R.simulated_2d.ndim == 2

@@ -2339,6 +2339,21 @@ class Rietveld(AbstractWPPF):
         self._update_shkl(self.params)
         self._update_bkg(self.params)
 
+        # Kernel texture coefficients are fitted by RefineTexture, never by
+        # lmfit, so hold their parameter fixed here
+        kernel_params = [
+            p for p in self.params.values()
+            if p.name.endswith('_kernel_coefficients') and p.vary
+        ]
+        for p in kernel_params:
+            p.vary = False
+        try:
+            self._refine_lmfit()
+        finally:
+            for p in kernel_params:
+                p.vary = True
+
+    def _refine_lmfit(self):
         if self.num_vary > 0:
             fdict = {
                 "ftol": 1e-6,
@@ -2377,6 +2392,18 @@ class Rietveld(AbstractWPPF):
     def RefineTexture(self):
         final_result = None
         for name, model in self.texture_model.items():
+            if hasattr(model, 'fit_texture'):
+                # Kernel (de la Vallee Poussin) model: its coefficients are
+                # fitted by linear least squares, outside lmfit, when their
+                # parameter is marked as vary
+                pname = model.coefficients_parameter_name
+                if pname in self.params and not self.params[pname].vary:
+                    logger.info(f'"{pname}" is not marked as "vary". Skipping...')
+                    continue
+                logger.info(f'Fitting kernel texture model for "{name}"')
+                model.fit_texture(self.params)
+                continue
+
             if not hasattr(model, 'calculate_harmonic_coefficients'):
                 # No model, or one without harmonics (e.g., March-Dollase)
                 continue
@@ -2412,15 +2439,16 @@ class Rietveld(AbstractWPPF):
         for phase_name in self.phases:
             prefix = f'{phase_name}_c_'
             for p in self.params:
-                if p.startswith(prefix):
+                if p.startswith(prefix) or p == f'{phase_name}_kernel_coefficients':
                     self.params[p].vary = vary
 
     @property
     def any_texture_params_varied(self):
         for phase_name in self.phases:
             prefix = f'{phase_name}_c_'
+            kernel = f'{phase_name}_kernel_coefficients'
             for param in self.params.values():
-                if param.name.startswith(prefix) and param.vary:
+                if (param.name.startswith(prefix) or param.name == kernel) and param.vary:
                     return True
 
         return False
