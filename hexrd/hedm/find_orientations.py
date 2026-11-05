@@ -38,6 +38,7 @@ class EtaOmegaMaps:
     two_theta_ranges: np.ndarray  # (n_rings, 2)
     ring_ids: np.ndarray          # (n_rings,) index among the non-excluded hkls
     eta_step: float               # radians
+    plane_data: PlaneData | None = None  # crystallography stored with legacy maps
 
 
 @dataclass(config={'arbitrary_types_allowed': True})
@@ -151,6 +152,7 @@ def generate_trial_orientations(experiment: HedmExperiment, plane_data: PlaneDat
                 'validate grid resolution or use seed_search.', spacing, eta_tol, ome_tol)
         activity('Generating uniform orientation grid')
         return generate_orientation_grid(experiment, plane_data)
+    plane_data = maps.plane_data or plane_data
     report_hkls('Seed', plane_data.unexcluded_hkls[
         maps.ring_ids[fo.seed_search.hkl_seeds]])
     return _load_or_generate_fibers(
@@ -208,6 +210,7 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
                                  clean: bool = False) -> EtaOmegaMaps:
     """Load or build eta-omega maps, applying configured filters unless clean.
 
+    Saved maps retain their crystallography for fiber generation and scoring.
     ``clean`` forces rebuilding and saving the unfiltered maps.
     """
     om = experiment.find_orientations.orientation_maps
@@ -226,6 +229,7 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
         activity('Loading saved maps')
         maps = _load_eta_omega_maps(path, plane_data,
                                     experiment.active_material.two_theta_width, source_cache)
+        plane_data = maps.plane_data or plane_data
         if np.any((maps.ring_ids < 0) | (maps.ring_ids >= len(plane_data.unexcluded_hkls))):
             maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=True)
         else:
@@ -465,6 +469,15 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
     key = fingerprint({}, files=(path,)) if source_cache else None
     cached = load_array_cache(source_cache, key) if source_cache else None
     lazy = cached is not None and 'content_key' in cached and cached['content_key'].shape == ()
+    def load_material():
+        from types import SimpleNamespace
+        from hexrd.core.material.crystallography import PlaneData as LegacyPlaneData
+
+        with np.load(path, allow_pickle=True) as archive:
+            pd = LegacyPlaneData(archive['planeData_hkls'], *archive['planeData_args'])
+            pd.exclusions = archive['planeData_excl']
+        return SimpleNamespace(plane_data=PlaneData.from_plane_data(pd))
+
     def read_maps():
         with _NpzReader(path) as archive:
             return np.asarray(archive['dataStore'], dtype=np.float64) if legacy else archive['ring_maps']
@@ -472,6 +485,9 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
     with _NpzReader(path) as d:
         legacy = 'dataStore' in d
         if legacy:  # legacy hexrd archive
+            plane_data = (load_plane_data_cached(
+                path, os.path.join(os.path.dirname(source_cache), 'map-plane-data.npz'),
+                {}, load_material) if source_cache else load_material().plane_data)
             eta_edges, omega_edges = d['etaEdges'], d['omeEdges']
             omegas = d['omegas']
             # the archive's iHKLList holds master hkl IDs; convert to ring indices
@@ -489,7 +505,8 @@ def _load_eta_omega_maps(path: str, plane_data: PlaneData,
             two_theta_ranges, ring_ids = d['two_theta_ranges'], d['ring_ids']
             eta_step = float(d['eta_step'])
     maps = _LazyEtaOmegaMaps(read_maps, eta_edges, omega_edges, omegas, period,
-                             two_theta_ranges, ring_ids, eta_step)
+                             two_theta_ranges, ring_ids, eta_step,
+                             plane_data if legacy else None)
     if lazy:
         maps._content_key = str(cached['content_key'])
     else:
@@ -642,6 +659,7 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     Parallel generation preserves seed and peak order. Empty hkl_seeds raises
     ValueError.
     """
+    plane_data = getattr(maps, 'plane_data', None) or plane_data
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
     csym = rotations.quatProductMatrix(
@@ -773,6 +791,7 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
     This is the historical paintGrid algorithm, evaluated in bounded parallel
     batches against eta-omega maps.
     """
+    plane_data = getattr(maps, 'plane_data', None) or plane_data
     fo = experiment.find_orientations
     report_hkls('Scoring', plane_data.unexcluded_hkls[maps.ring_ids])
     if q_fibers.shape[1] == 0:
@@ -796,7 +815,7 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
         fo.eta.tolerance / abs(maps.eta_edges[1] - maps.eta_edges[0])))
 
     bmat = np.ascontiguousarray(plane_data.B)
-    beam_vector = np.ascontiguousarray(experiment.beam.vector, dtype=np.float64)
+    beam_vector = const.beam_vec  # Match the nominal beam used by legacy paintGrid and fibers.
     n = q_fibers.shape[1]
     workers = max(1, min(experiment.max_workers, max(1, n // 2048)))
     shape = (len(maps.ring_ids), len(maps.omega_edges)-1, len(maps.eta_edges)-1)
@@ -905,7 +924,10 @@ def _cached_min_samples(experiment, plane_data, maps):
     key = fingerprint(dict(chi=experiment.oscillation_stage.chi, wavelength=plane_data.wavelength,
         completeness=fo.clustering.completeness,
         detectors={name: asdict(panel) for name, panel in experiment.detectors.items()}),
-        arrays=(plane_data.B, experiment.beam.vector, experiment.image_series_list[0].omega,
+        arrays=(plane_data.B, plane_data.master_hkl_ids, experiment.beam.vector,
+                experiment.oscillation_stage.translation,
+                experiment.image_series_list[0].omega,
+                (getattr(maps, 'plane_data', None) or plane_data).master_hkl_ids,
                 maps.ring_ids, fo.seed_search.hkl_seeds, fo.eta.range, *plane_data.symm_hkls),
         files=(__file__, native.__file__, rotations.__file__, xfcapi.__file__, const.__file__),
         packages=('numpy',))
@@ -931,7 +953,11 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
     bmat = np.ascontiguousarray(plane_data.B)
 
     # Only seed reflections contribute to min_samples.
-    seed_rings = np.unique(maps.ring_ids[fo.seed_search.hkl_seeds])
+    map_plane_data = getattr(maps, 'plane_data', None) or plane_data
+    seed_ids = map_plane_data.master_hkl_ids[maps.ring_ids[fo.seed_search.hkl_seeds]]
+    seed_rings = np.flatnonzero(np.isin(plane_data.master_hkl_ids, seed_ids))
+    if not len(seed_rings):
+        return 2
     symm_hkls = np.ascontiguousarray(
         np.vstack([plane_data.symm_hkls[r].T for r in seed_rings]),
         dtype=np.float64)
@@ -979,7 +1005,7 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
         for detector, rmat_d, tvec_d in panels:
             xy = transforms_c_api.gvecToDetectorXYArray(
                 ac(gvecs), rmat_d, rmats_s, rmat_c, tvec_d,
-                np.zeros(3), np.zeros(3), experiment.beam.vector)
+                ac(experiment.oscillation_stage.translation), np.zeros(3), experiment.beam.vector)
             count += np.count_nonzero(_clip_to_panel(detector, xy))
         min_reflections = min(min_reflections, count)
         if 0.5 * fo.clustering.completeness * min_reflections < 3:

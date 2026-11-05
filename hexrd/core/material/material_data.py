@@ -96,6 +96,25 @@ class PlaneData:
         if not self.master_hkl_ids.size:
             object.__setattr__(self, 'master_hkl_ids', np.flatnonzero(~self.exclusions))
 
+    @classmethod
+    def from_plane_data(cls, pd, point_group_number=0):
+        """Snapshot crystallographic arrays from the legacy PlaneData object."""
+        return cls(
+            hkls=np.vstack([d['hkl'] for d in pd.hklDataList]),
+            exclusions=np.asarray(pd.exclusions, dtype=bool),
+            unexcluded_hkls=np.asarray(pd.hkls.T),
+            two_thetas=np.asarray(pd.getTTh(allHKLs=True)),
+            symm_hkls=list(pd.getSymHKLs()),
+            laue_group=pd.laueGroup,
+            q_sym=np.ascontiguousarray(pd.q_sym),
+            B=np.asarray(pd.latVecOps['B']),
+            wavelength=float(pd.wavelength),
+            master_hkl_ids=np.asarray(pd.getHKLID(pd.hkls, master=True), dtype=int),
+            lattice_parameters=np.asarray(pd.getParams()[0]),
+            strain_magnitude=pd.getParams()[3],
+            point_group_number=point_group_number,
+        )
+
 
 class Material:
     """One crystal material from a materials HDF5 file.
@@ -137,22 +156,7 @@ class Material:
         pd = self._material.planeData
         if self.reset_exclusions:
             pd.exclude(**self.exclusion_parameters)
-        hkls = np.vstack([d['hkl'] for d in pd.hklDataList])
-        return PlaneData(
-            hkls=hkls,
-            exclusions=np.asarray(pd.exclusions, dtype=bool),
-            unexcluded_hkls=np.asarray(pd.hkls.T),
-            two_thetas=np.asarray(pd.getTTh(allHKLs=True)),
-            symm_hkls=list(pd.getSymHKLs()),
-            laue_group=pd.laueGroup,
-            q_sym=np.ascontiguousarray(pd.q_sym),
-            B=np.asarray(pd.latVecOps['B']),
-            wavelength=float(pd.wavelength),
-            master_hkl_ids=np.asarray(pd.getHKLID(pd.hkls, master=True), dtype=int),
-            lattice_parameters=np.asarray(pd.getParams()[0]),
-            strain_magnitude=pd.getParams()[3],
-            point_group_number=self._material.pgnum,
-        )
+        return PlaneData.from_plane_data(pd, self._material.pgnum)
 
 
 def load_materials(definitions, **kwargs) -> dict[str, Material]:

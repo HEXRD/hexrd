@@ -931,6 +931,60 @@ def test_fiber_cache_invalidates_search_and_maps(tmp_path, monkeypatch):
     assert len(calls) == 4
 
 
+def test_saved_maps_preserve_crystallography(tmp_path):
+    import hexrd.hedm.find_orientations as fo
+    from hexrd.core.material.crystallography import PlaneData as LegacyPlaneData
+    from hexrd.core.valunits import valWUnit
+
+    pd = LegacyPlaneData(np.array([[1, 1, 1], [2, 0, 0]]).T, [3.6], 'Oh',
+                         valWUnit('wavelength', 'length', .2, 'angstrom'), .0025)
+    pd.exclusions = None
+    original = PlaneData.from_plane_data(pd)
+    edges = np.linspace(-np.pi, np.pi, 3)
+    maps = fo.EtaOmegaMaps(np.ones((2, 2, 2)), edges, edges, np.array([-np.pi/2, np.pi/2]),
+                           edges[[0, -1]], pd.getTThRanges(), np.arange(2), np.pi)
+    path = tmp_path / 'maps.npz'
+    fo._save_eta_omega_maps(maps, str(path), original, np.pi)
+    current = replace(original, wavelength=.4, B=original.B*2,
+                      exclusions=np.array([True, False]),
+                      unexcluded_hkls=original.unexcluded_hkls[1:],
+                      symm_hkls=original.symm_hkls[1:], master_hkl_ids=original.master_hkl_ids[1:])
+    for _ in range(2):
+        loaded = fo._load_eta_omega_maps(path, current, .25, tmp_path / 'map-source.npz')
+        assert loaded.plane_data.wavelength == original.wavelength
+        np.testing.assert_array_equal(loaded.plane_data.B, original.B)
+        np.testing.assert_array_equal(loaded.plane_data.unexcluded_hkls, original.unexcluded_hkls)
+
+
+def test_cluster_support_accounts_for_stage_translation(tmp_path):
+    import hexrd.hedm.find_orientations as fo
+    from hexrd.core import imageseries
+    from hexrd.core.instrument import HEDMInstrument
+    from hexrd.core.material.crystallography import PlaneData as LegacyPlaneData
+    from hexrd.core.valunits import valWUnit
+
+    pd = LegacyPlaneData(np.array([[3, 1, 1]]).T, [3.6], 'Oh',
+                         valWUnit('wavelength', 'length', .2, 'angstrom'), .0025)
+    pd.exclusions = None
+    instrument = HEDMInstrument(instrument_config={
+        'beam': {'energy': 62., 'vector': {'azimuth': 90., 'polar_angle': 90.}},
+        'oscillation_stage': {'chi': 0., 'translation': [0., 0., 0.]},
+        'detectors': {'panel': {'transform': {'tilt': [0., 0., 0.], 'translation': [0., 0., -100.]},
+                                'pixels': {'rows': 100, 'columns': 100, 'size': [1., 1.]}}}},
+        max_workers=1)
+    series = imageseries.open(None, 'array', data=np.zeros((2, 100, 100)),
+                              meta={'omega': np.array([[-180., 0.], [0., 180.]])})
+    experiment = HedmExperiment.from_objects(instrument, {'panel': series}, pd, {
+        'analysis_name': str(tmp_path), 'multiprocessing': 1, 'material': {'active': 'synthetic'},
+        'find_orientations': {'seed_search': {'hkl_seeds': [0]},
+                             'clustering': {'radius': .5, 'completeness': .9}}})
+    plane = experiment.get_active_material().plane_data
+    maps = SimpleNamespace(ring_ids=np.array([0]))
+    for translation, expected in ((0., 19), (50., 9), (0., 19)):
+        experiment.oscillation_stage.translation[0] = translation
+        assert fo._cached_min_samples(experiment, plane, maps) == expected
+
+
 @pytest.mark.parametrize('codec', [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED,
                                    zipfile.ZIP_BZIP2, zipfile.ZIP_LZMA])
 def test_npz_reader_preserves_codecs_and_checksums(tmp_path, codec):
@@ -1190,6 +1244,9 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
     plane = SimpleNamespace(unexcluded_hkls=args[1][[0, 2]],
                             symm_hkls=[args[1][:2].T, args[1][2:].T],
                             B=args[2], wavelength=args[3])
+    maps.plane_data = plane
+    current = SimpleNamespace(**vars(plane))
+    current.wavelength *= 2
     settings = SimpleNamespace(threshold=args[14],
         eta=SimpleNamespace(range=args[7].reshape(-1, 2), tolerance=2*np.pi/32),
         omega=SimpleNamespace(period=np.array([-np.pi, np.pi]), tolerance=4*np.pi/21))
@@ -1201,8 +1258,10 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
         calls.append(1)
         return predict(*a)
     monkeypatch.setattr(native, 'scoreOrientations', record)
-    for change in ('initial', 'cached', 'threshold', 'map', 'geometry', 'damaged', 'lazy'):
-        if change == 'threshold':
+    for change in ('initial', 'cached', 'beam', 'threshold', 'map', 'geometry', 'damaged', 'lazy'):
+        if change == 'beam':
+            experiment.beam.vector = np.array([.2, -.1, -1.])
+        elif change == 'threshold':
             settings.threshold = args[14] = 0.95
         elif change == 'map':
             args[10][:] = 1.
@@ -1217,9 +1276,9 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
             lazy._content_key = fo._map_key(maps)
             lazy.ring_maps = lambda: pytest.fail('cached scoring loaded dense maps')
             maps = lazy
-        np.testing.assert_array_equal(fo.score_orientations(experiment, plane, maps, quats.T),
+        np.testing.assert_array_equal(fo.score_orientations(experiment, current, maps, quats.T),
                                       predict(*args))
-        assert len(calls) == {'initial': 1, 'cached': 1, 'threshold': 1,
+        assert len(calls) == {'initial': 1, 'cached': 1, 'beam': 1, 'threshold': 1,
                              'map': 1, 'geometry': 2, 'damaged': 3, 'lazy': 4}[change]
 
 
