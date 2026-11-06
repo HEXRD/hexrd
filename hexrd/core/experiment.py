@@ -208,17 +208,16 @@ def _pixel_chunks(frames, row_of_frame, max_pixels):
     stop = 0
     for stop, (pixels, weights) in enumerate(frames, 1):
         if counts and total + len(pixels) > max_pixels:
-            packed = pack(stop - 1) if total else None
+            packed = pack(stop - 1)
             ids, values, counts = [], [], []
             first, total = stop - 1, 0
-            if packed is not None:
-                yield packed
-                del packed
+            yield packed
+            del packed
         ids.append(pixels)
         values.append(weights)
         counts.append(len(pixels))
         total += len(pixels)
-    if total:
+    if counts:
         packed = pack(stop)
         ids, values, counts = [], [], []
         yield packed
@@ -246,6 +245,10 @@ class ImageSeries:
     @property
     def shape(self) -> tuple[int, int]:
         return self._shape
+
+    @property
+    def dtype(self):
+        return np.dtype(self._dtype)
 
     @property
     def images(self) -> list[csr_array]:
@@ -325,6 +328,11 @@ class RoiImageSeries:
     @property
     def shape(self) -> tuple[int, int]:
         return self._shape
+
+    @property
+    def dtype(self):
+        frames = self._images if self._images is not None else self._parent._images
+        return frames[0].dtype if frames else self._parent.dtype
 
     @property
     def images(self) -> list[csr_array]:

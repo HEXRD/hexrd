@@ -69,6 +69,7 @@ class _AdapterImageSeries(ImageSeries):
             series = series._adapter
         self._series = series
         self._shape = tuple(self._series.shape)
+        self._dtype = self._series.dtype
         self._max_workers = max_workers
         self.panel = panel if panel is not None else self._series.metadata.get('panel')
         self.omega = np.radians(self._series.metadata['omega'])

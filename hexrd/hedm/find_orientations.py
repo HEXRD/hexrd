@@ -319,30 +319,38 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                                  f'{ims.panel!r} shape {shape}')
             ims = RoiImageSeries(ims.panel, ims, [0, 0], shape)
         active.append(ims)
+    panel_order = {name: i for i, name in enumerate(experiment.detectors)}
+    active.sort(key=lambda ims: panel_order[ims.panel])
 
     with (_temporary_roi_cache(active),
           progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
                        unit='frames', disable=None) as progress):
-        for ims, (eta_bin, ring_masks, coverage) in _iter_panel_bins(
+        for ims, (eta_bin, ring_masks, coverage, histograms) in _iter_panel_bins(
                 experiment, active, two_theta_ranges, eta_edges):
             activity(f'Binning frames from {ims.panel}')
             processed = 0
+            dtype = ims.dtype
+            bins_on_detector = [np.flatnonzero(bins) for bins in coverage]
             # Preserve NaN gaps; covered bins sum intensities across panels.
             rows = row_of_frame[:len(ims)]
-            for ring, bins in enumerate(coverage):
-                bins = np.flatnonzero(bins)
-                for start in range(0, len(rows), 256):
-                    check_cancelled()
-                    covered = np.ix_(rows[start:start + 256], bins)
-                    ring_maps[ring][covered] = np.nan_to_num(ring_maps[ring][covered], copy=False)
+            if histograms is None:
+                for ring, bins in enumerate(bins_on_detector):
+                    for start in range(0, len(rows), 256):
+                        check_cancelled()
+                        covered = np.ix_(rows[start:start + 256], bins)
+                        previous = ring_maps[ring][covered]
+                        ring_maps[ring][covered] = np.where(np.isnan(previous), 0., previous)
 
             # Pack each frame chunk once, even for materials with over 63 rings.
             threshold = float(fo.orientation_maps.threshold)
-            blocks = [(63 * block, mask) for block, mask in enumerate(ring_masks)
-                      if np.any(coverage[63 * block:63 * (block + 1)])]
-            if not blocks:
+            if dtype.kind == 'f':
+                threshold = dtype.type(threshold).item()
+            if not np.any(coverage):
                 progress.update(len(ims))
                 continue
+            blocks = ([(63 * block, mask) for block, mask in enumerate(ring_masks)
+                       if np.any(coverage[63 * block:63 * (block + 1)])]
+                      if histograms is None else ())
             workers = max(1, min(experiment.max_workers, len(rows)))
             if len(np.unique(rows)) != len(rows):
                 workers = 1
@@ -352,6 +360,24 @@ def build_eta_omega_maps(experiment: HedmExperiment,
 
             def bin_chunk(chunk):
                 ids, vals, offsets, chunk_rows = chunk
+                if histograms is not None:
+                    weights = np.zeros(int(np.prod(ims.shape)))
+                    for row, lo, hi in zip(chunk_rows, offsets[:-1], offsets[1:]):
+                        data = vals[lo:hi]
+                        weights[ids[lo:hi]] = np.where(data < threshold, 0., data)
+                        for ring, (plan, bins) in enumerate(zip(histograms, bins_on_detector)):
+                            cumulative = np.zeros(n_eta + 1)
+                            for pixels, cuts in (plan if hi > lo else ()):
+                                check_cancelled()
+                                cumulative += native._histogramPrefix(weights, pixels, cuts)
+                            histogram = np.diff(cumulative)
+                            bins = bins[~np.isnan(histogram[bins])]
+                            previous = ring_maps[ring, row, bins]
+                            ring_maps[ring, row, bins] = (
+                                np.where(np.isnan(previous), 0., previous) + histogram[bins])
+                        weights[ids[lo:hi]] = 0.
+                    progress.update(len(chunk_rows))
+                    return
                 for start in range(0, len(ids), 262144):
                     stop = start + 262144
                     block_offsets = np.clip(offsets - start, 0, min(stop, len(ids)) - start)
@@ -389,10 +415,23 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                         two_theta_ranges, ring_ids, eta_step)
 
 
+def _direct_sum_safe(series, panel_count):
+    """Whether all integer count sums fit float64's exact integer range."""
+    dtype = series.dtype
+    return (dtype.kind in 'biu' and
+            2**(8*dtype.itemsize) * int(np.prod(series.shape)) * panel_count < 2**53)
+
+
 def _iter_panel_bins(experiment, active, two_theta_ranges, eta_edges):
+    panels = (experiment.instrument.detectors
+              if any(not _direct_sum_safe(series, len(active)) for series in active) else None)
+
     def load(series):
-        return _cached_panel_bin_data(
-            experiment, series.panel, two_theta_ranges, eta_edges)
+        if panels is None:
+            return (*_cached_panel_bin_data(
+                experiment, series.panel, two_theta_ranges, eta_edges), None)
+        plan, coverage = _histogram_plan(panels[series.panel], two_theta_ranges, eta_edges)
+        return None, None, coverage, plan
 
     if experiment.max_workers == 1:
         for series in active:
@@ -426,6 +465,29 @@ def _pixel_chunks(frames, row_of_frame, max_pixels: int = 8_000_000):
 
 
 _bin_pixels = native._binPixels
+
+
+def _histogram_plan(panel, two_theta_ranges, eta_edges):
+    """Precompute NumPy's weighted-histogram blocks, including zero-weight pixels."""
+    from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
+
+    tth, eta = (angles.ravel() for angles in panel.pixel_angles())
+    buffer = panel_buffer_as_2d_array(panel).ravel()
+    plans = []
+    coverage = np.zeros((len(two_theta_ranges), len(eta_edges) - 1), dtype=bool)
+    for ring, (lo, hi) in enumerate(two_theta_ranges):
+        pixels = np.flatnonzero((tth >= lo) & (tth <= hi) & buffer)
+        plan = []
+        for first in range(0, len(pixels), 65536):  # NumPy's histogram block size.
+            ids = pixels[first:first + 65536]
+            order = np.argsort(eta[ids])
+            sorted_eta = eta[ids[order]]
+            cuts = np.searchsorted(sorted_eta, eta_edges)
+            cuts[-1] = np.searchsorted(sorted_eta, eta_edges[-1], side='right')
+            plan.append((ids[order], cuts))
+            coverage[ring] |= np.diff(cuts) > 0
+        plans.append(plan)
+    return plans, coverage
 
 
 def _omega_grid(image_series):

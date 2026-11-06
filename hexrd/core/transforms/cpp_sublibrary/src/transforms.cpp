@@ -1055,6 +1055,28 @@ static void binPixels(CArray<Index> offsets, CArray<Index> ids, CArray<double> v
   }
 }
 
+static py::array_t<double> histogramPrefix(CArray<double> weights, CArray<Index> pixels,
+                                          CArray<Index> cuts) {
+  // Preserve NumPy's sequential sums, sampling only at histogram edges.
+  checkShape(weights, {-1}); checkShape(pixels, {-1}); checkShape(cuts, {-1});
+  py::array_t<double> output(cuts.size());
+  double *out = output.mutable_data(), sum = 0.;
+  Index next = 0;
+  py::gil_scoped_release release;
+  for (Index edge = 0; edge < cuts.size(); ++edge) {
+    Index stop = cuts.data()[edge];
+    if (stop < next || stop > pixels.size()) throw py::value_error("invalid histogram cut");
+    for (; next < stop; ++next) {
+      Index pixel = pixels.data()[next];
+      if (pixel < 0 || pixel >= weights.size()) throw py::value_error("pixel is out of bounds");
+      double value = weights.data()[pixel];
+      if (value != 0.) sum += value;
+    }
+    out[edge] = sum;
+  }
+  return output;
+}
+
 // First hit or NaN in row-major window order, in two linear scans per ring.
 static py::array_t<int8_t> orientationHitStatus(CArray<double> maps,
                                                Index de, Index dome, double threshold) {
@@ -1580,6 +1602,7 @@ PYBIND11_MODULE(transforms, m) {
   m.def("_csrPixelIds", &csrPixelIds, py::arg("offsets"), py::arg("columns"),
         py::arg("width"), py::arg("output").noconvert());
   m.def("_ringMasks", &ringMasks);
+  m.def("_histogramPrefix", &histogramPrefix);
   m.def("_binPixels", &binPixels, py::arg("offsets"), py::arg("ids"), py::arg("values"),
         py::arg("rows"), py::arg("masks"), py::arg("eta"), py::arg("threshold"),
         py::arg("output").noconvert());

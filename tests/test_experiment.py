@@ -587,7 +587,7 @@ def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch
     monkeypatch.setattr(series, 'pixel_chunks', lambda *args, **kwargs: iter([chunk]))
     monkeypatch.setattr(fo, '_iter_panel_bins', lambda *args: iter([
         (series, (np.zeros(24, dtype=np.int32), np.ones((1, 24), dtype=np.int64),
-                  np.ones((1, 72), dtype=bool)))]))
+                  np.ones((1, 72), dtype=bool), None))]))
     plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 1, 1]]),
                             two_thetas=np.array([0.01]), exclusions=np.array([False]))
     dashboard = Dashboard()
@@ -618,7 +618,7 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
     from hexrd.hedm import find_orientations as fo
 
     frames = np.zeros((3, 4, 6))
-    frames[:, 1, 2] = [1e16, 1., 1.]
+    frames[:, 1, 2] = [1e16, 1., 2.]
     _write_frame_cache(synthetic_config.parent / 'p0_cache.npz', frames,
                        [[0., 120.], [120., 240.], [240., 360.]])
     experiment = HedmExperiment(str(synthetic_config))
@@ -639,24 +639,24 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
                             (np.zeros(3, dtype=int), *omega_grid(series)[1:]))
     expected = fo.build_eta_omega_maps(experiment, plane)
     threads, last_started = set(), threading.Event()
-    bin_pixels = fo._bin_pixels
+    histogram_prefix = fo.native._histogramPrefix
 
-    def bin_concurrently(*args):
+    def bin_concurrently(values, *args, **kwargs):
         threads.add(threading.get_ident())
         if not repeated_rows:
-            if args[3][0] == 0:
+            if values.max() == 1e16:
                 assert last_started.wait(5), 'completed frames must free worker slots'
-            elif args[3][0] == 2:
+            elif values.max() == 2.:
                 last_started.set()
-        return bin_pixels(*args)
+        return histogram_prefix(values, *args, **kwargs)
 
-    monkeypatch.setattr(fo, '_bin_pixels', bin_concurrently)
+    monkeypatch.setattr(fo.native, '_histogramPrefix', bin_concurrently)
     experiment.max_workers = 2
     if style == 'fch5':
         experiment.image_series_list[0]._max_workers = 2
     actual = fo.build_eta_omega_maps(experiment, plane)
     assert actual.ring_maps.tobytes() == expected.ring_maps.tobytes()
-    assert np.nanmax(actual.ring_maps) == 1e16
+    assert np.nanmax(actual.ring_maps) == (1e16 + 2. if repeated_rows else 1e16)
     if repeated_rows:
         assert threads == {threading.get_ident()}
     else:
@@ -765,15 +765,20 @@ def test_fch5_filter_coalesces_before_thresholding(tmp_path, dtype, index_dtype)
 
 def test_map_images_use_detector_shape(synthetic_config):
     from types import SimpleNamespace
-    from hexrd.hedm.find_orientations import build_eta_omega_maps
+    from hexrd.hedm.find_orientations import build_eta_omega_maps, _eta_bin_edges
 
     experiment = HedmExperiment(str(synthetic_config))
     plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 0, 0]]),
                             exclusions=np.array([False]), two_thetas=np.radians([0.1]))
-    expected = build_eta_omega_maps(experiment, plane).ring_maps
     series = experiment.image_series_list[0]
-    frames = [np.pad(frame.toarray(), ((0, 1), (0, 1)), constant_values=60_000)
-              for frame in series.images]
+    frames = [frame.toarray().astype(float) + 1.1 for frame in series.images]
+    tth, eta = experiment.instrument.detectors['p0'].pixel_angles()
+    mask = (tth >= 0) & (tth <= np.radians(.2))
+    edges = _eta_bin_edges(5.)
+    expected = np.array([[np.histogram(eta[mask], bins=edges, weights=frame[mask])[0]
+                          for frame in frames]])
+    expected[:, :, np.histogram(eta[mask], bins=edges)[0] == 0] = np.nan
+    frames = [np.pad(frame, ((0, 1), (0, 1)), constant_values=60_000) for frame in frames]
     path = synthetic_config.parent / 'padded.npz'
     _write_frame_cache(path, frames, np.degrees(series.omega))
     config = next(yaml.safe_load_all(synthetic_config.read_text()))
