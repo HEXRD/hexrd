@@ -1756,12 +1756,12 @@ class Rietveld(AbstractWPPF):
         )
 
     @AbstractWPPF.params.setter
-    def params(self, param_info):
+    def params(self, param_info: lmfit.Parameters | dict | str | None) -> None:
         """Set parameters and synchronize the phase fractions."""
         AbstractWPPF.params.fset(self, param_info)
         self._set_phase_fractions(self.params)
 
-    def _set_phase_fractions(self, params: lmfit.Parameters):
+    def _set_phase_fractions(self, params: lmfit.Parameters) -> None:
         pf = np.array([params[f"{p}_phase_fraction"].value for p in self.phases])
         self.phases.phase_fraction = pf / np.sum(pf)
 
@@ -1772,7 +1772,7 @@ class Rietveld(AbstractWPPF):
 
     def _set_phase_params_vals_to_class(
         self, params: lmfit.Parameters, force: bool = False
-    ):
+    ) -> None:
         # These indicate that *any* materials updated their lattice
         # parameters or atom info.
         updated_lp = False
@@ -2542,7 +2542,7 @@ class Rietveld(AbstractWPPF):
         self._phases = p
         self._on_phases_changed()
 
-    def _on_phases_changed(self):
+    def _on_phases_changed(self) -> None:
         self.calctth()
         self.calcsf()
 
