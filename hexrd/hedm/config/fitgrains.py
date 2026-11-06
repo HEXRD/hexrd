@@ -81,6 +81,11 @@ class FitGrainsConfig(Config):
         return self._cfg.get('fit_grains:npdiv', 2)
 
     @property
+    def output_format(self) -> str:
+        """Spot file format: 'text', 'hdf5', or 'both'."""
+        return self._cfg.get('fit_grains:output_format', 'text')
+
+    @property
     def threshold(self):
         return self._cfg.get('fit_grains:threshold')
 

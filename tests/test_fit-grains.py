@@ -3,6 +3,7 @@ import logging
 import sys
 from pathlib import Path
 
+import h5py
 import numpy as np
 import pytest
 import coloredlogs
@@ -134,22 +135,27 @@ def compare_grain_fits(
         ii += 1
     return cresult
 
+
+@pytest.mark.parametrize('output_format', ['text', 'hdf5', 'both'])
 def test_fit_grains(
-    single_ge_include_path,
-    test_config,
-    grains_file_path,
-    grains_reference_file_path,
-):
+    single_ge_include_path: Path,
+    test_config: config.root.RootConfig,
+    grains_file_path: Path,
+    grains_reference_file_path: Path,
+    output_format: str,
+) -> None:
     os.chdir(str(single_ge_include_path))
 
     grains_table = np.loadtxt(grains_reference_file_path, ndmin=2)
     ref_grain_params = grains_table[:, 3:15]
+    test_config.analysis_name = str(grains_file_path.parent / 'spots')
+    test_config.set('fit_grains:output_format', output_format)
     gresults = fit_grains(
         test_config,
         grains_table,
         show_progress=False,
         ids_to_refine=None,
-        write_spots_files=False,
+        write_spots_files=True,
     )
 
     cresult = compare_grain_fits(
@@ -161,6 +167,26 @@ def test_fit_grains(
     )
 
     assert cresult
+
+    text_path = test_config.analysis_dir / 'GE' / 'spots_00000.out'
+    hdf5_path = test_config.analysis_dir / 'spots_00000.out.hdf5'
+    assert text_path.exists() == (output_format in ('text', 'both'))
+    assert hdf5_path.exists() == (output_format in ('hdf5', 'both'))
+    if text_path.exists():
+        spots = np.loadtxt(text_path, ndmin=2)
+        assert np.any(spots[:, 0] >= 0)
+    if hdf5_path.exists():
+        with h5py.File(hdf5_path) as stream:
+            patches = stream['reflection_data/GE']
+            assert len(patches) > 0
+            assert any(np.any(p['intensities'][()] > 0) for p in patches.values())
+            if text_path.exists():
+                assert len(patches) == len(spots)
+                for patch, spot in zip(patches.values(), spots):
+                    assert patch.attrs['peak_id'] == spot[0]
+                    np.testing.assert_allclose(
+                        patch.attrs['measured_angles'], spot[10:13], equal_nan=True
+                    )
 
 
 def test_fit_grains_return_pull_spots_data(

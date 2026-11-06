@@ -123,6 +123,7 @@ def fit_grain_FF_reduced(grain_id):
             ome_period=ome_period,
             dirname=analysis_dirname,
             filename=spots_filename,
+            output_format=paramMP['output_format'],
             return_spot_list=False,
             check_only=False,
             interp='nearest',
@@ -437,6 +438,7 @@ def fit_grains(
         ome_period=ome_period,
         analysis_dirname=cfg.analysis_dir,
         spots_filename=spots_filename,
+        output_format=cfg.fit_grains.output_format,
         return_pull_spots_data=return_pull_spots_data,
     )
 
