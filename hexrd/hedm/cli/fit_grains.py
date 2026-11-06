@@ -250,6 +250,7 @@ def execute(args, parser):
     fit_estimate = experiment.fit_grains.estimate
     force_without_estimate = args.force and fit_estimate is None
     new_without_estimate = not existing_analysis and fit_estimate is None
+    indexed_grains_file = None
 
     # if no estimate is supplied, or the clean option is selected, will need
     # the indexing results from find_orientations:
@@ -274,6 +275,7 @@ def execute(args, parser):
 
             results = find_orientations(experiment)
             write_find_orientations_results(results, experiment)
+            indexed_grains_file = grains_filename
             qbar = results.grain_orientations
             logger.addHandler(ch)
 
@@ -285,7 +287,12 @@ def execute(args, parser):
         # Check whether an existing analysis exists.
         grains_filename = analysis_dir / 'grains.out'
 
-        if grains_filename.exists() and not clobber:
+        # Indexing writes initial grains.out, not a completed fit. Only the
+        # first analysis may consume that new file without --force.
+        existing_analysis = (grains_filename.exists()
+                             and grains_filename != indexed_grains_file)
+        indexed_grains_file = None
+        if existing_analysis and not clobber:
             logger.error(
                 'Analysis "%s" already exists. ' 'Change yml file or specify "force"',
                 experiment.analysis_name,
@@ -334,7 +341,6 @@ def execute(args, parser):
             pr.enable()
 
         # some conditionals for arg handling
-        existing_analysis = grains_filename.exists()
         fit_estimate = experiment.fit_grains.estimate
         new_with_estimate = not existing_analysis and fit_estimate is not None
         new_without_estimate = not existing_analysis and fit_estimate is None

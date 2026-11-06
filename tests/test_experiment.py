@@ -8,6 +8,7 @@ example repo (gated on ``HEXRD_EXAMPLE_REPO_PATH`` like the other
 example-data tests).
 """
 import os
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -984,3 +985,17 @@ def test_experiment_preserves_saved_material_selection(
              ring_ids=stale.ring_ids, eta_step=stale.eta_step)
     maps = load_or_build_eta_omega_maps(experiment, actual)
     np.testing.assert_array_equal(maps.ring_ids, np.arange(len(actual.unexcluded_hkls)))
+
+
+def test_staged_map_builder_rejects_nonplanar_panels(synthetic_config: Path) -> None:
+    from hexrd.core.material import Material
+    from hexrd.core.material.material_data import PlaneData
+    from hexrd.hedm.find_orientations import build_eta_omega_maps, find_orientations
+
+    experiment = HedmExperiment(str(synthetic_config))
+    experiment._instrument_config['detectors']['p0']['detector_type'] = 'cylindrical'
+    plane_data = PlaneData.from_plane_data(Material('test').planeData)
+    with pytest.raises(NotImplementedError, match="'cylindrical'"):
+        find_orientations(experiment)
+    with pytest.raises(NotImplementedError, match="'cylindrical'"):
+        build_eta_omega_maps(experiment, plane_data)

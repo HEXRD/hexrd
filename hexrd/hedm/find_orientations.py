@@ -91,6 +91,14 @@ class FindOrientationsResult:
         return self.grain_orientations.shape[1]
 
 
+def _validate_planar_detectors(experiment: HedmExperiment) -> None:
+    for name, panel in experiment._instrument_config['detectors'].items():
+        kind = panel.get('detector_type', 'planar')
+        if kind.lower() != 'planar':
+            raise NotImplementedError(
+                f'find-orientations supports planar detectors only; {name!r} is {kind!r}')
+
+
 def find_orientations(experiment: HedmExperiment, material: Optional[Material] = None,
                       clean: bool = False) -> FindOrientationsResult:
     """Find grain orientations, trials, and scores for planar detectors.
@@ -98,11 +106,7 @@ def find_orientations(experiment: HedmExperiment, material: Optional[Material] =
     The material defaults to the experiment's active material. ``clean``
     rebuilds eta-omega maps even when a saved map exists.
     """
-    for name, panel in experiment._instrument_config['detectors'].items():
-        kind = panel.get('detector_type', 'planar')
-        if kind.lower() != 'planar':
-            raise NotImplementedError(
-                f'find-orientations supports planar detectors only; {name!r} is {kind!r}')
+    _validate_planar_detectors(experiment)
     plane_data = load_plane_data(experiment, material)
     maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
     orientations = generate_trial_orientations(experiment, plane_data, maps)
@@ -287,6 +291,7 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     Accumulate in float64 to avoid integer overflow and preserve NaN gaps
     outside detector coverage. Map angles are in radians.
     """
+    _validate_planar_detectors(experiment)
     fo = experiment.find_orientations
 
     ring_ids = _resolve_active_rings(fo.orientation_maps.active_hkls, plane_data)
