@@ -425,6 +425,47 @@ def test_rietveld_phase_fractions_stay_physical(
     assert rietveld.Rwp < 1e-4
 
 
+
+def test_rietveld_phase_fractions_follow_params(
+    expt_spectrum: np.ndarray,
+    spline_picks: np.ndarray,
+    ceo2_material: Material,
+) -> None:
+    def make_phases(names: str) -> list[Material]:
+        phases = []
+        for name in names:
+            mat = copy.deepcopy(ceo2_material)
+            mat.name = name
+            phases.append(mat)
+        return phases
+
+    def make_rietveld(names: str) -> Rietveld:
+        return Rietveld(
+            expt_spectrum=expt_spectrum,
+            phases=make_phases(names),
+            wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+            bkgmethod={'spline': spline_picks.tolist()},
+            peakshape='pvtch',
+        )
+
+    rietveld = make_rietveld('AB')
+    params = rietveld.params
+    params['A_phase_fraction'].value = 0.99
+
+    # Set params, then phases, the way hexrdgui updates its object. The
+    # phases setter used to reset the fractions to 1/N, which made minor
+    # phases far too bright in the 2D spectrum.
+    rietveld.params = params
+    assert np.allclose(rietveld.phases.phase_fraction, [0.99, 0.01])
+    rietveld.phases = make_phases('AB')
+    assert np.allclose(rietveld.phases.phase_fraction, [0.99, 0.01])
+
+    # Removing a phase sets params that lack the old phase's fraction
+    rietveld.params = make_rietveld('A').params
+    rietveld.phases = make_phases('A')
+    assert np.allclose(rietveld.phases.phase_fraction, [1])
+
+
 @pytest.mark.parametrize('wppf_class', [LeBail, Rietveld])
 def test_statistical_weights(
     expt_spectrum: np.ndarray,

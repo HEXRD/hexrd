@@ -1762,7 +1762,14 @@ class Rietveld(AbstractWPPF):
         self._set_phase_fractions(self.params)
 
     def _set_phase_fractions(self, params: lmfit.Parameters) -> None:
-        pf = np.array([params[f"{p}_phase_fraction"].value for p in self.phases])
+        names = [f"{p}_phase_fraction" for p in self.phases]
+        if not all(name in params for name in names):
+            # The params may be for a different set of phases, e.g., when
+            # phases are being added or removed. hexrdgui sets the params
+            # before the phases, and the phases setter syncs them then.
+            return
+
+        pf = np.array([params[name].value for name in names])
         self.phases.phase_fraction = pf / np.sum(pf)
 
     def _add_phase_params(self, params: lmfit.Parameters):
@@ -2555,11 +2562,8 @@ class Rietveld(AbstractWPPF):
                     self._phases[p][k].trig_ptype,
                 ) = wppfsupport._required_shkl_names(self._phases[p][k])
 
-        # Fraction parameters may not exist yet during initialization or
-        # when adding phases. Restore them when rebuilding existing phases.
-        if hasattr(self, "params") and all(
-            f"{p}_phase_fraction" in self.params for p in self.phases
-        ):
+        # The params do not exist yet during initialization
+        if hasattr(self, "params"):
             self._set_phase_fractions(self.params)
 
     @property
