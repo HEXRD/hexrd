@@ -1755,6 +1755,23 @@ class Rietveld(AbstractWPPF):
             texture_model=self.texture_model,
         )
 
+    @AbstractWPPF.params.setter
+    def params(self, param_info: lmfit.Parameters | dict | str | None) -> None:
+        """Set parameters and synchronize the phase fractions."""
+        AbstractWPPF.params.fset(self, param_info)
+        self._set_phase_fractions(self.params)
+
+    def _set_phase_fractions(self, params: lmfit.Parameters) -> None:
+        names = [f"{p}_phase_fraction" for p in self.phases]
+        if not all(name in params for name in names):
+            # The params may be for a different set of phases, e.g., when
+            # phases are being added or removed. hexrdgui sets the params
+            # before the phases, and the phases setter syncs them then.
+            return
+
+        pf = np.array([params[name].value for name in names])
+        self.phases.phase_fraction = pf / np.sum(pf)
+
     def _add_phase_params(self, params: lmfit.Parameters):
         for p in self.phases:
             for lpi in self.phases[p]:
@@ -1762,21 +1779,13 @@ class Rietveld(AbstractWPPF):
 
     def _set_phase_params_vals_to_class(
         self, params: lmfit.Parameters, force: bool = False
-    ):
+    ) -> None:
         # These indicate that *any* materials updated their lattice
         # parameters or atom info.
         updated_lp = False
         updated_atominfo = False
 
-        pf = np.zeros(
-            [
-                self.phases.num_phases,
-            ]
-        )
-        for ii, p in enumerate(self.phases):
-            name = f"{p}_phase_fraction"
-            pf[ii] = params[name].value
-
+        for p in self.phases:
             for lpi in self.phases[p]:
                 mat = self.phases[p][lpi]
 
@@ -1891,7 +1900,7 @@ class Rietveld(AbstractWPPF):
         if updated_lp or updated_atominfo:
             self.calcsf()
 
-        self.phases.phase_fraction = pf / np.sum(pf)
+        self._set_phase_fractions(params)
 
     def on_smoothing_modified(self):
         self.update_tds_model_smoothing()
@@ -2540,7 +2549,7 @@ class Rietveld(AbstractWPPF):
         self._phases = p
         self._on_phases_changed()
 
-    def _on_phases_changed(self):
+    def _on_phases_changed(self) -> None:
         self.calctth()
         self.calcsf()
 
@@ -2552,6 +2561,10 @@ class Rietveld(AbstractWPPF):
                     self._phases[p][k].rqd_index,
                     self._phases[p][k].trig_ptype,
                 ) = wppfsupport._required_shkl_names(self._phases[p][k])
+
+        # The params do not exist yet during initialization
+        if hasattr(self, "params"):
+            self._set_phase_fractions(self.params)
 
     @property
     def texture_model(self):
