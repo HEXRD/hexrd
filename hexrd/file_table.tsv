@@ -5,9 +5,7 @@ hexrd/valunits.py	hexrd/core/valunits.py
 hexrd/fitgrains.py	hexrd/hedm/fitgrains.py
 hexrd/imageutil.py	hexrd/core/imageutil.py
 hexrd/rotations.py	hexrd/core/rotations.py
-hexrd/findorientations.py	hexrd/hedm/findorientations.py
 hexrd/deprecation.py	hexrd/core/deprecation.py
-hexrd/indexer.py	hexrd/hedm/indexer.py
 hexrd/matrixutil.py	hexrd/core/matrixutil.py
 hexrd/constants.py	hexrd/core/constants.py
 hexrd/gridutil.py	hexrd/core/gridutil.py
@@ -20,21 +18,6 @@ hexrd/cli/fit_grains.py	hexrd/hedm/cli/fit_grains.py
 hexrd/cli/__init__.py	hexrd/cli/__init__.py
 hexrd/cli/main.py	hexrd/cli/main.py
 hexrd/cli/documentation.py	hexrd/cli/documentation.py
-hexrd/config/fitgrains.py	hexrd/hedm/config/fitgrains.py
-hexrd/config/material.py	hexrd/core/config/material.py
-hexrd/config/root.py	hexrd/core/config/root.py
-hexrd/config/dumper.py	hexrd/core/config/dumper.py
-hexrd/config/loader.py	hexrd/hedm/config/loader.py
-hexrd/config/loader.py	hexrd/core/config/loader.py
-hexrd/config/__init__.py	hexrd/hedm/config/__init__.py
-hexrd/config/__init__.py	hexrd/core/config/__init__.py
-hexrd/config/findorientations.py	hexrd/hedm/config/findorientations.py
-hexrd/config/config.py	hexrd/core/config/config.py
-hexrd/config/utils.py	hexrd/core/config/utils.py
-hexrd/config/instrument.py	hexrd/hedm/config/instrument.py
-hexrd/config/instrument.py	hexrd/core/config/instrument.py
-hexrd/config/beam.py	hexrd/core/config/beam.py
-hexrd/config/imageseries.py	hexrd/core/config/imageseries.py
 hexrd/sampleOrientations/conversions.py	hexrd/hedm/sampleOrientations/conversions.py
 hexrd/sampleOrientations/rfz.py	hexrd/hedm/sampleOrientations/rfz.py
 hexrd/sampleOrientations/__init__.py	hexrd/hedm/sampleOrientations/__init__.py
@@ -536,3 +519,4 @@ tests\test_distortion.py	tests\test_distortion.py
 tests\transforms\test_make_binary_rmat.py	tests\transforms\test_make_binary_rmat.py
 hexrd/hedm/cli/help.py	hexrd/cli/help.py
 hexrd/hedm/cli/documentation.py	hexrd/cli/documentation.py
+hexrd/hedm/cli/main.py	hexrd/cli/main.py

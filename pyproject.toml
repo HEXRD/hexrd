@@ -31,3 +31,7 @@ test = [
     "pytest",
     "coloredlogs",
 ]
+# faster frame-cache decompression (ISA-L); pure speed-up, results identical
+performance = [
+    "isal",
+]

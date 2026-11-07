@@ -54,6 +54,7 @@ requirements:
     - numba
     - {{ pin_compatible('numpy') }}
     - psutil
+    - pydantic >=2,<3
     - pycifrw
     - python
     - python-xxhash
@@ -64,6 +65,7 @@ requirements:
     # TBB seems to be a little faster than OpenMP for the cases I've tried.
     # Installing TBB means numba will use it instead of OpenMP.
     - tbb
+    - textual >=1.0
     - tqdm
 
 test:         # [build_platform == target_platform]

@@ -23,11 +23,13 @@ install_reqs = [
     'numba',
     'numpy',
     'psutil',
+    'pydantic>=2,<3',
     'pycifrw',
     'pyyaml',
     'scikit-image',
     'scikit-learn',
     'scipy',
+    'textual>=1.0',
     'tqdm',
     'xxhash',
 ]

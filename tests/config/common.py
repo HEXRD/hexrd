@@ -25,6 +25,7 @@ class TestConfig(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        cls.addClassCleanup(logging.disable, logging.root.manager.disable)
         logging.disable()
         with tempfile.NamedTemporaryFile(delete=False, mode="w+") as f:
             cls.file_name = f.name

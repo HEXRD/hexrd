@@ -2,16 +2,13 @@ import logging
 import os
 import sys
 from collections import namedtuple
+from pathlib import Path
 
 import numpy as np
 
-from hexrd.hedm import config
-from hexrd.core import config
 from hexrd.core import constants as cnst
 from hexrd.core import rotations
-from hexrd.core import instrument
-from hexrd.hedm.findorientations import find_orientations
-from hexrd.hedm.fitgrains import fit_grains
+from hexrd.hedm.experiment import HedmExperiment
 from hexrd.core.transforms import xfcapi
 
 
@@ -82,6 +79,8 @@ class GrainData(_BaseGrainData):
 
     def write_grains_out(self, fname):
         """Write a file in grains.out format"""
+        from hexrd.core import instrument
+
         gw = instrument.GrainDataWriter(filename=fname)
         n = len(self.id)
         for i in range(n):
@@ -188,18 +187,20 @@ def configure_parser(sub_parsers):
     p.set_defaults(func=execute)
 
 
-def write_results(
-    fit_results, cfg, grains_filename='grains.out', grains_npz='grains.npz'
-):
-    instr = cfg.instrument.hedm
+def write_results(fit_results, experiment, grains_filename='grains.out',
+                  grains_npz='grains.npz'):
+    from hexrd.core import instrument
+
+    instr = experiment.instrument
+    analysis_dir = Path(experiment.analysis_dir)
     nfit = len(fit_results)
 
     # Make output directories: analysis directory and a subdirectory for
     # each panel.
     for det_key in instr.detectors:
-        (cfg.analysis_dir / det_key).mkdir(parents=True, exist_ok=True)
+        (analysis_dir / det_key).mkdir(parents=True, exist_ok=True)
 
-    gw = instrument.GrainDataWriter(str(cfg.analysis_dir / grains_filename))
+    gw = instrument.GrainDataWriter(str(analysis_dir / grains_filename))
     gd_array = np.zeros((nfit, 21))
     gwa = instrument.GrainDataWriter(array=gd_array)
     for fit_result in fit_results:
@@ -209,14 +210,18 @@ def write_results(
     gwa.close()
 
     gdata = GrainData.from_array(gd_array)
-    gdata.save(str(cfg.analysis_dir / grains_npz))
+    gdata.save(str(analysis_dir / grains_npz))
 
 
 def execute(args, parser):
+    from hexrd.core import instrument
+    from hexrd.hedm.fitgrains import fit_grains
+
     clobber = args.force or args.clean
 
-    # load the configuration settings
-    cfgs = config.open(args.yml)
+    base = HedmExperiment(args.yml, working_dir=os.getcwd())
+    experiments = [base] + [HedmExperiment(args.yml, study=i, working_dir=os.getcwd())
+                            for i in range(len(base.studies))]
 
     # configure logging to the console:
     log_level = logging.DEBUG if args.debug else logging.INFO
@@ -231,20 +236,21 @@ def execute(args, parser):
     logger.addHandler(ch)
 
     # handle initial state
-    cfg = cfgs[0]
+    experiment = experiments[0]
+    analysis_dir = Path(experiment.analysis_dir)
 
     # use path to grains.out to determine if analysis exists
-    grains_filename = cfg.find_orientations.grains_file
+    grains_filename = analysis_dir / 'grains.out'
 
-    # path to accepted_orientations
-    quats_f = cfg.find_orientations.accepted_orientations_file
+    quats_f = Path(experiment.accepted_orientations_file)
 
     # some conditionals for arg handling
     have_orientations = quats_f.exists()
     existing_analysis = grains_filename.exists()
-    fit_estimate = cfg.fit_grains.estimate
+    fit_estimate = experiment.fit_grains.estimate
     force_without_estimate = args.force and fit_estimate is None
     new_without_estimate = not existing_analysis and fit_estimate is None
+    indexed_grains_file = None
 
     # if no estimate is supplied, or the clean option is selected, will need
     # the indexing results from find_orientations:
@@ -262,55 +268,63 @@ def execute(args, parser):
         else:
             logger.info("Missing %s, running find-orientations", quats_f)
             logger.removeHandler(ch)
-            results = find_orientations(cfg)
-            qbar = results['qbar']
+            from hexrd.hedm.find_orientations import (
+                find_orientations,
+                write_results as write_find_orientations_results,
+            )
+
+            results = find_orientations(experiment)
+            write_find_orientations_results(results, experiment)
+            indexed_grains_file = grains_filename
+            qbar = results.grain_orientations
             logger.addHandler(ch)
 
     logger.info('=== begin fit-grains ===')
 
-    for cfg in cfgs:
+    for experiment in experiments:
+        analysis_dir = Path(experiment.analysis_dir)
 
         # Check whether an existing analysis exists.
-        grains_filename = cfg.fit_grains.grains_file
+        grains_filename = analysis_dir / 'grains.out'
 
-        if grains_filename.exists() and not clobber:
+        # Indexing writes initial grains.out, not a completed fit. Only the
+        # first analysis may consume that new file without --force.
+        existing_analysis = (grains_filename.exists()
+                             and grains_filename != indexed_grains_file)
+        indexed_grains_file = None
+        if existing_analysis and not clobber:
             logger.error(
                 'Analysis "%s" already exists. ' 'Change yml file or specify "force"',
-                cfg.analysis_name,
+                experiment.analysis_name,
             )
             sys.exit()
 
         # Set up analysis directory and output directories.
-        cfg.analysis_dir.mkdir(parents=True, exist_ok=True)
+        analysis_dir.mkdir(parents=True, exist_ok=True)
 
-        instr = cfg.instrument.hedm
+        instr = experiment.instrument
         for det_key in instr.detectors:
-            det_dir = cfg.analysis_dir / det_key
+            det_dir = analysis_dir / det_key
             det_dir.mkdir(exist_ok=True)
 
         # Set HKLs to use.
-        if cfg.fit_grains.reset_exclusions:
-            excl_p = cfg.fit_grains.exclusion_parameters
-            #
-            # tth_max can be True, False or a value
-            #
-            if cfg.fit_grains.tth_max is not False:
-                if cfg.fit_grains.tth_max is True:
-                    maxtth = instrument.max_tth(cfg.instrument.hedm)
-                else:
-                    maxtth = np.radians(cfg.fit_grains.tth_max)
-                excl_p = excl_p._replace(tthmax=maxtth)
-
-            cfg.material.plane_data.exclude(**excl_p._asdict())
-        using_nhkls = np.count_nonzero(
-            np.logical_not(cfg.material.plane_data.exclusions)
-        )
+        material = experiment.get_active_material()
+        plane_data = material._material.planeData
+        exclusions = experiment.fit_grains.exclusion_parameters.copy()
+        tth_max = experiment.fit_grains.tth_max
+        if tth_max is not False:
+            exclusions['tthmax'] = (instrument.max_tth(instr)
+                                    if tth_max is True
+                                    else np.radians(tth_max))
+        if experiment.fit_grains.reset_exclusions:
+            plane_data.exclude(**exclusions)
+        using_nhkls = np.count_nonzero(~plane_data.exclusions)
         logger.info(f'using {using_nhkls} HKLs')
 
-        logger.info('*** begin analysis "%s" ***', cfg.analysis_name)
+        logger.info('*** begin analysis "%s" ***', experiment.analysis_name)
 
         # configure logging to file for this particular analysis
-        logfile = cfg.fit_grains.logfile
+        logfile = analysis_dir / 'fit-grains.log'
         fh = logging.FileHandler(logfile, mode='w')
         fh.setLevel(log_level)
         ff = logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
@@ -327,8 +341,7 @@ def execute(args, parser):
             pr.enable()
 
         # some conditionals for arg handling
-        existing_analysis = grains_filename.exists()
-        fit_estimate = cfg.fit_grains.estimate
+        fit_estimate = experiment.fit_grains.estimate
         new_with_estimate = not existing_analysis and fit_estimate is not None
         new_without_estimate = not existing_analysis and fit_estimate is None
         force_with_estimate = args.force and fit_estimate is not None
@@ -389,8 +402,9 @@ def execute(args, parser):
             gid_list = [int(i) for i in args.grains.split(',')]
 
         fit_results = fit_grains(
-            cfg,
+            experiment,
             grains_table,
+            material,
             show_progress=not args.quiet,
             ids_to_refine=gid_list,
         )
@@ -407,9 +421,9 @@ def execute(args, parser):
         fh.close()
         logger.removeHandler(fh)
 
-        logger.info('*** end analysis "%s" ***', cfg.analysis_name)
+        logger.info('*** end analysis "%s" ***', experiment.analysis_name)
 
-        write_results(fit_results, cfg)
+        write_results(fit_results, experiment)
 
     logger.info('=== end fit-grains ===')
     # stop logging to the console

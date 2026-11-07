@@ -165,6 +165,35 @@ def test_rotmatofquat_numba_coverage(rot_90z_quat):
     np.testing.assert_allclose(rmat, expected, atol=1e-7)
 
 
+@pytest.mark.parametrize('dtype', [np.float32, np.float64])
+@pytest.mark.parametrize('layout', ['C', 'F', 'strided'])
+@pytest.mark.parametrize('count', [0, 1, 37])
+def test_rotmatofquat_layouts(dtype, layout, count):
+    from scipy.spatial.transform import Rotation
+
+    rng = np.random.default_rng(15)
+    quats = rng.normal(size=(4, count)).astype(dtype)
+    quats /= np.linalg.norm(quats, axis=0)
+    if count:
+        expected = Rotation.from_quat(quats[[1, 2, 3, 0]].T).as_matrix()
+        # The conversion preserves quaternion scale, rather than normalizing.
+        quats *= 2
+        expected *= 4
+    else:
+        expected = np.empty((0, 3, 3))
+    if layout == 'strided':
+        storage = np.empty((4, count * 2), dtype=dtype)
+        storage[:, ::2] = quats
+        quats = storage[:, ::2]
+    else:
+        quats = np.array(quats, order=layout)
+
+    actual = rotations._rotmatofquat(quats)
+    assert actual.shape == (count, 3, 3)
+    assert actual.dtype == dtype
+    np.testing.assert_allclose(actual, expected, rtol=2e-6, atol=1e-6)
+
+
 def test_expMapOfQuat_coverage(rot_90z_quat):
     exp = rotations.expMapOfQuat(rot_90z_quat)
     expected = np.array([0, 0, np.pi / 2])

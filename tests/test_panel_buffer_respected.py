@@ -1,13 +1,17 @@
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 from hexrd.core import imageseries
 from hexrd.core.imageseries.omega import OmegaImageSeries
 from hexrd.core.instrument import Detector, HEDMInstrument
+from hexrd.core.experiment import Detector as ExperimentDetector
 from hexrd.core.material import Material
 from hexrd.core.material.crystallography import PlaneData
 from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
+from hexrd.hedm.experiment import HedmExperiment
+from hexrd.hedm.find_orientations import _clip_to_panel, build_eta_omega_maps, load_plane_data
 
 GAP_VALUE = np.iinfo(np.uint32).max
 SIGNAL_VALUE = 1000
@@ -41,7 +45,30 @@ def test_numeric_panel_buffers() -> None:
         np.testing.assert_array_equal(actual, expected)
 
 
-def test_extract_polar_maps_respects_panel_buffer() -> None:
+@pytest.mark.parametrize('buffer_kind', ['none', 'edges', 'mask', 'named'])
+def test_refactored_panel_buffers_match_instrument(buffer_kind, monkeypatch) -> None:
+    from hexrd.core.utils import panel_buffer
+
+    instr, _, panel, _ = make_instrument()
+    panel.rows, panel.cols = 4, 5
+    panel.roi = [1, 2]
+    mask = np.ones((6, 7), dtype=bool)
+    mask[2:4, 3:5] = False
+    monkeypatch.setattr(panel_buffer, '_load_panel_buffer_from_file', lambda _: mask)
+    panel.panel_buffer = {'none': None, 'edges': np.array([0.2, 0.2]),
+                          'mask': mask[1:5, 2:7].astype(np.uint8),
+                          'named': 'test'}[buffer_kind]
+    detector = ExperimentDetector.from_dict(
+        panel.name, panel.config_dict(instr.chi, instr.tvec, style='hdf5')['detector'])
+    np.testing.assert_array_equal(detector.buffer_mask, panel_buffer_as_2d_array(panel))
+    xy = np.vstack([panel.pixelToCart(np.array([[i, j] for i in range(-1, 6)
+                                               for j in range(-1, 7)])),
+                    [np.nan, np.nan]])
+    np.testing.assert_array_equal(_clip_to_panel(detector, xy), panel.clip_to_panel(xy)[1])
+
+
+@pytest.mark.parametrize('refactored', [False, True])
+def test_extract_polar_maps_respects_panel_buffer(tmp_path, refactored) -> None:
     instr, det_key, panel, plane_data = make_instrument()
     frames = np.ones((1, *panel.shape), dtype=np.uint32)
     frames[:, :, 1000:1010] = GAP_VALUE
@@ -49,6 +76,21 @@ def test_extract_polar_maps_respects_panel_buffer() -> None:
     buffer[:, 1000:1010] = False
 
     def maps(threshold: float | None = None) -> np.ndarray:
+        if refactored:
+            experiment = HedmExperiment.from_objects(
+                instr, {det_key: make_omega_imageseries(frames)}, plane_data,
+                {'analysis_name': 'test', 'working_dir': str(tmp_path), 'multiprocessing': 1,
+                 'material': {'active': 'test', 'tth_width': 0.25},
+                 'find_orientations': {
+                     'clustering': {'radius': 0.5, 'completeness': 0.9},
+                     'orientation_maps': {
+                         'threshold': 0 if threshold is None else threshold,
+                         'eta_step': 0.25}}})
+            actual = build_eta_omega_maps(experiment, load_plane_data(experiment)).ring_maps
+            expected, _ = instr.extract_polar_maps(
+                plane_data, {det_key: make_omega_imageseries(frames)}, threshold=threshold)
+            np.testing.assert_array_equal(actual, expected[det_key])
+            return actual
         result, _ = instr.extract_polar_maps(
             plane_data, {det_key: make_omega_imageseries(frames)}, threshold=threshold
         )

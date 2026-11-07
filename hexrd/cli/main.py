@@ -3,9 +3,12 @@
 import argparse
 import logging
 import sys
-import multiprocessing
+import os
 from importlib import import_module
 from importlib.metadata import version, PackageNotFoundError
+
+if 'find-orientations' in sys.argv:
+    os.environ.setdefault('OPENBLAS_NUM_THREADS', '1')
 
 from hexrd.core.utils import profiler
 
@@ -28,6 +31,8 @@ except PackageNotFoundError:
 
 def main() -> None:
     if sys.platform.startswith('win'):
+        import multiprocessing
+
         # Hack for multiprocessing.freeze_support() to work from a
         # setuptools-generated entry point.
         if __name__ != "__main__":

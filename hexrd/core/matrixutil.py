@@ -31,11 +31,9 @@ import numpy as np
 from numpy.linalg import svd
 from numpy.typing import NDArray
 
-from scipy import sparse
-import numba
-
 
 from hexrd.core import constants
+from hexrd.core.utils.decorators import _lazy_njit
 
 # module variables
 sqr6i = 1.0 / np.sqrt(6.0)
@@ -154,6 +152,8 @@ def blockSparseOfMatArray(matArray):
 
     # syntax as of scipy-0.7.0
     # csc_matrix((data, indices, indptr), shape=(M, N))
+    from scipy import sparse
+
     smat = sparse.csc_matrix((sij, ij), shape=(imax, jmax))
 
     return smat
@@ -476,7 +476,7 @@ def findDuplicateVectors(vec, tol=vTol, equivPM=False):
     return eqv2, uid2
 
 
-@numba.njit(cache=True, nogil=True)
+@_lazy_njit
 def _findduplicatevectors(vec, tol, equivPM):
     """
     Find vectors in an array that are equivalent to within
@@ -736,7 +736,7 @@ def solve_wahba(v, w, weights=None):
 # =============================================================================
 
 
-@numba.njit(cache=True, nogil=True)
+@_lazy_njit
 def extract_ijv(in_array, threshold, out_i, out_j, out_v):
     n = 0
     w, h = in_array.shape

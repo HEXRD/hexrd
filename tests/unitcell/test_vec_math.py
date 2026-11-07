@@ -149,3 +149,18 @@ def test_calc_star(cell: unitcell.unitcell):
 
     vsym = cell.CalcStar(v, 'r', True)
     assert vsym.shape[0] == 6
+
+
+def test_calc_star_preserves_greedy_tolerance_and_order():
+    # The second vector is close to the first and is rejected. The third is
+    # accepted even though it is close to the rejected second vector.
+    angles = np.array([0.0, 0.009, 0.011, 0.02])
+    sym = np.zeros((len(angles), 3, 3))
+    sym[:, 0, 0] = sym[:, 1, 1] = np.cos(angles)
+    sym[:, 1, 0] = np.sin(angles)
+    sym[:, 0, 1] = -np.sin(angles)
+    sym[:, 2, 2] = 1
+    vector = np.array([1.0, 0.0, 0.0])
+    expected = np.vstack([vector, sym[2] @ vector])
+    actual = unitcell._calcstar(vector, sym, np.eye(3))
+    np.testing.assert_allclose(actual, expected)

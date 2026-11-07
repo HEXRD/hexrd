@@ -33,7 +33,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy import constants as scipyc
+
 
 # !!! for stetting mp start method
 if 'Windows' in platform.system() or 'Darwin' in platform.system():
@@ -301,6 +301,8 @@ tp_12 = 2.0 - np.sqrt(3.0)
 
 
 def keVToAngstrom(x: float) -> float:
+    from scipy import constants as scipyc
+
     return (1e7 * scipyc.c * scipyc.h / scipyc.e) / x
 
 

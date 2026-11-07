@@ -5,7 +5,6 @@ import warnings
 import h5py
 import numpy as np
 from numba import njit
-from scipy.interpolate import interp1d
 
 import hexrd.core.resources
 from hexrd.core import constants
@@ -23,6 +22,23 @@ MU_ID = 3
 COH_INCOH_ID = 4
 MU_K_ID = 6
 WAV_ID = 7
+
+
+class _LinearInterpolator:
+    def __init__(self, x, y):
+        order = np.argsort(x, kind="mergesort")
+        self.x = np.asarray(x)[order]
+        self.y = np.asarray(y)[order]
+
+    def __call__(self, value):
+        value = np.asarray(value)
+        if np.any(value < self.x[0]) or np.any(value > self.x[-1]):
+            raise ValueError("interpolation value is outside the data range")
+        hi = np.searchsorted(self.x, value)
+        hi = np.clip(hi, 1, len(self.x) - 1)
+        lo = hi - 1
+        slope = (self.y[hi] - self.y[lo]) / (self.x[hi] - self.x[lo])
+        return slope * (value - self.x[lo]) + self.y[lo]
 
 """ calculate dot product of two vectors in any space 'd' 'r' or 'c' """
 
@@ -44,18 +60,24 @@ def _calcstar(v, sym, mat):
     # the first element is always the identity
     # so we can safely skip that
     for s in sym[1:, :, :]:
-        vp = np.dot(np.ascontiguousarray(s), v)
+        # These are three-component vectors. Scalar operations avoid BLAS
+        # dispatch, temporary arrays, and compiling general array operations.
+        vp0 = s[0, 0] * v[0] + s[0, 1] * v[1] + s[0, 2] * v[2]
+        vp1 = s[1, 0] * v[0] + s[1, 1] * v[1] + s[1, 2] * v[2]
+        vp2 = s[2, 0] * v[0] + s[2, 1] * v[1] + s[2, 2] * v[2]
 
         # check if this is new
         isnew = True
         for vec in vsym[0:n, :]:
-            dist = np.sum((vp - vec) ** 2)
+            dist = (vp0 - vec[0]) ** 2 + (vp1 - vec[1]) ** 2 + (vp2 - vec[2]) ** 2
             if dist < 1e-4:
                 isnew = False
                 break
 
         if isnew:
-            vsym[n, :] = vp
+            vsym[n, 0] = vp0
+            vsym[n, 1] = vp1
+            vsym[n, 2] = vp2
             n = n + 1
 
     return vsym[0:n, :]
@@ -876,7 +898,7 @@ class unitcell:
                 if Z <= 92:
                     gid = fid.get("/" + elem)
                     data = np.array(gid.get("data"))
-                    self.pe_cs[elem] = interp1d(
+                    self.pe_cs[elem] = _LinearInterpolator(
                         data[:, WAV_ID], data[:, MU_ID] + data[:, COH_INCOH_ID]
                     )
                     data = data[:, [WAV_ID, REAL_F1_ID, IMAG_F2_ID]]
@@ -887,7 +909,7 @@ class unitcell:
                     zs = np.ones_like(wav) * Z
                     zrs = np.zeros_like(wav)
                     data_zs = np.vstack((wav, zs, zrs)).T
-                    self.pe_cs[elem] = interp1d(wav, zrs)
+                    self.pe_cs[elem] = _LinearInterpolator(wav, zrs)
                     f_anomalous_data.append(data_zs)
 
         n = max([x.shape[0] for x in f_anomalous_data])

@@ -39,7 +39,7 @@ def test_command_help(
 
 
 def test_legacy_cli_imports() -> None:
-    for name in ('help', 'documentation'):
+    for name in ('help', 'documentation', 'main'):
         assert importlib.import_module(f'hexrd.hedm.cli.{name}') is (
             importlib.import_module(f'hexrd.cli.{name}')
         )

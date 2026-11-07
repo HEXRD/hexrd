@@ -1,20 +1,16 @@
-from __future__ import print_function, division, absolute_import
+"""The ``hexrd find-orientations`` command."""
 
-import os
 import logging
+import os
 import sys
+from contextlib import nullcontext
+from dataclasses import replace
 
 import numpy as np
 
-from hexrd.core import constants as const
-from hexrd.hedm import config
-from hexrd.core import instrument
-from hexrd.core.transforms import xfcapi
-from hexrd.hedm.findorientations import (
-    find_orientations,
-    write_scored_orientations,
-)
-
+from hexrd.hedm.experiment import HedmExperiment
+from hexrd.hedm.find_orientations import find_orientations, write_results
+from hexrd.hedm._progress import Dashboard, quiet_progress, stage
 
 descr = 'Process rotation image series to find grain orientations'
 example = """
@@ -24,25 +20,28 @@ examples:
 
 
 def configure_parser(sub_parsers):
-    p = sub_parsers.add_parser('find-orientations', description=descr, help=descr)
+    p = sub_parsers.add_parser(
+        'find-orientations', description=descr, help=descr,
+        epilog='Interactive terminals show a live stage dashboard; redirected '
+               'output uses plain logs.',
+    )
     p.add_argument('yml', type=str, help='YAML configuration file')
+    p.add_argument('--no-tui', action='store_true',
+                   help='use plain logs and exit on completion (for batch runs)')
     p.add_argument(
-        '-q',
-        '--quiet',
+        '-q', '--quiet',
         action='store_true',
         help="don't report progress in terminal",
     )
     p.add_argument(
-        '-f',
-        '--force',
+        '-f', '--force',
         action='store_true',
         help='overwrites existing analysis',
     )
     p.add_argument(
-        '-c',
-        '--clean',
+        '-c', '--clean',
         action='store_true',
-        help='overwrites existing analysis, including maps',
+        help='overwrites existing analysis, including cached eta-omega maps',
     )
     p.add_argument(
         '--hkls',
@@ -54,107 +53,122 @@ def configure_parser(sub_parsers):
           if None, defaults to list specified in the yml file""",
     )
     p.add_argument(
-        '-p',
-        '--profile',
+        '-p', '--profile',
         action='store_true',
         help='runs the analysis with cProfile enabled',
+    )
+    p.add_argument(
+        '--study',
+        type=int,
+        default=None,
+        help='apply the Nth study overlay of a multi-document config',
     )
     p.set_defaults(func=execute)
 
 
-def write_results(results, cfg):
-    # Write scored orientations.
-    write_scored_orientations(results, cfg)
-
-    # Write accepted orientations.
-    qbar_filename = str(cfg.find_orientations.accepted_orientations_file)
-    np.savetxt(qbar_filename, results['qbar'].T, fmt='%.18e', delimiter='\t')
-
-    # Write grains.out.
-    gw = instrument.GrainDataWriter(cfg.find_orientations.grains_file)
-    for gid, q in enumerate(results['qbar'].T):
-        phi = 2 * np.arccos(q[0])
-        n = xfcapi.unit_vector(q[1:])
-        grain_params = np.hstack([phi * n, const.zeros_3, const.identity_6x1])
-        gw.dump_grain(gid, 1.0, 0.0, grain_params)
-    gw.close()
-
-
 def execute(args, parser):
-    # make sure hkls are passed in as a list of ints
-    try:
-        if args.hkls is not None:
-            args.hkls = [int(i) for i in args.hkls.split(',') if i]
-    except AttributeError:
-        # called from fit-grains, hkls not passed
-        args.hkls = None
+    if (not args.quiet and not getattr(args, 'no_tui', False)
+            and sys.stdin.isatty() and Dashboard.supported(sys.stderr)):
+        from hexrd.hedm._dashboard import OrientationDashboard
 
-    # configure logging to the console
-    log_level = logging.DEBUG if args.debug else logging.INFO
-    if args.quiet:
-        log_level = logging.ERROR
+        dashboard = Dashboard()
+        app = OrientationDashboard(dashboard, lambda: _execute(args, parser, dashboard), args.yml)
+        app.run()
+
+        if dashboard.message:
+            print(dashboard.message, file=sys.stderr)
+        if app.failure is not None:
+            raise app.failure
+        return
+    return _execute(args, parser)
+
+
+def _execute(args, parser, dashboard=None):
+    log_level = logging.ERROR if args.quiet else (
+        logging.DEBUG if getattr(args, 'debug', False) else logging.INFO
+    )
     logger = logging.getLogger('hexrd')
+    previous_level, previous_propagate = logger.level, logger.propagate
     logger.setLevel(log_level)
-    ch = logging.StreamHandler()
+    logger.propagate = False  # avoid double-printing via the root logger
+    ch = dashboard or logging.StreamHandler()
     ch.setLevel(logging.CRITICAL if args.quiet else log_level)
-    ch.setFormatter(logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S'))
+    ch.setFormatter(
+        logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
+    )
     logger.addHandler(ch)
-    logger.info('=== begin find-orientations ===')
+    fh = None
+    try:
+        if isinstance(ch, Dashboard):
+            ch.start()
+        logger.info('=== begin find-orientations ===')
 
-    # load the configuration settings
-    cfg = config.open(args.yml)[0]
+        with stage('Configuration'):
+            experiment = HedmExperiment(
+                args.yml,
+                study=getattr(args, 'study', None),
+                working_dir=os.getcwd(),
+                new_file_placement=False,
+            )
+            if experiment.active_material.dmin is None:
+                experiment.active_material.dmin = 0.5
+            hkls = getattr(args, 'hkls', None)
+            if isinstance(hkls, str):
+                hkls = [int(i) for i in hkls.split(',') if i]
+            if hkls:
+                fo = experiment.find_orientations
+                experiment.find_orientations = replace(
+                    fo,
+                    orientation_maps=replace(
+                        fo.orientation_maps, active_hkls=np.asarray(hkls, dtype=int)
+                    ),
+                )
 
-    # prepare the analysis directory
-    quats_f = cfg.find_orientations.accepted_orientations_file
+            accepted = experiment.accepted_orientations_file
+            if os.path.exists(accepted) and not (args.force or args.clean):
+                logger.error(
+                    '%s already exists. Change yml file or specify "force" or "clean"',
+                    accepted,
+                )
+                sys.exit()
 
-    if (quats_f.exists()) and not (args.force or args.clean):
-        logger.error(
-            '%s already exists. Change yml file or specify "force" or "clean"',
-            quats_f,
+            os.makedirs(experiment.analysis_dir, exist_ok=True)
+            logfile = experiment.find_orientations_logfile
+            fh = logging.FileHandler(logfile, mode='w')
+            fh.setLevel(log_level)
+            fh.setFormatter(
+                logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
+            )
+            logger.info('logging to %s', logfile)
+            logger.addHandler(fh)
+
+        if getattr(args, 'profile', False):
+            import cProfile
+            import io
+            import pstats
+
+        with (
+            quiet_progress(args.quiet or getattr(args, 'no_tui', False)),
+            (cProfile.Profile() if getattr(args, 'profile', False) else nullcontext()) as profile,
+        ):
+            results = find_orientations(experiment, clean=args.clean)
+            with stage('Write results'):
+                output_dir = write_results(results, experiment)
+        if profile is not None:
+            summary = io.StringIO()
+            pstats.Stats(profile, stream=summary).sort_stats('cumulative').print_stats(50)
+            logger.info('%s', summary.getvalue())
+        logger.info(
+            'found %d grain(s); results written to %s',
+            results.num_grains, output_dir,
         )
-        sys.exit()
 
-    # Create analysis directory and any intermediates.
-    cfg.analysis_dir.mkdir(parents=True, exist_ok=True)
-
-    # configure logging to file
-    logfile = cfg.find_orientations.logfile
-    fh = logging.FileHandler(logfile, mode='w')
-    fh.setLevel(log_level)
-    fh.setFormatter(
-        logging.Formatter('%(asctime)s - %(name)s - %(message)s', '%m-%d %H:%M:%S')
-    )
-    logger.info("logging to %s", logfile)
-    logger.addHandler(fh)
-
-    if args.profile:
-        import cProfile as profile
-        import pstats
-        from io import StringIO
-
-        pr = profile.Profile()
-        pr.enable()
-
-    # process the data
-    results = find_orientations(
-        cfg, hkls=args.hkls, clean=args.clean, profile=args.profile
-    )
-
-    # Write out the results
-    write_results(results, cfg)
-
-    if args.profile:
-        pr.disable()
-        s = StringIO.StringIO()
-        ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
-        ps.print_stats(50)
-        logger.info('%s', s.getvalue())
-
-    # clean up the logging
-    fh.flush()
-    fh.close()
-    logger.removeHandler(fh)
-    logger.info('=== end find-orientations ===')
-    ch.flush()
-    ch.close()
-    logger.removeHandler(ch)
+        logger.info('=== end find-orientations ===')
+    finally:
+        if fh is not None:
+            logger.removeHandler(fh)
+            fh.close()
+        logger.removeHandler(ch)
+        ch.close()
+        logger.setLevel(previous_level)
+        logger.propagate = previous_propagate

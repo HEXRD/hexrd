@@ -46,6 +46,7 @@ import yaml
 import h5py
 
 import numpy as np
+from numpy import histogram
 from numpy.typing import NDArray
 
 from io import IOBase
@@ -94,7 +95,6 @@ from skimage.draw import polygon
 from skimage.util import random_noise
 from hexrd.powder.wppf import wppfsupport
 
-from numpy import histogram
 
 logger = logging.getLogger()
 logger.setLevel('INFO')
@@ -2641,8 +2641,6 @@ def _generate_ring_params(
         return None
 
     pixel_ids = np.where(pixels_in_tthr)
-
-    # grab relevant eta coords using histogram
     pixel_etas = peta[pixel_ids]
     reta_hist = histogram(pixel_etas, bins=eta_edges)[0]
     bins_on_detector = np.where(reta_hist)[0]
@@ -2653,30 +2651,22 @@ def _generate_ring_params(
 def _run_histograms(rows, ims, tth_ranges, ring_maps, ring_params, threshold):
     for i_row in range(*rows):
         image = ims[i_row]
-
-        # handle threshold if specified
         if threshold is not None:
-            # !!! NaNs get preserved
             image = np.array(image)
             image[image < threshold] = 0.0
 
-        for i_r, tthr in enumerate(tth_ranges):
-            this_map = ring_maps[i_r]
+        for i_r, _ in enumerate(tth_ranges):
             params = ring_params[i_r]
-            if not params:
-                # We are supposed to skip this ring...
+            if params is None:
                 continue
 
-            # Unpack the params
             pixel_etas, eta_edges, pixel_ids, bins_on_detector = params
             result = histogram(
                 pixel_etas,
                 bins=eta_edges,
                 weights=np.asarray(image[pixel_ids], dtype=np.float64),
             )[0]
-
-            # Note that this preserves nan values for bins not on the detector.
-            this_map[i_row, bins_on_detector] = result[bins_on_detector]
+            ring_maps[i_r, i_row, bins_on_detector] = result[bins_on_detector]
 
 
 def _extract_detector_line_positions(

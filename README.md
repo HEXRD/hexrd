@@ -54,6 +54,10 @@ optional arguments:
 
 ```
 
+For a customizable Python indexing workflow, copy the `find_orientations`
+function in [scripts/custom_find_orientations.py](scripts/custom_find_orientations.py).
+It calls the public stages in order and supports seeded search and orientation grids.
+
 # Citing
 
 We are very glad you found our software helpful for your research! In order for us to keep track of the impact our software is having, can you please cite us in your papers?
