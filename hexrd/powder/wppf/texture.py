@@ -2,21 +2,22 @@
 # ---------
 import copy
 from warnings import warn
-from typing import Tuple
+
+import numba
+import numpy as np
+
+# 3rd party imports
+# -----------------
+from lmfit import Minimizer, Parameters
+from matplotlib import pyplot as plt
+from scipy.special import sph_harm_y
+
+from hexrd.core import constants
 
 # hexrd imports
 # -------------
 from hexrd.core.transforms.xfcapi import angles_to_gvec
-from hexrd.core import constants
 from hexrd.powder.wppf.phase import Material_Rietveld
-
-# 3rd party imports
-# -----------------
-from lmfit import Parameters, Minimizer
-import numba
-import numpy as np
-from scipy.special import sph_harm_y
-from matplotlib import pyplot as plt
 
 """
 ===============================================================================
@@ -443,14 +444,14 @@ def check_symmetry(sym, symtype='either'):
 
 def check_degrees(ell, sym):
     if ell < 0:
-        msg = f'the degree is negative'
+        msg = 'the degree is negative'
         raise ValueError(msg)
     if np.mod(ell, 2) != 0:
-        msg = f'only even degrees allowed due to' f'inversion symmetry'
+        msg = 'only even degrees allowed due toinversion symmetry'
         raise ValueError(msg)
     if sym in ['td', 'oh']:
         if ell > 16:
-            msg = f'maximum degree available is 16'
+            msg = 'maximum degree available is 16'
             raise ValueError(msg)
     return True
 
@@ -544,7 +545,7 @@ def calc_sym_sph_harm(deg, theta, phi, sym='oh'):
         '''
         num_sym = n + 1
         Intensity = np.zeros((theta.shape[0], num_sym))
-        for ii in range(0, n + 1):
+        for ii in range(n + 1):
             if ii == 0:
                 Intensity[:, ii] = np.real(sph_harm_y(deg, nfold * ii, theta, phi))
             else:
@@ -669,7 +670,7 @@ class MarchDollaseModel:
 
         return pre * texture_factor
 
-    def calc_cos_sin_alpha(self, g: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def calc_cos_sin_alpha(self, g: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         g_mag = self.material.CalcLength(g, 'r')
         gdotHKL = self.material.CalcDot(g, self.HKL, 'r')
         cos2_alpha = (gdotHKL / g_mag / self.HKL_length) ** 2
@@ -789,7 +790,7 @@ class MarchDollaseModel:
         return self._P_MD
 
     @P_MD.setter
-    def P_MD(self, val: float | int):
+    def P_MD(self, val: float):
         if isinstance(val, (float, int)):
             self._P_MD = float(val)
         else:
@@ -872,7 +873,7 @@ class HarmonicModel:
         if check_symmetry(val, symtype='sample'):
             self._ssym = val
         else:
-            msg = f'unknown sample symmetry'
+            msg = 'unknown sample symmetry'
             raise ValueError(msg)
 
     @csym.setter
@@ -880,7 +881,7 @@ class HarmonicModel:
         if check_symmetry(val, symtype='crystal'):
             self._csym = val
         else:
-            msg = f'unknown sample symmetry'
+            msg = 'unknown sample symmetry'
             raise ValueError(msg)
 
     @property
@@ -1180,7 +1181,7 @@ class HarmonicModel:
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
-            msg = f'unknown type of grid for precomputing' f'spherical harmonics'
+            msg = 'unknown type of grid for precomputingspherical harmonics'
             raise ValueError(msg)
 
         if calc_type == 'texture_factor':
@@ -1884,6 +1885,58 @@ class HarmonicModel:
         return dg
 
 
+class PhaseTransitionTextureModel:
+    """
+    this is a special case of dynamic compression of
+    single crystals. in this case, the texture is more
+    or less known if the phase transition OR is known.
+    is such cases, we don't need to refine the texture.
+    we can simply provide the phase transition OR and the
+    starting orientation of the parent phase to get a good
+    starting point for the expected texture.
+
+    In this case, we will compute the ODF based on the
+    radial distribution functions. the refinable parameters
+    will only be the starting orientation of the parent
+    crystal(s), the FWHM of the De la Vallé Poussin kernel,
+    and the relative variant fractions of the possible
+    orientation variants
+
+    this is quite a non-standard technique and I have not seen
+    this used in the literature, so we are breaking new ground.
+
+    one important point to note is that there is no sample symmetry
+    here because that symmetry is statistical in nature and we
+    are working with single/few crystal orientations. By default
+    the sample symmetry will be "ci" or just the inversion symmetry
+
+    Parameters
+    ----------
+    OR: orientation_relationship class
+        helper class for defining orientation relationship
+        between parent and daughter phases. has information
+        about the materials
+    params: lmfit.Parameters
+        Parameter class for the refinement
+    bvec: numpy.ndarray
+            unit vector of xray beam in the lab frame. default value
+            is -Z direction
+    evec: numpy.ndarray
+            direction which defines zero azimuth. default value is
+            x direction
+    sample_normal: numpy.ndarray
+            inclination of sample frame about x direction. default
+            value is 0, corresponding to no tilt.
+    """
+
+    def __init__(
+        self,
+        material_parent=None,
+        material_daughter=None,
+    ):
+        pass
+
+
 class InversePoleFigures:
     """
     this class deals with everything related to inverse pole figures.
@@ -1952,7 +2005,7 @@ class InversePoleFigures:
                 self._sample_dir = np.atleast_2d([0.0, 0.0, 1.0])
                 self._sample_dir_name = "ND"
             else:
-                msg = f"unknown direction."
+                msg = "unknown direction."
                 raise ValueError(msg)
         elif isinstance(val, np.array):
             v = np.atleast_2d(val)
@@ -1973,8 +2026,8 @@ class InversePoleFigures:
     def resolution(self, val):
         if val < 1.0:
             msg = (
-                f"the resolution appears to be very fine.\n"
-                f"Are you sure the value is in degrees?"
+                "the resolution appears to be very fine.\n"
+                "Are you sure the value is in degrees?"
             )
             warn(msg)
         self._resolution = val
