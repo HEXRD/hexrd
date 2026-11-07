@@ -233,6 +233,7 @@ class ImageSeries:
 
     def __init__(self, panel: str, filename: str, max_workers: int = 8):
         self.panel = panel
+        self._filename = filename
         self._arrs = _NpzReader(filename, metadata_only=True)
         self._shape = tuple(self._arrs['shape'])
         self._dtype = self._arrs['dtype'].tobytes().decode()
@@ -240,6 +241,19 @@ class ImageSeries:
         self._max_workers = max_workers
         self.omega = np.radians(self._arrs['omega'])   # (n_frames, 2): [start, stop]
         self._images: list[csr_array] | None = None
+        self._lock = threading.Lock()
+
+    def __getstate__(self) -> dict:
+        # The npz reader (an mmap) and lock can't be pickled, so the
+        # unpickled copy reopens the file instead
+        state = self.__dict__.copy()
+        del state['_arrs'], state['_lock']
+        state['_images'] = None
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__ = state
+        self._arrs = _NpzReader(self._filename, metadata_only=True)
         self._lock = threading.Lock()
 
     @property

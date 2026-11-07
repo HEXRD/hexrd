@@ -8,6 +8,7 @@ example repo (gated on ``HEXRD_EXAMPLE_REPO_PATH`` like the other
 example-data tests).
 """
 import os
+import pickle
 from pathlib import Path
 
 import h5py
@@ -274,6 +275,14 @@ def test_roi_image_series_slices_parent(tmp_path):
                               frame[3:6, 2:8])
     # the parent's frames were decompressed once and shared
     assert top._parent is bottom._parent
+
+    # spawned multiprocessing workers must be able to unpickle the views
+    top2, bottom2 = pickle.loads(pickle.dumps((top, bottom)))
+    assert top2._parent is bottom2._parent
+    for i, frame in enumerate(frames):
+        assert np.array_equal(np.asarray(top2.images[i].todense()), frame[:3, :])
+        assert np.array_equal(np.asarray(bottom2.images[i].todense()),
+                              frame[3:6, 2:8])
 
 
 # ---------------------------------------------------------------------------
