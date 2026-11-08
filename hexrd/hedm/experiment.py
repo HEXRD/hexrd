@@ -80,13 +80,14 @@ class _AdapterImageSeries(ImageSeries):
     def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
         from scipy.sparse import csr_array
         from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
+        from hexrd.core.imageseries.process import ProcessedImageSeries
         from hexrd.core.extensions import transforms as native
         from hexrd.hedm._progress import activity, check_cancelled
 
         if isinstance(self._series, ImageSeries):
             yield from self._series.pixel_chunks(row_of_frame, max_pixels, threshold)
             return
-        adapter = self._series._adapter
+        adapter = getattr(self._series, '_adapter', None)
         if isinstance(adapter, FrameCacheImageSeriesAdapter) and adapter._style == 'fch5':
             import multiprocessing as mp
             import psutil
@@ -126,10 +127,26 @@ class _AdapterImageSeries(ImageSeries):
                 yield from _pixel_chunks(pixels(), row_of_frame, max_pixels)
             return
 
+        def sparse_frame(series, i):
+            if isinstance(series, ProcessedImageSeries):
+                if any(k != series.RECT or series._opdict[k] != series._rectangle
+                       for k, _ in series.oplist):
+                    return csr_array(series[i])
+                frame = sparse_frame(series._imser, series._get_index(i))
+                for _, region in series.oplist:
+                    frame = series._rectangle(frame, region)
+                return frame
+            if hasattr(series, '_adapter'):
+                return sparse_frame(series._adapter, i)
+            if isinstance(series, FrameCacheImageSeriesAdapter):
+                series._load_framelist_if_needed()
+                return series._framelist[i]
+            return csr_array(series[i])
+
         def pixels():
             for i in range(len(self)):
                 check_cancelled()
-                frame = csr_array(self._series[i])
+                frame = sparse_frame(self._series, i)
                 ids = np.empty(frame.nnz, dtype=np.int64)
                 native._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
                 yield ids, frame.data
