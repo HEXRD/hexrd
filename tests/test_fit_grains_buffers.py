@@ -16,6 +16,57 @@ from hexrd.core.instrument._spotutils import (
 from hexrd.hedm import fitgrains
 
 
+@pytest.mark.parametrize('symbol', ['_spotStats', '_SparseFrames', '_makePixelQuery'])
+def test_stale_native_extension_is_rejected_before_loading_images(monkeypatch, symbol):
+    from hexrd.core.extensions import transforms as native
+
+    monkeypatch.delattr(native, symbol)
+    with pytest.raises(ImportError, match='build_ext --inplace --force'):
+        fitgrains.fit_grains(None, None)
+
+
+@pytest.mark.parametrize('reset,tth_max', [
+    (False, True), (True, True), (True, False), (True, 0.5),
+])
+def test_cli_only_computes_exclusions_when_applying_them(monkeypatch, tmp_path, reset, tth_max):
+    import logging
+    from unittest.mock import Mock
+    from hexrd.core import instrument
+    from hexrd.hedm.cli import fit_grains as cli
+
+    parameters = {'dmin': 0.2}
+    plane_data = SimpleNamespace(exclusions=np.zeros(5, dtype=bool), exclude=Mock())
+    experiment = SimpleNamespace(
+        studies=(), analysis_name='test', analysis_dir=str(tmp_path),
+        accepted_orientations_file=str(tmp_path / 'orientations.dat'),
+        instrument=SimpleNamespace(detectors={'panel': None}),
+        fit_grains=SimpleNamespace(reset_exclusions=reset, tth_max=tth_max,
+                                  exclusion_parameters=parameters),
+        get_active_material=lambda: SimpleNamespace(
+            _material=SimpleNamespace(planeData=plane_data)),
+    )
+    maximum = Mock(return_value=0.3)
+    monkeypatch.setattr(instrument, 'max_tth', maximum)
+    monkeypatch.setattr(cli, 'HedmExperiment', lambda *_: experiment)
+    monkeypatch.setattr(cli, '_needs_orientations', lambda *_: False)
+    monkeypatch.setattr(cli, '_load_grains', lambda *_: np.zeros((0, 21)))
+    monkeypatch.setattr(cli, 'write_results', lambda *_: None)
+    monkeypatch.setattr(fitgrains, 'fit_grains', Mock(return_value=[]))
+    args = SimpleNamespace(force=False, clean=False, yml='test.yml',
+                           profile=False, quiet=True, grains=None)
+    cli._run(args, None, logging.getLogger('hexrd.test'))
+    expected = parameters.copy()
+    if reset:
+        if tth_max is not False:
+            expected['tthmax'] = 0.3 if tth_max is True else np.radians(tth_max)
+        plane_data.exclude.assert_called_once_with(**expected)
+    else:
+        plane_data.exclude.assert_not_called()
+    assert maximum.call_count == int(reset and tth_max is True)
+    assert parameters == {'dmin': 0.2}
+    assert not np.any(plane_data.exclusions)
+
+
 @pytest.fixture
 def sparse_series(tmp_path):
     path = tmp_path / 'frames.npz'

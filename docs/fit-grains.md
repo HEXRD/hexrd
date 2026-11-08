@@ -125,6 +125,12 @@ cancellation at objective evaluations. UI counters are presentation-only.
 
 ## Build
 
+Native extensions belong to the source checkout that built them. Switching Git
+branches leaves ignored `.so` files in place; rebuild after switching branches.
+Fit-grains checks its required native kernels before accessing images and gives
+the rebuild command when an incompatible extension is installed. This prevents
+an orientation-only build from silently using slow fitting fallbacks.
+
 The C++ extensions use `-O3` and release assertions. To enable the optional GCC
 LTO profile, rebuild while HEXRD is stopped:
 
@@ -162,7 +168,56 @@ measurement modes with master, as well as the Sven fits, extracted spots and
 spot files. Guarded master validation uses bounded pixel input when eager
 loading would exceed local RAM.
 
-### Selective decompression and startup progress (current)
+### First-run requirement and native compatibility (current)
+
+Production fitting uses the original images. The separate threshold-cache
+preparation experiment was withdrawn: its 648.52-second preprocessing cost made
+the first 2,103-grain run 9.9% slower overall. Its prepared-input timing is not
+an end-to-end production speedup; see the [archived experiment](fit-grains-input-cache-experiment.md).
+The preparation command and its tests have been removed.
+
+A locally installed extension was identified as an orientation-only build,
+missing native spot statistics, sparse views and pixel queries. A clean guarded
+rebuild reproduced the validated fitting binary byte-for-byte. Startup now
+rejects that mismatch before image access. Patch geometry also avoids copying
+the detector's full mask into a configuration it does not use; panel clipping
+continues to consult the original mask.
+
+The CLI now computes the detector-wide maximum angle only when applying new
+exclusions. With `reset_exclusions: false`, that expensive result was discarded.
+Saved exclusions remain intact. On Sven, the fresh-process CLI setup path
+(configuration/material/estimate loading, stopped at fit entry) fell from a
+median **2.72 to 1.26 seconds**; peak RSS fell from **1.82 to 0.61 GiB**.
+This setup check used a four-grain estimate and the full Sven detector.
+Both measurements use the same five selected HKL families and exclude package
+imports and image analysis. Two runs per revision were measured in ABBA order.
+
+The full 2,103-grain original-image fit took **749.85 seconds**, versus
+**763.98 seconds** for the previous implementation, with **2.29 GiB** peak
+process-tree RSS. There is no preprocessing cost. The 13- and 160-grain pairs
+are within setup/I/O variation and do not demonstrate an overall speedup.
+These measurements support removing the known first-run penalties; they do not
+establish universally faster wall-clock times.
+
+All 460 focused tests and all 18 master example comparisons pass. The Sven
+13-, 160- and 2,103-grain fits and written outputs match exactly; returned spots
+were also checked for 13 grains. A four-grain original-input CLI run matches
+the full reference subset exactly, with two workers, a 1.5 GiB allocation cap
+per process and 1.54 GiB peak tree RSS including the external sampler.
+Detailed scope and timings are in the [validation record](fit-grains-validation.json).
+
+The local `sven_dataset/fitting_original.yml` uses original images, two workers
+and a 1 GiB aggregate cache. The tested Linux launch keeps allocations bounded
+in the parent and both workers, and bypasses the large input's filesystem cache:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
+HEXRD_FIT_GRAINS_DIRECT_IO=1 python -c \
+  'import resource; resource.setrlimit(resource.RLIMIT_AS, (1536*1024**2,)*2); from hexrd.hedm.cli.main import main; main()' \
+  fit-grains --no-tui sven_dataset/fitting_original.yml
+```
+
+### Selective decompression and startup progress (previous)
 
 Compared with `8c9eda8d`, native FCH5 sampling skips unused interior codec
 blocks as well as unused ends of chunks. A small bit mask tracks requested

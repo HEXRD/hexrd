@@ -6,6 +6,41 @@ from hexrd.core.instrument import HEDMInstrument
 from hexrd.hedm.xrdutil.utils import _reflection_patch_grid, make_reflection_patches
 
 
+def test_patch_geometry_never_copies_or_changes_the_detector_mask(monkeypatch):
+    import copy
+
+    instr = HEDMInstrument()
+    panel = next(iter(instr.detectors.values()))
+    panel.saturation_level = 65535
+    panel.panel_buffer = np.zeros(panel.shape, dtype=bool)
+    mask = panel.panel_buffer
+    angles = np.radians([[6., 45., 10.], [8., -30., 20.]])
+    pixels = np.full((2, 2), np.radians(0.05))
+    config = panel.config_dict(instr.chi, instr.tvec, style='hdf5')
+    expected = list(make_reflection_patches(
+        config, angles[:, :2], pixels, omega=angles[:, 2],
+        tth_tol=0.1, eta_tol=1., npdiv=2, tvec_c=np.zeros(3),
+        full_output=False, _packed=True,
+    ))
+    original = copy.deepcopy
+
+    def checked(value, *args, **kwargs):
+        assert value is not mask, 'patch geometry copied the detector mask'
+        return original(value, *args, **kwargs)
+
+    monkeypatch.setattr(copy, 'deepcopy', checked)
+    actual = list(instr._get_panel_patches(
+        panel, angles, pixels, 0.1, 1., np.eye(3), np.zeros(3), 2, packed=True,
+    ))
+    assert len(actual) == len(expected)
+    for a, b in zip(actual, expected):
+        for x, y in zip(a, b):
+            np.testing.assert_array_equal(x, y)
+    assert panel.panel_buffer is mask
+    _, accepted = instr._get_panel_mask(0.1, 1., angles, panel, np.eye(3), np.zeros(3))
+    assert not np.any(accepted)
+
+
 @pytest.mark.parametrize('npdiv', [1, 2, 4])
 def test_reflection_grid_keeps_tolerance_grid_rounding(npdiv):
     for pix, tth_tol, eta_tol in [

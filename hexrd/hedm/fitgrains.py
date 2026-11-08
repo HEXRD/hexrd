@@ -614,6 +614,15 @@ def fit_grains(
     in shared frame order before each fit pass. This opt-in mode currently uses
     one process and checks cancellation during planning, I/O and optimization.
     """
+    from hexrd.core.extensions import transforms as native
+
+    if not all(hasattr(native, name) for name in (
+        '_spotStats', '_SparseFrames', '_makePixelQuery'
+    )):
+        raise ImportError(
+            'fit-grains requires the native extension from this checkout. Rebuild '
+            'with: python setup.py build_ext --inplace --force --parallel 1'
+        )
     from hexrd.hedm._image_cache import ImagePlan
 
     image_plan = ImagePlan()

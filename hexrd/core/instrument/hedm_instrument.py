@@ -2166,6 +2166,7 @@ class HEDMInstrument(object):
             self.tvec,
             beam_energy=self.beam_energy,
             beam_vector=self.beam_vector,
+            panel_buffer=[0.0, 0.0],  # Patch geometry does not consume the mask.
             style='hdf5',
         )
         patches = xrdutil.make_reflection_patches(

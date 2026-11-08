@@ -1,4 +1,188 @@
 {
+  "latest_first_run_correction": {
+    "date": "2026-11-08",
+    "performance_reference": "5020b857bc1354499d52f0d084ac05cb940c4eb6",
+    "rejected_preparation_commit": "bb0b5bb90532e66524f34624b976699d503b2c86",
+    "scope": "Original-input fitting; no threshold-cache preparation. Last commit did not change the fitting engine. Installed extension was from the other source branch and lacked fitting kernels.",
+    "changes": [
+      "Remove the rejected preprocessing command and its tests; archive its first-run regression explicitly.",
+      "Reject incompatible native fitting builds before image access, with a concrete rebuild command.",
+      "Skip full-detector angle computation when reset_exclusions is false: its result was discarded.",
+      "Avoid copying the full detector mask into geometry-only patch configurations; clipping still reads the original mask."
+    ],
+    "installed_binary_mismatch": {
+      "detected_incompatible_extension": true,
+      "seconds_before_error": 6.782999662391376e-06,
+      "error": "fit-grains requires the native extension from this checkout. Rebuild with: python setup.py build_ext --inplace --force --parallel 1"
+    },
+    "mismatched_native_sha256": "98ccb53c6eeee025f5688fc8e38b66ccec99900ca584f7c0c17dcd1f3f697f52",
+    "rebuilt_native_sha256": "7becb5c39eda5248aed81d72f24b17607aa50df9e6b5397a13bd92e6d674df63",
+    "clean_rebuild_identical_to_validated_parent": true,
+    "native_flags": {
+      "optimization": "O3",
+      "lto": true,
+      "boost_flat_query": true,
+      "fast_math": false
+    },
+    "cli_setup": {
+      "scope": "Fresh-process real CLI configuration/material/grain-loading path, stopped at fit entry before image analysis; excludes package imports.",
+      "before_median_seconds": 2.715964157000144,
+      "after_median_seconds": 1.2636272674999418,
+      "speedup": 2.1493396247879475,
+      "unchanged_exclusions": true,
+      "selected_hkls": 5,
+      "before_seconds_to_fit_entry": [
+        2.6971719559996927,
+        2.7347563580005954
+      ],
+      "before_seconds_computing_max_tth": [
+        1.4316791059991374,
+        1.4956284780000715
+      ],
+      "before_max_tth_calls": [
+        1,
+        1
+      ],
+      "before_peak_rss_bytes": [
+        1918758912,
+        1950756864
+      ],
+      "after_seconds_to_fit_entry": [
+        1.2400838620005743,
+        1.2871706729993093
+      ],
+      "after_seconds_computing_max_tth": [
+        0.0,
+        0.0
+      ],
+      "after_max_tth_calls": [
+        0,
+        0
+      ],
+      "after_peak_rss_bytes": [
+        645312512,
+        650452992
+      ],
+      "exclusions_sha256": "70e4bb89167083a78f9e06f2c3441318c75354571ad38f8010bc07dfe1d615fd",
+      "grains_sha256": "ede466c7c76bab0262ab06ed748cf57a19d7a0def8c10e85f28e051dc71ed578",
+      "estimate_grain_count": 4
+    },
+    "benchmarks": [
+      {
+        "grains": 13,
+        "workers": 1,
+        "original_images": true,
+        "preparation_seconds": 0,
+        "before_seconds": [
+          24.229555102000177,
+          22.96583993100012
+        ],
+        "after_seconds": [
+          25.875305518999994,
+          23.76965416600069
+        ],
+        "before_peak_tree_rss_bytes": 848351232,
+        "after_peak_tree_rss_bytes": 885862400
+      },
+      {
+        "grains": 160,
+        "workers": 2,
+        "original_images": true,
+        "preparation_seconds": 0,
+        "before_seconds": [
+          68.05541956599973
+        ],
+        "after_seconds": [
+          68.9325508310003
+        ],
+        "before_peak_tree_rss_bytes": 2373550080,
+        "after_peak_tree_rss_bytes": 2357448704
+      },
+      {
+        "grains": 2103,
+        "workers": 2,
+        "original_images": true,
+        "preparation_seconds": 0,
+        "before_seconds": [
+          763.97827186
+        ],
+        "after_seconds": [
+          749.8513220309997
+        ],
+        "before_peak_tree_rss_bytes": 2446733312,
+        "after_peak_tree_rss_bytes": 2457591808
+      }
+    ],
+    "benchmark_limits": "13-grain ABBA runs and a single 160-grain pair do not establish a speedup; differences are within setup/I/O variation. Full 2103-grain original-input run is 763.98 to 749.85 seconds, about 1.02x. Do not claim 4x end-to-end or universally faster wall-clock time.",
+    "guard": {
+      "sequential": true,
+      "direct_image_reads": true,
+      "image_scratch": false,
+      "single_worker_address_limit_mib": 4096,
+      "two_worker_per_process_address_limit_mib": 1536,
+      "two_worker_tree_rss_watchdog_mib": 3072,
+      "compiler_address_limit_mib": 4096,
+      "compiler_workers": 1
+    },
+    "validation": {
+      "focused_tests_passed": 460,
+      "expected_runtime_warnings": 2,
+      "sven": {
+        "grain_counts": [
+          13,
+          160,
+          2103
+        ],
+        "fits_bitwise_identical": true,
+        "all_spot_files_byte_identical": true,
+        "grains_out_byte_identical": true,
+        "grains_npz_arrays_bitwise_identical": true,
+        "returned_spot_data_compared_for_grains": 13,
+        "returned_spot_data_bitwise_identical": true,
+        "comparisons": {
+          "arrays": 16597,
+          "scalars": 15992
+        }
+      },
+      "examples": {
+        "cases": [
+          "grain/ruby-0",
+          "grain/ruby-1",
+          "grain/ruby-2",
+          "grain/ruby-3",
+          "grain/ruby-4",
+          "grain/ruby-5",
+          "grain/dexelas",
+          "grain/dexelas-roi",
+          "grain/zirconium",
+          "staged/ruby-0",
+          "staged/ruby-1",
+          "staged/ruby-2",
+          "staged/ruby-3",
+          "staged/ruby-4",
+          "staged/ruby-5",
+          "staged/dexelas",
+          "staged/dexelas-roi",
+          "staged/zirconium"
+        ],
+        "comparisons": {
+          "arrays": 63910,
+          "scalars": 51194
+        }
+      },
+      "cli": {
+        "grains": 4,
+        "grains_out_byte_identical_to_reference_subset": true,
+        "grains_npz_arrays_bitwise_identical": true,
+        "spot_files_byte_identical": 4,
+        "workers": 2,
+        "per_process_address_space_limit_mib": 1536,
+        "peak_tree_rss_bytes": 1655173120
+      }
+    },
+    "local_artifact_directory": "/home/zack/hexrd/.local-bench/first-run-regression",
+    "equivalent_previous_runtime_commit": "bb0b5bb90532e66524f34624b976699d503b2c86"
+  },
   "latest_improvement": {
     "date": "2026-11-03",
     "performance_reference_commit": "8c9eda8d30852a37aff3200ddb8fab9227a3bf78",

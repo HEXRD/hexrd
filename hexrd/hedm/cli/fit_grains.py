@@ -335,15 +335,15 @@ def _run(args, dashboard, logger):
         with stage('Material'):
             material = experiment.get_active_material()
             plane_data = material._material.planeData
-            exclusions = experiment.fit_grains.exclusion_parameters.copy()
-            tth_max = experiment.fit_grains.tth_max
-            if tth_max is not False:
-                exclusions['tthmax'] = (
-                    instrument.max_tth(instr)
-                    if tth_max is True
-                    else np.radians(tth_max)
-                )
             if experiment.fit_grains.reset_exclusions:
+                exclusions = experiment.fit_grains.exclusion_parameters.copy()
+                tth_max = experiment.fit_grains.tth_max
+                if tth_max is not False:
+                    exclusions['tthmax'] = (
+                        instrument.max_tth(instr)
+                        if tth_max is True
+                        else np.radians(tth_max)
+                    )
                 plane_data.exclude(**exclusions)
             using_nhkls = np.count_nonzero(~plane_data.exclusions)
             logger.info(f'using {using_nhkls} HKLs')

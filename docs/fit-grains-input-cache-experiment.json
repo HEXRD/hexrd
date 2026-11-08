@@ -324,5 +324,10 @@
     },
     "master_sven_scope": "Historical four-grain Sven check uses master extraction/optimizer with bounded pixel-only input; full-scale checks compare original versus compact inputs on this branch."
   },
-  "reconciliation_artifact_directory": "/home/zack/hexrd/.local-bench/reconcile"
+  "reconciliation_artifact_directory": "/home/zack/hexrd/.local-bench/reconcile",
+  "status": "withdrawn_from_production_first_run_regression",
+  "first_run_constraint_met": false,
+  "withdrawn_implementation_commit": "bb0b5bb90532e66524f34624b976699d503b2c86",
+  "production_preparation_command": null,
+  "withdrawal_reason": "Preparation plus fitting took 839.54s versus 763.98s for original input. Production must not require this separate preparation scan."
 }
