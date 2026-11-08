@@ -1,0 +1,328 @@
+{
+  "benchmark_date": "2026-11-07",
+  "report_date": "2026-11-08",
+  "revision": "5020b857bc1354499d52f0d084ac05cb940c4eb6",
+  "master_reference": "ca51e7d5d278bafb6a007dd284d9867714b19465",
+  "scope": "Reconciled the older working snapshot with the existing fast runtime at 5020b857. Published opt-in Linux FCH5 preparation; fitting engine and original images/configuration remain unchanged.",
+  "original_input_and_config_unchanged": true,
+  "native_extension_sha256": "7becb5c39eda5248aed81d72f24b17607aa50df9e6b5397a13bd92e6d674df63",
+  "preparation": {
+    "seconds": 648.5157581150002,
+    "source_bytes": 44303807671,
+    "output_bytes": 816465156,
+    "source_entries": 28833493635,
+    "retained_entries": 279046070,
+    "sentinel_entries": 0,
+    "frames": 3600,
+    "threshold": 1000.0,
+    "memory": {
+      "peak_bytes": {
+        "rss": 283160576,
+        "pss": 205308928,
+        "uss": 176246784
+      },
+      "peak_processes": 4,
+      "samples": 6314,
+      "sample_interval_seconds": 0.1
+    },
+    "per_process_address_space_limit_mib": 1536,
+    "workers": 2,
+    "inflight_frames": 4,
+    "direct_source_reads": true
+  },
+  "break_even_full_runs": 2,
+  "guard": {
+    "sequential": true,
+    "blas_threads": 1,
+    "lazy_per_process_address_space_mib": 1536,
+    "lazy_tree_rss_watchdog_mib": 3072,
+    "eager_single_process_address_space_mib": 5120,
+    "eager_image_loading_threads": 2
+  },
+  "limits": [
+    "Single timing sample per configuration; filesystem caches not globally flushed.",
+    "Compact input removes background pixels; use only thresholded nearest-neighbor fitting at threshold >= 1000.",
+    "Threshold attributes are informational, not enforced by existing readers.",
+    "Raw-image/patch output, interpolation, orientation finding and lower thresholds require original input.",
+    "Full-scale benchmark uses one fitting process; guarded no-TUI CLI is additionally checked on four grains. Arbitrary worker counts and interactive TUI process arrangement are not measured."
+  ],
+  "local_artifact_directory": "/home/zack/hexrd/.local-bench/invalid-pixels",
+  "profile": "profile160-summary.txt; diagnostic only, not used for speedup",
+  "historical_benchmarks": [
+    {
+      "artifact": "before160.json",
+      "grains": 160,
+      "workers": 2,
+      "image_cache": {
+        "mode": "lazy",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        71.23140464700009
+      ],
+      "peak_tree_rss_bytes": 2475114496,
+      "direct_fch5_reads": true,
+      "config_sha256": "34983b95b819963953f2ac82cca5728f918d3bbf781e7301f514fced1e5cf9db",
+      "grains_sha256": "e2ef9bb7de4f6ddc2afa32c0d1629123a04b86087e5f34512aa3e7cad520b4a3"
+    },
+    {
+      "artifact": "after160.json",
+      "grains": 160,
+      "workers": 2,
+      "image_cache": {
+        "mode": "lazy",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        41.95779819699965
+      ],
+      "peak_tree_rss_bytes": 2088706048,
+      "direct_fch5_reads": true,
+      "config_sha256": "b1206fe5e8fa2d4db5e35de4e5eb0e6c3ae76a9d837e60d3ac83ca55e6872794",
+      "grains_sha256": "e2ef9bb7de4f6ddc2afa32c0d1629123a04b86087e5f34512aa3e7cad520b4a3"
+    },
+    {
+      "artifact": "eager160.json",
+      "grains": 160,
+      "workers": 1,
+      "image_cache": {
+        "mode": "eager",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        25.797671667999566
+      ],
+      "peak_tree_rss_bytes": 4237815808,
+      "direct_fch5_reads": false,
+      "config_sha256": "db91ad19a2482e1e18025e6ad4259adfeecb6a845672d496b67a2d418ca3b873",
+      "grains_sha256": "e2ef9bb7de4f6ddc2afa32c0d1629123a04b86087e5f34512aa3e7cad520b4a3"
+    },
+    {
+      "artifact": "before2103.json",
+      "grains": 2103,
+      "workers": 2,
+      "image_cache": {
+        "mode": "lazy",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        717.9864026139994
+      ],
+      "peak_tree_rss_bytes": 2450477056,
+      "direct_fch5_reads": true,
+      "config_sha256": "34983b95b819963953f2ac82cca5728f918d3bbf781e7301f514fced1e5cf9db",
+      "grains_sha256": "b38f6d7a67a5f082720dfb7fd1f9caa70af98665bda1d980ee9fa478dbec45a2"
+    },
+    {
+      "artifact": "eager2103.json",
+      "grains": 2103,
+      "workers": 1,
+      "image_cache": {
+        "mode": "eager",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        183.9000655589998
+      ],
+      "peak_tree_rss_bytes": 4215025664,
+      "direct_fch5_reads": false,
+      "config_sha256": "db91ad19a2482e1e18025e6ad4259adfeecb6a845672d496b67a2d418ca3b873",
+      "grains_sha256": "b38f6d7a67a5f082720dfb7fd1f9caa70af98665bda1d980ee9fa478dbec45a2"
+    }
+  ],
+  "historical_full_scale_fit_speedup": 3.9042204820946687,
+  "historical_first_full_run_with_preparation_seconds": 832.415823674,
+  "historical_validation": {
+    "focused_tests_passed": 452,
+    "synthetic_statistics_bitwise_cases": 800,
+    "lazy": {
+      "cases": [
+        {
+          "grains": 160,
+          "fits_bitwise_identical": true,
+          "spot_files_byte_identical": 160,
+          "grains_out_byte_identical": true,
+          "grains_npz_arrays_bitwise_identical": true
+        }
+      ],
+      "master_four_bitwise": true,
+      "comparisons": {
+        "arrays": 4681,
+        "scalars": 3940
+      }
+    },
+    "eager": {
+      "cases": [
+        {
+          "grains": 160,
+          "fits_bitwise_identical": true,
+          "spot_files_byte_identical": 160,
+          "grains_out_byte_identical": true,
+          "grains_npz_arrays_bitwise_identical": true
+        },
+        {
+          "grains": 2103,
+          "fits_bitwise_identical": true,
+          "spot_files_byte_identical": 2103,
+          "grains_out_byte_identical": true,
+          "grains_npz_arrays_bitwise_identical": true
+        }
+      ],
+      "master_four_bitwise": true,
+      "comparisons": {
+        "arrays": 6791,
+        "scalars": 8146
+      }
+    },
+    "examples": {
+      "cases": [
+        "grain/ruby-0",
+        "grain/ruby-1",
+        "grain/ruby-2",
+        "grain/ruby-3",
+        "grain/ruby-4",
+        "grain/ruby-5",
+        "grain/dexelas",
+        "grain/dexelas-roi",
+        "grain/zirconium",
+        "staged/ruby-0",
+        "staged/ruby-1",
+        "staged/ruby-2",
+        "staged/ruby-3",
+        "staged/ruby-4",
+        "staged/ruby-5",
+        "staged/dexelas",
+        "staged/dexelas-roi",
+        "staged/zirconium"
+      ],
+      "comparisons": {
+        "arrays": 63910,
+        "scalars": 51194
+      }
+    },
+    "master_sven_scope": "Four grains with original master extraction/optimizer and bounded pixel-only input adapter. No full-scale master performance comparison."
+  },
+  "fitting_engine_source_changes": 0,
+  "master_source_verification": {
+    "hexrd/hedm/fitgrains.py": "bf8470896e28e8632ab5d89dd21db198f6ecb3eaed280ae0a8a59578f57f554a",
+    "hexrd/hedm/fitting/grains.py": "3a691e9934d67b93146924b668d567fac115a4d10979ea33dff67f447b25e14c",
+    "hexrd/core/instrument/hedm_instrument.py": "69b373b33220c52d629cd1e5eebee816160746cad0602cf74124d5de9564da77",
+    "hexrd/core/transforms/cpp_sublibrary/src/transforms.cpp": "5dff4443133c8f1e320912039f749bfc983de703fd7b1cdd969c924bf9950b10"
+  },
+  "reconciliation": {
+    "date": "2026-11-08",
+    "old_snapshot": "fda659f63232fae630846f146857b7865b770226",
+    "matching_runtime_test_research_files": 55,
+    "independent_ignore_edits_preserved": true,
+    "original_snapshot_backup": ".local-bench/reconcile/working-copy.zip",
+    "frozen_input": ".local-bench/reconcile/grains-2103.out",
+    "reason_for_fresh_reference": "Current grain table had changed since the November 7 measurements; fresh original-input and compact-input outputs use the same input hash."
+  },
+  "benchmarks": [
+    {
+      "artifact": "/home/zack/hexrd/.local-bench/reconcile/before2103.json",
+      "grains": 2103,
+      "workers": 2,
+      "image_cache": {
+        "mode": "lazy",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        763.97827186
+      ],
+      "peak_tree_rss_bytes": 2446733312,
+      "direct_fch5_reads": true,
+      "config_sha256": "34983b95b819963953f2ac82cca5728f918d3bbf781e7301f514fced1e5cf9db",
+      "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218"
+    },
+    {
+      "artifact": "/home/zack/hexrd/.local-bench/reconcile/eager2103.json",
+      "grains": 2103,
+      "workers": 1,
+      "image_cache": {
+        "mode": "eager",
+        "max_size_mb": 1024.0
+      },
+      "seconds": [
+        191.026309394
+      ],
+      "peak_tree_rss_bytes": 4248719360,
+      "direct_fch5_reads": false,
+      "config_sha256": "db91ad19a2482e1e18025e6ad4259adfeecb6a845672d496b67a2d418ca3b873",
+      "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218"
+    }
+  ],
+  "full_scale_fit_speedup": 3.999335349584029,
+  "first_full_run_with_preparation_seconds": 839.5420675090002,
+  "preparation_command": {
+    "path": "scripts/prepare_fit_grains_cache.py",
+    "experimental": true,
+    "workers": 2,
+    "inflight_frames": 4,
+    "per_process_address_space_limit_mib": 1536,
+    "flush_after_uncompressed_bytes": 33554432,
+    "full_cache_timing_scope": "Original local prototype. Published command generalizes paths and adds bounds validation and output byte flushing; validated with eight regression cases."
+  },
+  "validation": {
+    "focused_tests_passed": 452,
+    "preparation_tests_passed": 8,
+    "total_focused_tests": 460,
+    "full_scale": {
+      "grains": 2103,
+      "input_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+      "fits_bitwise_identical": true,
+      "spot_files_byte_identical": 2103,
+      "grains_out_byte_identical": true,
+      "grains_npz_arrays_bitwise_identical": true,
+      "comparisons": {
+        "arrays": 2110,
+        "scalars": 4206
+      }
+    },
+    "examples": {
+      "cases": [
+        "grain/ruby-0",
+        "grain/ruby-1",
+        "grain/ruby-2",
+        "grain/ruby-3",
+        "grain/ruby-4",
+        "grain/ruby-5",
+        "grain/dexelas",
+        "grain/dexelas-roi",
+        "grain/zirconium",
+        "staged/ruby-0",
+        "staged/ruby-1",
+        "staged/ruby-2",
+        "staged/ruby-3",
+        "staged/ruby-4",
+        "staged/ruby-5",
+        "staged/dexelas",
+        "staged/dexelas-roi",
+        "staged/zirconium"
+      ],
+      "comparisons": {
+        "arrays": 63910,
+        "scalars": 51194
+      }
+    },
+    "cli": {
+      "grains": 4,
+      "grains_out_byte_identical_to_reference_subset": true,
+      "grains_npz_arrays_bitwise_identical": true,
+      "spot_files_byte_identical": 4,
+      "address_space_limit_mib": 5120,
+      "memory": {
+        "peak_bytes": {
+          "rss": 4541837312,
+          "pss": 4525074432,
+          "uss": 4520366080
+        },
+        "peak_processes": 2,
+        "samples": 137,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "master_sven_scope": "Historical four-grain Sven check uses master extraction/optimizer with bounded pixel-only input; full-scale checks compare original versus compact inputs on this branch."
+  },
+  "reconciliation_artifact_directory": "/home/zack/hexrd/.local-bench/reconcile"
+}

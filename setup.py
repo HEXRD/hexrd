@@ -165,17 +165,7 @@ def get_cpp_extensions():
         name='hexrd.core.extensions.transforms',
         sources=[str(cpp_transform_pkgdir / 'src/transforms.cpp')],
         depends=[
-            str(cpp_transform_pkgdir / 'src' / name)
-            for name in (
-                'spot_extraction.hpp',
-                'grain_objective.hpp',
-                'chunk_executor.hpp',
-                'native_frame.hpp',
-                'window_measurement.hpp',
-                'pixel_query.hpp',
-                'packed_pixels.hpp',
-                'pixel_merge.hpp',
-            )
+            str(header) for header in (cpp_transform_pkgdir / 'src').glob('*.hpp')
         ],
         extra_compile_args=extra_compile_args,
         extra_link_args=extra_link_args,

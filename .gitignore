@@ -131,6 +131,9 @@ dmypy.json
 
 .vscode
 
+inconel
+sven_dataset/
+
 # Local performance worktrees and benchmark artifacts
 .worktrees/
 .local-bench/
