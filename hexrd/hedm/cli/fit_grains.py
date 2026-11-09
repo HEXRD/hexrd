@@ -228,7 +228,7 @@ def execute(args, parser):
 def _execute(args, parser, dashboard=None):
     with (
         cli_logging(args, dashboard) as logger,
-        quiet_progress(args.quiet or getattr(args, 'no_tui', False)),
+        quiet_progress(getattr(args, 'quiet', False) or getattr(args, 'no_tui', False)),
     ):
         return _run(args, dashboard, logger)
 
@@ -281,9 +281,11 @@ def _run(args, dashboard, logger):
 
     clobber = args.force or args.clean
     with stage('Configuration'):
-        base = HedmExperiment(args.yml)
+        working_dir = str(Path.cwd())
+        base = HedmExperiment(args.yml, working_dir=working_dir)
         experiments = [base] + [
-            HedmExperiment(args.yml, study=i) for i in range(len(base.studies))
+            HedmExperiment(args.yml, study=i, working_dir=working_dir)
+            for i in range(len(base.studies))
         ]
 
     experiment = experiments[0]
@@ -364,7 +366,7 @@ def _run(args, dashboard, logger):
                 experiment,
                 grains_table,
                 material,
-                show_progress=not args.quiet,
+                show_progress=not getattr(args, 'quiet', False),
                 check_if_canceled_func=(
                     (lambda: False) if dashboard is not None else None
                 ),

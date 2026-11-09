@@ -881,7 +881,10 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
         for (int r = 0; r < 4; ++r)
           dot(const_cast<double *>(symmetry.data(s, r, 0)), symmetry.strides(2),
               v, sizeof(double), value+r, 4, array);
-        double norm = std::sqrt(((value[0]*value[0]+value[1]*value[1])+value[2]*value[2])+value[3]*value[3]);
+        // Keep NumPy's separate square and sum operations, including on FMA CPUs.
+        volatile double squares[4] = {value[0]*value[0], value[1]*value[1],
+                                      value[2]*value[2], value[3]*value[3]};
+        double norm = std::sqrt(((squares[0]+squares[1])+squares[2])+squares[3]);
         if (!(norm > 10.*eps) || !std::isfinite(norm)) { invalid_norm = true; return; }
         bool negative = value[0] < 0;
         for (int r = 0; r < 4; ++r) {
@@ -932,11 +935,15 @@ static py::object reduceFiber(StridedArray<double> fiber, StridedArray<double> s
 }
 
 static void quaternionRotation(double a, double b, double c, double d, double *r) {
-  r[0] = a*a + b*b - c*c - d*d;
-  r[1] = 2*b*c - 2*a*d; r[2] = 2*a*c + 2*b*d;
-  r[3] = 2*a*d + 2*b*c; r[4] = a*a - b*b + c*c - d*d;
-  r[5] = 2*c*d - 2*a*b; r[6] = 2*b*d - 2*a*c;
-  r[7] = 2*a*b + 2*c*d; r[8] = a*a - b*b - c*c + d*d;
+  // Preserve legacy product rounding at angular boundaries.
+  volatile double aa = a*a, bb = b*b, cc = c*c, dd = d*d;
+  volatile double ab = 2*a*b, ac = 2*a*c, ad = 2*a*d;
+  volatile double bc = 2*b*c, bd = 2*b*d, cd = 2*c*d;
+  r[0] = aa + bb - cc - dd;
+  r[1] = bc - ad; r[2] = ac + bd;
+  r[3] = ad + bc; r[4] = aa - bb + cc - dd;
+  r[5] = cd - ab; r[6] = bd - ac;
+  r[7] = ab + cd; r[8] = aa - bb - cc + dd;
 }
 
 static py::array_t<double> quaternionRotations(CArray<double> quats) {
@@ -1052,6 +1059,28 @@ static void binPixels(CArray<Index> offsets, CArray<Index> ids, CArray<double> v
       }
     }
   }
+}
+
+static py::array_t<double> histogramPrefix(CArray<double> weights, CArray<Index> pixels,
+                                          CArray<Index> cuts) {
+  // Preserve NumPy's sequential sums, sampling only at histogram edges.
+  checkShape(weights, {-1}); checkShape(pixels, {-1}); checkShape(cuts, {-1});
+  py::array_t<double> output(cuts.size());
+  double *out = output.mutable_data(), sum = 0.;
+  Index next = 0;
+  py::gil_scoped_release release;
+  for (Index edge = 0; edge < cuts.size(); ++edge) {
+    Index stop = cuts.data()[edge];
+    if (stop < next || stop > pixels.size()) throw py::value_error("invalid histogram cut");
+    for (; next < stop; ++next) {
+      Index pixel = pixels.data()[next];
+      if (pixel < 0 || pixel >= weights.size()) throw py::value_error("pixel is out of bounds");
+      double value = weights.data()[pixel];
+      if (value != 0.) sum += value;
+    }
+    out[edge] = sum;
+  }
+  return output;
 }
 
 // First hit or NaN in row-major window order, in two linear scans per ring.
@@ -1184,13 +1213,12 @@ struct VectorScorer {
       unsigned lanes = _mm256_movemask_pd(mask.value);
       if (!lanes) return;
       unsigned matesMask = _mm256_movemask_pd(opposite.value);
-      double rotations[9][4];
-      for (int k = 0; k < 9; ++k) r[k].store_unaligned(rotations[k]);
       int32_t hv[4] = {}, tv[4] = {};
       for (int j = 0; j < 4; ++j) if (lanes & (1u << j)) {
         Index reflection = matesMask & (1u << j) ? mates[h] : h;
         double rotation[9], angles[6];
-        for (int k = 0; k < 9; ++k) rotation[k] = rotations[k][j];
+        const double *v = q+j*step;
+        quaternionRotation(v[0], v[stride], v[2*stride], v[3*stride], rotation);
         geometry->predict(1, reciprocal+3*reflection, rotation, angles, angles+3);
         const double *a = angles+3*solution;
         if (std::isnan(a[0])) continue;
@@ -1585,6 +1613,7 @@ PYBIND11_MODULE(transforms, m) {
   m.def("_csrPixelIds", &csrPixelIds, py::arg("offsets"), py::arg("columns"),
         py::arg("width"), py::arg("output").noconvert());
   m.def("_ringMasks", &ringMasks);
+  m.def("_histogramPrefix", &histogramPrefix);
   m.def("_binPixels", &binPixels, py::arg("offsets"), py::arg("ids"), py::arg("values"),
         py::arg("rows"), py::arg("masks"), py::arg("eta"), py::arg("threshold"),
         py::arg("output").noconvert());

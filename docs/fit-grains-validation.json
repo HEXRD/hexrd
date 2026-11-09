@@ -1,4 +1,51 @@
 {
+  "master_merge": {
+    "date": "2026-11-09",
+    "master_commit": "0a041b1788ff221a5481933709b9145fed48b5c6",
+    "previous_branch_commit": "1f378068a5b93033beff71d8e92e40037d197c2e",
+    "changes": [
+      "Retain upstream frame-cache pickling, validated configuration, independent orientation stages and unified CLI, including compatibility modules required by those changes.",
+      "Keep native fitting/objectives, bounded image and pixel caches, parallel worker startup, shared Textual UI and cancellation.",
+      "Apply upstream panel-buffer exclusions in native sparse and staged extraction. Keep per-window masks compact and within workspace accounting. Masked negative-threshold windows use the reference extractor to preserve connectivity.",
+      "Retain upstream interpolation, material, symmetry, anisotropic Debye-Waller, phase-fraction and HDF5 fixes."
+    ],
+    "verification": {
+      "focused_fit_grains_tests_passed": 460,
+      "upstream_broad_tests_passed": 480,
+      "corrected_cli_path_tests_passed": 2,
+      "full_detector_map_tests_passed": 2,
+      "file_and_object_fit_integration_tests_passed": 4,
+      "unique_tests_passed": 948,
+      "upstream_tests_skipped": 1,
+      "examples_bitwise_comparisons": 18,
+      "example_spot_files_byte_identical": 114,
+      "sven": {
+        "master": "0a041b1788ff221a5481933709b9145fed48b5c6",
+        "grains": 4,
+        "fit_and_returned_spots_bitwise_identical": true,
+        "spot_files_byte_identical": 4,
+        "grains_out_byte_identical": true,
+        "grains_npz_arrays_bitwise_identical": true,
+        "comparisons": {
+          "arrays": 4466,
+          "scalars": 3576
+        },
+        "master_reference_input": "bounded original-pixel reads; master extractor and optimizer; not an end-to-end timing comparison",
+        "branch_peak_tree_rss_gib": 1.4818267822265625
+      }
+    },
+    "memory_guards": {
+      "fit_regression_address_space_mib": 1536,
+      "reference_address_space_mib": 4096,
+      "large_single_process_integration_address_space_mib": 6144,
+      "large_integration_tree_rss_watchdog_mib": 5120,
+      "sven_branch_per_process_address_space_mib": 1536,
+      "sven_branch_tree_rss_watchdog_mib": 3072
+    },
+    "native_extension_sha256": "e84431debfbd6c42878f9f2e216c78ae8587cdcafbbc1da6be6e5f3d7567817b",
+    "reference_native_extension_sha256": "98ccb53c6eeee025f5688fc8e38b66ccec99900ca584f7c0c17dcd1f3f697f52",
+    "reference_note": "Fresh master source and transforms build; Sven uses a bounded pixel-only input adapter. No full-dataset master timing or 16-worker production claim."
+  },
   "latest_first_run_correction": {
     "date": "2026-11-08",
     "performance_reference": "5020b857bc1354499d52f0d084ac05cb940c4eb6",

@@ -49,6 +49,7 @@ class Window:
     threshold: object
     stats: tuple
     inverse: np.ndarray | None = None
+    valid_pixels: np.ndarray | None = None
 
     @property
     def reader(self):
@@ -67,7 +68,7 @@ class Window:
         )
 
     @classmethod
-    def capture(cls, original, frames, offsets, rows, cols, shapes, threshold):
+    def capture(cls, original, frames, offsets, rows, cols, shapes, threshold, valid_pixels=None):
         from hexrd.core.extensions import transforms as native
 
         check_cancelled()
@@ -112,6 +113,10 @@ class Window:
         shapes = shapes.copy()
         windows = []
         arrays = [actual, shapes, *stats]
+        if valid_pixels is not None:
+            valid_pixels = np.asarray(valid_pixels, dtype=bool)
+            if valid_pixels.shape != rows.shape:
+                raise ValueError('invalid pixel mask dimensions')
         for i, (first, last) in enumerate(zip(offsets[:-1], offsets[1:])):
             r, c = rows[first:last], cols[first:last]
             inverse = None
@@ -124,6 +129,15 @@ class Window:
                 r, c, inverse = map(_compact, (query.rows, query.cols, query.inverse))
                 r.flags.writeable = c.flags.writeable = inverse.flags.writeable = False
                 arrays.append(inverse)
+            valid = None
+            if valid_pixels is not None and not valid_pixels[first:last].all():
+                original_mask = valid_pixels[first:last]
+                valid = np.empty(len(r), dtype=bool)
+                valid[:] = original_mask if inverse is None else True
+                if inverse is not None:
+                    valid[inverse] = original_mask
+                valid.flags.writeable = False
+                arrays.append(valid)
             arrays.extend((r, c))
             windows.append(
                 cls(
@@ -135,6 +149,7 @@ class Window:
                     threshold,
                     tuple(a[i : i + 1] for a in stats),
                     inverse,
+                    valid,
                 )
             )
         size = 2048 + sum(dict(_array_storage(a) for a in arrays).values())
@@ -398,6 +413,8 @@ def measure_windows(windows, cache, cancel=check_cancelled, frame_ranks=None):
                             if remaining[index] == 0:
                                 cancel()
                                 pixels = live.pop(index)
+                                if w.valid_pixels is not None:
+                                    pixels[:, ~w.valid_pixels] = 0
                                 if w.inverse is not None:
                                     pixels = np.take(pixels, w.inverse, axis=1)
                                 pixels = pixels.ravel()

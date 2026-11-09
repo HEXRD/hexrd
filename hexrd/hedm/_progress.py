@@ -225,11 +225,11 @@ def cli_logging(args, dashboard):
     previous = logger.level, logger.propagate
     level = (
         logging.ERROR
-        if args.quiet
+        if getattr(args, 'quiet', False)
         else (logging.DEBUG if getattr(args, 'debug', False) else logging.INFO)
     )
     handler = dashboard or logging.StreamHandler()
-    handler.setLevel(logging.CRITICAL if args.quiet else level)
+    handler.setLevel(logging.CRITICAL if getattr(args, 'quiet', False) else level)
     handler.setFormatter(
         logging.Formatter('%(asctime)s - %(message)s', '%y-%m-%d %H:%M:%S')
     )
@@ -284,7 +284,7 @@ def cli_profile(enabled, logger):
 def run_cli(args, workflow, *, stages=STAGES, view='OrientationDashboard'):
     """Run either HEDM command with the shared interactive-terminal policy."""
     if (
-        not args.quiet
+        not getattr(args, 'quiet', False)
         and not getattr(args, 'no_tui', False)
         and sys.stdin.isatty()
         and Dashboard.supported(sys.stderr)

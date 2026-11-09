@@ -476,7 +476,7 @@ class StreamingView:
         context = _extraction_context.get()
         return context.defer_result if context is not None else None
 
-    def extract(self, frame_ids, offsets, rows, cols, shapes, threshold):
+    def extract(self, frame_ids, offsets, rows, cols, shapes, threshold, valid_pixels=None):
         from hexrd.hedm._staged_spots import (
             Window,
             measure_windows,
@@ -484,7 +484,7 @@ class StreamingView:
         )
 
         windows, stats, size = Window.capture(
-            self, frame_ids, offsets, rows, cols, shapes, threshold
+            self, frame_ids, offsets, rows, cols, shapes, threshold, valid_pixels
         )
         context = _extraction_context.get()
         if context is None:
@@ -650,7 +650,7 @@ class _Readers:
                 self.readers.append(reader)
                 view = View(reader, dense=True)
         elif type(series) is _AdapterImageSeries:
-            view = replace(self.view(series._series, series._source), dense=False)
+            view = replace(self.view(series._series, getattr(series, '_source', None)), dense=False)
         elif type(series) is ImageSeries:
             reader = self.file(
                 series._arrs._filename,

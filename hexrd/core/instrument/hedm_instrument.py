@@ -38,7 +38,7 @@ from collections import defaultdict
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal, Optional, Union, TypedDict, NotRequired
+from typing import Any, Literal, Optional, Union, TypedDict, NotRequired, cast
 from tqdm import tqdm
 
 import yaml
@@ -85,8 +85,11 @@ from hexrd.core import constants as ct
 from hexrd.core.rotations import mapAngle
 from hexrd.core import distortion as distortion_pkg
 from hexrd.core.utils.concurrent import distribute_tasks
-from hexrd.core.utils.hdf5 import unwrap_dict_to_h5, unwrap_h5_to_dict
-from hexrd.core.utils.panel_buffer import panel_buffer_from_str
+from hexrd.core.utils.hdf5 import HDF5Value, unwrap_dict_to_h5, unwrap_h5_to_dict
+from hexrd.core.utils.panel_buffer import (
+    panel_buffer_as_2d_array,
+    panel_buffer_from_str,
+)
 from hexrd.core.utils.yaml import NumpyToNativeDumper
 from hexrd.core.valunits import valWUnit
 from hexrd.powder.wppf import LeBail
@@ -518,17 +521,82 @@ def _fwhm_to_sigma(fwhm):
 # =============================================================================
 
 
+class BeamVectorConfig(TypedDict):
+    azimuth: float
+    polar_angle: float
+
+
+class EnergyCorrectionConfig(TypedDict):
+    intercept: float
+    slope: float
+    axis: str
+
+
+class BeamConfig(TypedDict):
+    energy: float
+    vector: BeamVectorConfig
+    source_distance: NotRequired[float]
+    energy_correction: NotRequired[EnergyCorrectionConfig | None]
+
+
+class TransformConfig(TypedDict):
+    tilt: Sequence[float] | NDArray[np.float64]
+    translation: Sequence[float] | NDArray[np.float64]
+
+
+class PixelConfig(TypedDict):
+    rows: int
+    columns: int
+    size: Sequence[float] | NDArray[np.float64]
+    roi: NotRequired[Sequence[int] | NDArray[np.int64]]
+
+
+class DistortionConfig(TypedDict):
+    function_name: str
+    parameters: Sequence[float] | NDArray[np.float64]
+
+
+class DetectorLayerConfig(TypedDict, total=False):
+    material: str | None
+    density: float | None
+    thickness: float | None
+    formula: str | None
+    readout_length: float | None
+    pre_U0: float | None
+
+
+class DetectorConfig(TypedDict):
+    transform: TransformConfig
+    pixels: PixelConfig
+    detector_type: NotRequired[str]
+    group: NotRequired[str]
+    distortion: NotRequired[DistortionConfig | None]
+    saturation_level: NotRequired[float]
+    buffer: NotRequired[Sequence[float] | np.ndarray | float | str | None]
+    radius: NotRequired[float]
+    filter: NotRequired[DetectorLayerConfig | None]
+    coating: NotRequired[DetectorLayerConfig | None]
+    phosphor: NotRequired[DetectorLayerConfig | None]
+
+
+class CalibrationCrystalConfig(TypedDict):
+    inv_stretch: Sequence[float] | NDArray[np.float64]
+    orientation: Sequence[float] | NDArray[np.float64]
+    position: Sequence[float] | NDArray[np.float64]
+
+
 class OscillationStageConfig(TypedDict):
-    translation: Sequence[float]
+    translation: Sequence[float] | NDArray[np.float64]
     chi: float
 
 
 class InstrumentConfig(TypedDict):
-    detectors: dict[str, dict]
-    beam: Mapping[str, dict]
+    detectors: dict[str, DetectorConfig]
+    beam: BeamConfig | dict[str, BeamConfig]
     oscillation_stage: OscillationStageConfig
     id: NotRequired[str]
     physics_package: NotRequired[object]
+    calibration_crystal: NotRequired[dict[int | str, CalibrationCrystalConfig]]
 
 
 class HEDMInstrument(object):
@@ -541,15 +609,15 @@ class HEDMInstrument(object):
 
     def __init__(
         self,
-        instrument_config: Optional[InstrumentConfig] = None,
-        image_series=None,
-        eta_vector=None,
-        instrument_name=None,
-        tilt_calibration_mapping=None,
-        max_workers=max_workers_DFLT,
-        physics_package=None,
-        active_beam_name: Optional[str] = None,
-    ):
+        instrument_config: InstrumentConfig | h5py.File | h5py.Group | None = None,
+        image_series: object | None = None,
+        eta_vector: Sequence[float] | NDArray[np.float64] | None = None,
+        instrument_name: str | None = None,
+        tilt_calibration_mapping: object | None = None,
+        max_workers: int | None = max_workers_DFLT,
+        physics_package: object | None = None,
+        active_beam_name: str | None = None,
+    ) -> None:
         self._id = instrument_name_DFLT
 
         self._active_beam_name = active_beam_name
@@ -569,13 +637,17 @@ class HEDMInstrument(object):
 
         if instrument_config is not None:
             if isinstance(instrument_config, h5py.File):
-                tmp: dict[Any, Any] = {}
+                instrument_config = instrument_config['instrument']
+            if isinstance(instrument_config, h5py.Group):
+                if active_beam_name is None:
+                    self._active_beam_name = instrument_config.attrs.get('active_beam')
+                tmp: dict[str, object] = {}
                 unwrap_h5_to_dict(instrument_config, tmp)
-                instrument_config = tmp['instrument']
+                instrument_config = cast(InstrumentConfig, tmp)
             elif not isinstance(instrument_config, dict):
                 raise RuntimeError(
-                    "instrument_config must be either an HDF5 file object"
-                    + "or a dictionary.  You gave a %s" % type(instrument_config)
+                    "instrument_config must be an HDF5 file, instrument group, "
+                    "or dictionary. You gave a %s" % type(instrument_config)
                 )
             assert instrument_config is not None
             if instrument_name is None:
@@ -592,7 +664,9 @@ class HEDMInstrument(object):
             xrs_config = instrument_config['beam']
             if 'energy' in xrs_config and 'vector' in xrs_config:
                 # Assume single beam. Load the same way as multibeam
-                self._create_default_beam()
+                xrs_config = cast(BeamConfig, xrs_config)
+                if self._active_beam_name is None:
+                    self._create_default_beam()
                 self._beam_dict[self.active_beam_name] = {
                     'energy': xrs_config['energy'],
                     'vector': calc_beam_vec(
@@ -604,7 +678,7 @@ class HEDMInstrument(object):
                 }
             else:
                 # Multi beam load
-                for beam_name, beam in xrs_config.items():
+                for beam_name, beam in cast(dict[str, BeamConfig], xrs_config).items():
                     self._beam_dict[beam_name] = {
                         'energy': beam['energy'],
                         'vector': calc_beam_vec(
@@ -628,10 +702,7 @@ class HEDMInstrument(object):
                 filter = det_info.get('filter', None)
                 coating = det_info.get('coating', None)
                 phosphor = det_info.get('phosphor', None)
-                try:
-                    saturation_level = det_info['saturation_level']
-                except KeyError:
-                    saturation_level = 2**16
+                saturation_level = det_info.get('saturation_level', 2**16)
                 shape = (pixel_info['rows'], pixel_info['columns'])
 
                 panel_buffer: NDArray[np.float64] | str | None = None
@@ -975,18 +1046,20 @@ class HEDMInstrument(object):
     # METHODS
     # =========================================================================
 
-    def write_config(self, file=None, style='yaml', calibration_dict={}):
-        """WRITE OUT YAML FILE"""
+    def write_config(
+        self,
+        file: str | Path | h5py.File | None = None,
+        style: str = 'yaml',
+        calibration_dict: dict[int | str, CalibrationCrystalConfig] | None = None,
+        **dataset_options: Any,
+    ) -> InstrumentConfig:
+        """Write YAML or HDF5, forwarding dataset options for numeric HDF5 arrays."""
         # initialize output dictionary
         if style.lower() not in ['yaml', 'hdf5']:
             raise ValueError(f"style must be 'yaml' or 'hdf5' but is '{style}'")
 
-        par_dict = {}
-
-        par_dict['id'] = self.id
-
         # Multi beam writer
-        beam_dict = {}
+        beam_dict: dict[str, BeamConfig] = {}
         for beam_name, beam in self.beam_dict.items():
             azim, polar = calc_angles_from_beam_vec(beam['vector'])
             beam_dict[beam_name] = {
@@ -1002,19 +1075,7 @@ class HEDMInstrument(object):
             if beam.get('energy_correction') is not None:
                 beam_dict[beam_name]['energy_correction'] = beam['energy_correction']
 
-        if len(beam_dict) == 1:
-            # Just write it out a single beam (classical way)
-            beam_dict = next(iter(beam_dict.values()))
-
-        par_dict['beam'] = beam_dict
-
-        if calibration_dict:
-            par_dict['calibration_crystal'] = calibration_dict
-
-        ostage = dict(chi=self.chi, translation=self.tvec.tolist())
-        par_dict['oscillation_stage'] = ostage
-
-        det_dict = dict.fromkeys(self.detectors)
+        det_dict: dict[str, DetectorConfig] = {}
         for det_name, detector in self.detectors.items():
             # grab panel config
             # !!! don't need beam or tvec
@@ -1027,7 +1088,15 @@ class HEDMInstrument(object):
                 style=style,
             )
             det_dict[det_name] = pdict['detector']
-        par_dict['detectors'] = det_dict
+        par_dict: InstrumentConfig = {
+            'id': self.id,
+            # Preserve the classical single-beam representation.
+            'beam': next(iter(beam_dict.values())) if len(beam_dict) == 1 else beam_dict,
+            'oscillation_stage': {'chi': self.chi, 'translation': self.tvec.tolist()},
+            'detectors': det_dict,
+        }
+        if calibration_dict:
+            par_dict['calibration_crystal'] = calibration_dict
 
         # handle output file if requested
         if file is not None:
@@ -1036,9 +1105,14 @@ class HEDMInstrument(object):
                     yaml.dump(par_dict, stream=f, Dumper=NumpyToNativeDumper)
             else:
 
-                def _write_group(file):
+                def _write_group(file: h5py.File) -> None:
                     instr_grp = file.create_group('instrument')
-                    unwrap_dict_to_h5(instr_grp, par_dict, asattr=False)
+                    unwrap_dict_to_h5(
+                        instr_grp, cast(dict[str, HDF5Value], par_dict),
+                        asattr=False, **dataset_options,
+                    )
+                    if self.active_beam_name is not None:
+                        instr_grp.attrs['active_beam'] = self.active_beam_name
 
                 # hdf5
                 if isinstance(file, str):
@@ -1065,6 +1139,9 @@ class HEDMInstrument(object):
 
         Quick and dirty way to histogram angular patch data for make
         pole figures suitable for fiber generation
+
+        Pixels excluded by the panel buffer are not histogrammed. Eta bins
+        with no unbuffered pixels are returned as NaN.
 
         Parameters
         ----------
@@ -1157,6 +1234,9 @@ class HEDMInstrument(object):
             # pixel angular coords for the detector panel
             ptth, peta = panel.pixel_angles()
 
+            # pixels excluded by the panel buffer do not contribute
+            panel_buffer = panel_buffer_as_2d_array(panel)
+
             # grab imageseries for this detector
             ims = _parse_imgser_dict(
                 imgser_dict, det_key, roi=panel.roi, group=panel.group
@@ -1185,6 +1265,7 @@ class HEDMInstrument(object):
                     'peta': peta,
                     'eta_edges': eta_edges,
                     'delta_eta': delta_eta,
+                    'panel_buffer': panel_buffer,
                 }
                 ring_params.append(_generate_ring_params(**kwargs))
 
@@ -1659,6 +1740,7 @@ class HEDMInstrument(object):
                 imgser_dict, detector_id, roi=panel.roi, group=panel.group
             )
             assert isinstance(omega_image_series, OmegaImageSeries)
+            panel_buffer = panel_buffer_as_2d_array(panel)
 
             hkl_ids, hkls_p, ang_centers, xy_centers, ang_pixel_size = [
                 item[0] for item in sim_results[detector_id]
@@ -1699,7 +1781,11 @@ class HEDMInstrument(object):
                     [omega_image_series[i_frame, ii, jj] for i_frame in frame_indices],
                     axis=0,
                 )
-                patch_has_signal.append(np.any(patch_data_raw > threshold))
+
+                # Pixels excluded by the panel buffer cannot count as signal
+                patch_has_signal.append(
+                    np.any(patch_data_raw[:, panel_buffer[ii, jj]] > threshold)
+                )
                 output[detector_id].append((ii, jj, frame_indices))
 
         return patch_has_signal, output
@@ -1768,6 +1854,8 @@ class HEDMInstrument(object):
         interp : str, optional
             Interpolation method for patch extraction. Options are 'bilinear' or 'nearest'.
             Default 'nearest'.
+            With 'bilinear', interpolation stencils may still include buffered
+            neighbors. Use 'nearest' to exclude their intensities completely.
 
         Returns
         -------
@@ -1882,6 +1970,7 @@ class HEDMInstrument(object):
                 and not write_hdf5
                 and not return_spot_list
                 and ndiv_ome != 1
+                and not (threshold < 0 and panel.panel_buffer is not None)
                 else None
             )
             if view is not None and not native_threshold_supported(
@@ -1925,6 +2014,7 @@ class HEDMInstrument(object):
                 writer_text = PatchDataWriter(output_dir / str(filename))
 
             nrows, ncols = panel.shape
+            panel_buffer = panel_buffer_as_2d_array(panel)
             for patch_id, (vtx_angs, _, _, _, xy_eval, ijs) in enumerate(patches):
                 prows, pcols = ijs[0].shape
                 hkl_id, hkl = hkl_ids[patch_id], hkls_p[patch_id, :]
@@ -1956,10 +2046,16 @@ class HEDMInstrument(object):
                     [omega_image_series[i, ijs[0], ijs[1]] for i in frame_indices],
                     axis=0,
                 )
-                contains_signal = np.any(patch_data_raw > threshold)
+
+                # zero out pixels excluded by the panel buffer so they
+                # cannot register as signal or contribute to intensities
+                valid_pixels = panel_buffer[ijs[0], ijs[1]]
+                patch_data_raw[:, ~valid_pixels] = 0
+
+                contains_signal = np.any(patch_data_raw[:, valid_pixels] > threshold)
                 patch_has_signal.append(contains_signal)
                 if reporter is not None:
-                    reporter.reflections(1, int(contains_signal))
+                    reporter.reflections(1)
 
                 # initialize spot data parameters
                 peak_id = next_invalid_peak_id
@@ -1990,7 +2086,7 @@ class HEDMInstrument(object):
 
                     # now we have interpolated patch data...
                     labels, num_peaks = ndimage.label(
-                        patch_data > threshold, label_struct
+                        (patch_data > threshold) & valid_pixels, label_struct
                     )
 
                     if num_peaks == 0:
@@ -2612,8 +2708,29 @@ class GrainDataWriter_h5(object):
         return
 
 
-def _generate_ring_params(tthr, ptth, peta, eta_edges, delta_eta):
+def _generate_ring_params(
+    tthr: NDArray[np.float64],
+    ptth: NDArray[np.float64],
+    peta: NDArray[np.float64],
+    eta_edges: NDArray[np.float64],
+    delta_eta: float,
+    panel_buffer: NDArray[np.bool_],
+) -> Optional[
+    tuple[
+        NDArray[np.float64],
+        NDArray[np.float64],
+        tuple[NDArray[np.intp], ...],
+        NDArray[np.intp],
+    ]
+]:
+    # mark pixels in the spec'd tth range, excluding pixels masked by the
+    # panel buffer (True marks valid pixels), so eta bins falling entirely
+    # within buffered regions are treated as off-detector (NaN in the
+    # maps) rather than as measured zeros
     pixels_in_tthr = np.logical_and(ptth >= tthr[0], ptth <= tthr[1])
+    pixels_in_tthr &= panel_buffer
+
+    # catch case where ring isn't on detector
     if not np.any(pixels_in_tthr):
         return None
 

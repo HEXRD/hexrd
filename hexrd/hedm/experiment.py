@@ -2,18 +2,20 @@
 HEDM analyses, as typed, frozen config sections.
 
 :class:`HedmExperiment` extends :class:`hexrd.core.experiment.Experiment`
-with the ``find_orientations`` section of the config.
+with the settings for find-orientations and fit-grains.
 """
 import enum
 import os
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass as standard_dataclass, field
 from functools import lru_cache
 from typing import Any, Optional
 
 import numpy as np
+from pydantic import Field, TypeAdapter, field_validator
+from pydantic.dataclasses import dataclass
 
-from hexrd.core.experiment import Experiment, ImageSeries, _pixel_chunks
+from hexrd.core.experiment import Beam, Experiment, ImageSeries, _pixel_chunks
 
 _FCH5_PARALLEL_MIN_PIXELS = 128 * 1024**2
 
@@ -60,7 +62,16 @@ class _AdapterImageSeries(ImageSeries):
         from hexrd.core import imageseries
 
         self._source = (filename, fmt, dict(args))
-        self._series = imageseries.open(filename, fmt, **args)
+        self._initialize(panel, imageseries.open(filename, fmt, **args), max_workers)
+
+    def _initialize(self, panel, series, max_workers):
+        from hexrd.core.imageseries.omega import OmegaImageSeries
+
+        while isinstance(series, OmegaImageSeries):
+            series = series._adapter
+        self._series = series
+        self._shape = tuple(self._series.shape)
+        self._dtype = self._series.dtype
         self._max_workers = max_workers
         self.panel = panel if panel is not None else self._series.metadata.get('panel')
         self.omega = np.radians(self._series.metadata['omega'])
@@ -74,6 +85,9 @@ class _AdapterImageSeries(ImageSeries):
         from hexrd.core.extensions import transforms as native
         from hexrd.hedm._progress import activity, check_cancelled
 
+        if isinstance(self._series, ImageSeries):
+            yield from self._series.pixel_chunks(row_of_frame, max_pixels, threshold)
+            return
         adapter = self._series._adapter
         if isinstance(adapter, FrameCacheImageSeriesAdapter) and adapter._style == 'fch5':
             import multiprocessing as mp
@@ -168,7 +182,7 @@ def _hkl_array(value: Any, key: str) -> Optional[np.ndarray]:
     return hkls
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class OrientationMaps:
     threshold: float | None
     active_hkls: Optional[np.ndarray]   # (n, 3) hkl vectors or (n,) master
@@ -202,12 +216,13 @@ class OrientationMaps:
                    None if filter_fwhm is None else float(filter_fwhm))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class SeedSearch:
     hkl_seeds: np.ndarray               # indices into the active rings
     fiber_step: float                   # radians
     method: SeedSearchMethod
-    method_kwargs: dict[str, float]
+    method_kwargs: dict[str, Any]
+    _fiber_step_degrees: float | np.floating | None = None
 
     @classmethod
     def from_dict(cls, d: dict, omega_tolerance_deg: float) -> 'SeedSearch':
@@ -218,15 +233,20 @@ class SeedSearch:
         if seeds.ndim != 1:
             raise ValueError(f'hkl_seeds must be a list of ring indices, '
                              f'got {d.get("hkl_seeds")!r}')
-        return cls(seeds, np.radians(d.get('fiber_step', omega_tolerance_deg)),
-                   SeedSearchMethod(name.lower()), kwargs or {})
+        step = d.get('fiber_step', omega_tolerance_deg)
+        return cls(seeds, np.radians(step),
+                   SeedSearchMethod(name.lower()), kwargs or {}, step)
 
     @property
     def fiber_ndiv(self) -> int:
-        return int(round(2 * np.pi / self.fiber_step))
+        # Keep master's degree arithmetic; a radians round-trip can change truncation.
+        step = self._fiber_step_degrees
+        if step is None or np.radians(step) != self.fiber_step:
+            step = np.degrees(self.fiber_step)
+        return int(360.0 / step)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class DirectSearch:
     """Uniform fundamental-zone sampling; angular spacing is in degrees.
 
@@ -242,29 +262,20 @@ class DirectSearch:
         use_quaternion_grid: orientations.npy
     """
 
-    average_angular_spacing: float
-    point_group_number: int | None = None
+    average_angular_spacing: float = Field(gt=0, allow_inf_nan=False)
+    point_group_number: int | None = Field(default=None, strict=True, ge=1, le=32)
 
-    def __post_init__(self):
-        spacing = self.average_angular_spacing
-        if not np.isfinite(spacing) or spacing <= 0:
-            raise ValueError('average_angular_spacing must be positive and finite')
-        group = self.point_group_number
-        if group is not None and (isinstance(group, (bool, np.bool_))
-                or not isinstance(group, (int, np.integer)) or not 1 <= group <= 32):
-            raise ValueError('point_group_number must be an integer from 1 to 32')
+    @field_validator('point_group_number', mode='before')
+    @classmethod
+    def normalize_point_group(cls, value):
+        return int(value) if isinstance(value, np.integer) else value
 
     @classmethod
     def from_dict(cls, d: dict) -> 'DirectSearch':
-        if not isinstance(d, dict):
-            raise ValueError('direct_search must be a mapping of sampling parameters')
-        if 'average_angular_spacing' not in d:
-            raise ValueError('direct_search requires average_angular_spacing in degrees')
-        return cls(float(d['average_angular_spacing']),
-                   d.get('point_group_number'))
+        return TypeAdapter(cls).validate_python(d)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Omega:
     tolerance: float           # radians
     period: np.ndarray         # radians
@@ -278,7 +289,7 @@ class Omega:
         return cls(np.radians(d.get('tolerance', 0.5)), period)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Eta:
     tolerance: float           # radians
     mask: Optional[float]      # radians
@@ -301,22 +312,23 @@ class Eta:
                          [np.pi / 2 + self.mask, 3 * np.pi / 2 - self.mask]])
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Clustering:
     radius: float
     completeness: float
-    algorithm: ClusteringAlgorithm
+    algorithm: ClusteringAlgorithm = ClusteringAlgorithm.DBSCAN
+
+    @field_validator('algorithm', mode='before')
+    @classmethod
+    def normalize_algorithm(cls, value):
+        return value.lower() if isinstance(value, str) else value
 
     @classmethod
     def from_dict(cls, d: dict) -> 'Clustering':
-        missing = {'radius', 'completeness'} - d.keys()
-        if missing:
-            raise ValueError(f'clustering config requires {sorted(missing)}')
-        return cls(float(d['radius']), float(d['completeness']),
-                   ClusteringAlgorithm(d.get('algorithm', 'dbscan').lower()))
+        return TypeAdapter(cls).validate_python(d)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class FindOrientations:
     orientation_maps: OrientationMaps
     seed_search: SeedSearch
@@ -335,7 +347,7 @@ class FindOrientations:
             raise ValueError('choose direct_search, seed_search, or use_quaternion_grid')
         return cls(OrientationMaps.from_dict(d.get('orientation_maps', {})),
                    SeedSearch.from_dict(d.get('seed_search', {}),
-                                        np.degrees(omega.tolerance)),
+                                        d.get('omega', {}).get('tolerance', 0.5)),
                    omega,
                    Eta.from_dict(d.get('eta', {})),
                    Clustering.from_dict(d.get('clustering', {})),
@@ -348,11 +360,11 @@ def _pair(value):
     return [value, value] if isinstance(value, (int, float)) else value
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class FitGrainsTolerance:
-    eta: list
-    omega: list
-    tth: list
+    eta: list | None
+    omega: list | None
+    tth: list | None
 
     @classmethod
     def from_dict(cls, d: dict) -> 'FitGrainsTolerance':
@@ -360,7 +372,7 @@ class FitGrainsTolerance:
                    _pair(d.get('tth')))
 
 
-@dataclass(frozen=True)
+@standard_dataclass(frozen=True)
 class ImageCacheSettings:
     """Total retained image allowance across all fit-grains workers, in MiB."""
 
@@ -390,12 +402,12 @@ class ImageCacheSettings:
         return cls(**(value or {}))
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class FitGrains:
     do_fit: bool
     estimate: str | None
     npdiv: int
-    threshold: float
+    threshold: float | None
     tolerance: FitGrainsTolerance
     refit: list | None
     tth_max: bool | float
@@ -427,19 +439,98 @@ class FitGrains:
 
 
 class HedmExperiment(Experiment):
-    """An :class:`Experiment` plus the HEDM find-orientations parameters."""
+    """Shared experiment inputs and settings for HEDM analyses."""
 
     def __init__(self, filename: str, study: int | None = None, *,
                  working_dir: str | None = None, new_file_placement: bool = False):
         self._default_working_dir = working_dir
         self._default_file_placement = new_file_placement
         super().__init__(filename, study)
+        self._configure_hedm()
+
+    def _configure_hedm(self):
+        self._find_orientations: FindOrientations | None = None
         if self.active_material.two_theta_width is None:
             self.active_material.two_theta_width = 0.25
-        self.find_orientations = FindOrientations.from_dict(
-            self.config['find_orientations'])
         self.fit_grains = FitGrains.from_dict(
             self.config.get('fit_grains', {}), self._path)
+
+    @property
+    def find_orientations(self) -> FindOrientations:
+        """Read current configuration; assign settings to override, or None to reset."""
+        if self._find_orientations is not None:
+            return self._find_orientations
+        return FindOrientations.from_dict(self.config.get('find_orientations') or {})
+
+    @find_orientations.setter
+    def find_orientations(self, value: FindOrientations | None):
+        self._find_orientations = value
+
+    @property
+    def eta_ranges(self) -> np.ndarray:
+        if self._find_orientations is not None:
+            return self._find_orientations.eta.range
+        config = self.config.get('find_orientations') or {}
+        return Eta.from_dict(config.get('eta') or {}).range
+
+    @classmethod
+    def from_objects(cls, instrument, image_series, plane_data, config):
+        """Build from an HEDMInstrument, panel-to-series mapping, and PlaneData.
+
+        ``config`` is a configuration dict. Relative paths use its working_dir
+        (the current directory by default). Inputs are shared, not copied;
+        series must include omega metadata in degrees. Material exclusions are
+        preserved. Direct sampling defaults to the supplied Laue group's RFZ;
+        use direct_search.point_group_number to specify a different point group.
+        """
+        from copy import deepcopy
+        from types import SimpleNamespace
+        from hexrd.core.imageseries.omega import OmegaImageSeries
+        from hexrd.core.material.material_data import Material
+
+        experiment = cls.__new__(cls)
+        experiment.experiment_dir = os.getcwd()
+        experiment.studies = []
+        experiment._default_working_dir = os.getcwd()
+        experiment._default_file_placement = False
+        experiment._configure(deepcopy(config), instrument.write_config(style='hdf5'))
+        experiment._instrument = instrument
+        experiment.beam = Beam(instrument.beam_energy, instrument.beam_vector,
+                               instrument.source_distance, instrument.energy_correction)
+        experiment._image_series = {
+            panel: series if isinstance(series, OmegaImageSeries) else OmegaImageSeries(series)
+            for panel, series in image_series.items()}
+        experiment.image_series_list = []
+        for panel, series in image_series.items():
+            if panel not in experiment.detectors:
+                raise ValueError(f'unknown detector panel: {panel}')
+            view = _AdapterImageSeries.__new__(_AdapterImageSeries)
+            view._initialize(panel, series, experiment.max_workers)
+            experiment.image_series_list.append(view)
+        groups = {'ci': 2, 'c2h': 5, 'd2h': 8, 'c4h': 11, 'd4h': 15,
+                  'c3i': 17, 's6': 17, 'd3d': 20, 'c6h': 23, 'd6h': 27,
+                  'th': 29, 'oh': 32}
+        material = Material.__new__(Material)
+        material.name = experiment.active_material.active
+        material.dmin = material.sfacmin = None
+        material.reset_exclusions = False
+        material._material = SimpleNamespace(
+            planeData=plane_data, pgnum=groups[plane_data.laueGroup.lower()])
+        material.plane_data = material._make_plane_data()
+        experiment._active_material = material
+        experiment._materials_file = None
+        experiment._configure_hedm()
+        return experiment
+
+    def get_active_material(self):
+        if hasattr(self, '_active_material'):
+            return self._active_material
+        return super().get_active_material()
+
+    def get_materials(self):
+        if self._materials_file is None:
+            return [self.get_active_material()]
+        return super().get_materials()
 
     def _load_image_series(self, spec):
         panel = spec.get('panel')

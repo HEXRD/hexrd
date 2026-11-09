@@ -106,24 +106,30 @@ def _calcxrayformfactor(
 
 @njit(cache=True, nogil=True, parallel=True)
 def _calcxrsf(
-    hkls,
-    nref,
-    multiplicity,
-    w_int,
-    wavelength,
-    rmt,
-    atom_type,
-    atom_ntype,
-    betaij,
-    occ,
-    asym_pos_arr,
-    numat,
-    scatfac,
-    fNT,
-    frel,
-    f_anomalous_data,
-    f_anomalous_data_sizes,
-):
+    hkls: np.ndarray,
+    nref: int,
+    multiplicity: np.ndarray,
+    w_int: float,
+    wavelength: float,
+    rmt: np.ndarray,
+    atom_type: np.ndarray,
+    atom_ntype: int,
+    betaij: np.ndarray,
+    occ: np.ndarray,
+    asym_pos_arr: np.ndarray,
+    numat: np.ndarray,
+    scatfac: np.ndarray,
+    fNT: np.ndarray,
+    frel: np.ndarray,
+    f_anomalous_data: np.ndarray,
+    f_anomalous_data_sizes: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return weighted and raw squared structure-factor magnitudes.
+
+    betaij is either a 1-D array of isotropic U values in angstrom squared,
+    or per-atom coefficients with shape (atom_ntype, max(numat), 6), ordered
+    as beta_xx, beta_yy, beta_zz, 2*beta_xy, 2*beta_xz, 2*beta_yz.
+    """
     struct_factors = np.empty(multiplicity.shape, dtype=np.float64)
     struct_factors_raw = np.empty(multiplicity.shape, dtype=np.float64)
 
@@ -144,33 +150,36 @@ def _calcxrsf(
             f_anomalous_data_sizes,
         )
 
+        h, k, ell = g[0], g[1], g[2]
+        h2, k2, l2 = h * h, k * k, ell * ell
+        hk, hl, kl = h * k, h * ell, k * ell
+
         for jj in range(atom_ntype):
             natom = numat[jj]
-            apos = asym_pos_arr[:natom, jj, :]
-            if betaij.ndim > 1:
-                b = betaij[:, :, jj]
-                arg = (
-                    b[0, 0] * g[0] ** 2
-                    + b[1, 1] * g[1] ** 2
-                    + b[2, 2] * g[2] ** 2
-                    + 2.0
-                    * (
-                        b[0, 1] * g[0] * g[1]
-                        + b[0, 2] * g[0] * g[2]
-                        + b[1, 2] * g[1] * g[2]
-                    )
-                )
-                arg = -arg
-            else:
-                arg = -8.0 * np.pi**2 * betaij[jj] * s
+            ff = formfact[jj] * occ[jj]
 
-            T = np.exp(arg)
-            ff = formfact[jj] * occ[jj] * T
+            T_iso = 1.0
+            if betaij.ndim == 1:
+                T_iso = np.exp(-8.0 * np.pi**2 * betaij[jj] * s)
 
             for kk in range(natom):
-                r = apos[kk, :]
-                arg = 2.0 * np.pi * np.sum(g * r)
-                sf = sf + ff * complex(np.cos(arg), -np.sin(arg))
+                T = T_iso
+                if betaij.ndim > 1:
+                    b = betaij[jj, kk]
+                    T = np.exp(
+                        -(
+                            b[0] * h2
+                            + b[1] * k2
+                            + b[2] * l2
+                            + b[3] * hk
+                            + b[4] * hl
+                            + b[5] * kl
+                        )
+                    )
+
+                r = asym_pos_arr[kk, jj]
+                phase = 2.0 * np.pi * (h * r[0] + k * r[1] + ell * r[2])
+                sf += ff * T * complex(np.cos(phase), -np.sin(phase))
 
         struct_factors_raw[ii] = np.abs(sf) ** 2
         struct_factors[ii] = w_int * mm * struct_factors_raw[ii]

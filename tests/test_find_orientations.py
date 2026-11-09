@@ -27,6 +27,88 @@ from hexrd.hedm.find_orientations import (
 LAUE_GROUPS = ('Ci', 'C2h', 'D2h', 'C4h', 'D4h', 'C3i', 'D3d', 'C6h', 'D6h', 'Th', 'Oh')
 
 
+def test_result_validation_preserves_array_storage():
+    from dataclasses import replace
+    from pydantic import ValidationError
+    from hexrd.hedm.find_orientations import FindOrientationsResult
+
+    quats = np.arange(24.).reshape(4, 6)[:, ::2]
+    scores = np.ones(3)
+    result = FindOrientationsResult(quats, quats, scores)
+    assert result.grain_orientations is result.test_orientations is quats
+    assert result.completeness is scores
+    assert replace(result).test_orientations is quats
+    with pytest.raises(ValidationError, match='completeness'):
+        replace(result, completeness='invalid')
+
+
+@pytest.fixture(params=['file', 'objects'])
+def multiruby_experiment(example_repo_path, tmp_path, request):
+    include = example_repo_path / 'NIST_ruby/multiruby_dexelas/include'
+    config = next(yaml.safe_load_all((include / 'mruby_config_composite.yml').read_text()))
+    config.update(working_dir=str(include), analysis_name=str(tmp_path / 'analysis'),
+                  multiprocessing=1)
+    filename = tmp_path / 'config.yml'
+    filename.write_text(yaml.safe_dump(config))
+    experiment = HedmExperiment(str(filename))
+    if request.param == 'objects':
+        experiment = HedmExperiment.from_objects(
+            experiment.instrument, experiment.image_series,
+            experiment.get_active_material()._material.planeData, config)
+    return experiment
+
+
+def test_generate_eta_ome_maps(multiruby_experiment):
+    from hexrd.core import imageseries
+    from hexrd.core.imageseries.omega import OmegaImageSeries
+    from hexrd.hedm.find_orientations import build_eta_omega_maps
+
+    experiment = multiruby_experiment
+    material = experiment.get_active_material()
+    maps = build_eta_omega_maps(experiment, material.plane_data)
+    include = Path(experiment.config['working_dir'])
+    series = {spec['panel']: OmegaImageSeries(imageseries.open(
+        str(include / spec['file']), experiment.config['image_series']['format'],
+        **spec['args'])) for spec in experiment.config['image_series']['data']}
+    reference, eta_edges = experiment.instrument.extract_polar_maps(
+        material._material.planeData, series,
+        active_hkls=material.plane_data.master_hkl_ids[maps.ring_ids],
+        threshold=experiment.find_orientations.orientation_maps.threshold,
+        tth_tol=experiment.active_material.two_theta_width)
+    panels = np.array(list(reference.values()))
+    expected = np.nansum(panels, axis=0)
+    expected[np.isnan(panels).all(axis=0)] = np.nan
+    np.testing.assert_array_equal(maps.ring_maps, expected)
+    np.testing.assert_array_equal(maps.eta_edges, eta_edges)
+
+    # Angular grids are independent of the archive's older calibration.
+    with np.load(include.parent / 'results' /
+                 'results_mruby_composite_hexrd06_py27_ruby_eta-ome_maps.npz') as ref:
+        for actual, key in ((maps.eta_edges, 'etaEdges'),
+                            (maps.omegas, 'omegas'), (maps.omega_edges, 'omeEdges')):
+            np.testing.assert_array_equal(actual, ref[key])
+        np.testing.assert_allclose(maps.eta_edges[:-1] + maps.eta_step / 2,
+                                   ref['etas'], rtol=0, atol=1e-14)
+
+
+def test_find_orientations(multiruby_experiment):
+    from hexrd.core.rotations import misorientation
+
+    experiment = multiruby_experiment
+    results = Path(experiment.config['working_dir']).parent / 'results'
+    name = 'results_mruby_composite_hexrd06_py27_ruby'
+    experiment.find_orientations = replace(
+        experiment.find_orientations,
+        orientation_maps=replace(experiment.find_orientations.orientation_maps,
+                                 file=str(results / f'{name}_eta-ome_maps.npz')))
+    actual = find_orientations(experiment).grain_orientations
+    expected = np.loadtxt(results / f'accepted_orientations_{name}.dat', ndmin=2).T
+    assert actual.shape == expected.shape
+    for quat in actual.T:
+        angles, _ = misorientation(quat[:, None], expected)
+        assert angles.min() <= np.radians(0.05)
+
+
 def test_grid_sampler_preserves_legacy_order():
     from hexrd.core import constants
     from hexrd.hedm.sampleOrientations.conversions import cu2ro, ro2qu
@@ -229,7 +311,8 @@ def test_native_fiber_reduction_tails_and_views(n):
     'HEXRD_EXAMPLE_REPO_PATH' not in os.environ,
     reason='requires the NIST ruby example data',
 )
-def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
+@pytest.mark.parametrize('custom_workflow', [False, True])
+def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch, custom_workflow):
     import hexrd.hedm.find_orientations as fo
     from hexrd.hedm._progress import Dashboard
 
@@ -241,6 +324,12 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
         return score(*args, **kwargs)
 
     monkeypatch.setattr(fo, 'score_orientations', check_scoring)
+    workflow = find_orientations
+    if custom_workflow:
+        import runpy
+
+        workflow = runpy.run_path(str(Path(__file__).parents[1] /
+                                     'scripts/custom_find_orientations.py'))['find_orientations']
     include = example_repo_path / 'NIST_ruby/single_GE/include'
     with open(include / 'cstudy.yml') as stream:
         config = next(yaml.safe_load_all(stream))
@@ -268,7 +357,7 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch):
             dashboard = Dashboard()
             dashboard.start()
             try:
-                result = find_orientations(experiment, clean=clean)
+                result = workflow(experiment, clean=clean)
             finally:
                 dashboard.close()
             assert dashboard.hkls['Seed'] == ((0, 1, 2), (1, 0, 4), (1, 1, 0))
@@ -842,6 +931,60 @@ def test_fiber_cache_invalidates_search_and_maps(tmp_path, monkeypatch):
     assert len(calls) == 4
 
 
+def test_saved_maps_preserve_crystallography(tmp_path):
+    import hexrd.hedm.find_orientations as fo
+    from hexrd.core.material.crystallography import PlaneData as LegacyPlaneData
+    from hexrd.core.valunits import valWUnit
+
+    pd = LegacyPlaneData(np.array([[1, 1, 1], [2, 0, 0]]).T, [3.6], 'Oh',
+                         valWUnit('wavelength', 'length', .2, 'angstrom'), .0025)
+    pd.exclusions = None
+    original = PlaneData.from_plane_data(pd)
+    edges = np.linspace(-np.pi, np.pi, 3)
+    maps = fo.EtaOmegaMaps(np.ones((2, 2, 2)), edges, edges, np.array([-np.pi/2, np.pi/2]),
+                           edges[[0, -1]], pd.getTThRanges(), np.arange(2), np.pi)
+    path = tmp_path / 'maps.npz'
+    fo._save_eta_omega_maps(maps, str(path), original, np.pi)
+    current = replace(original, wavelength=.4, B=original.B*2,
+                      exclusions=np.array([True, False]),
+                      unexcluded_hkls=original.unexcluded_hkls[1:],
+                      symm_hkls=original.symm_hkls[1:], master_hkl_ids=original.master_hkl_ids[1:])
+    for _ in range(2):
+        loaded = fo._load_eta_omega_maps(path, current, .25, tmp_path / 'map-source.npz')
+        assert loaded.plane_data.wavelength == original.wavelength
+        np.testing.assert_array_equal(loaded.plane_data.B, original.B)
+        np.testing.assert_array_equal(loaded.plane_data.unexcluded_hkls, original.unexcluded_hkls)
+
+
+def test_cluster_support_accounts_for_stage_translation(tmp_path):
+    import hexrd.hedm.find_orientations as fo
+    from hexrd.core import imageseries
+    from hexrd.core.instrument import HEDMInstrument
+    from hexrd.core.material.crystallography import PlaneData as LegacyPlaneData
+    from hexrd.core.valunits import valWUnit
+
+    pd = LegacyPlaneData(np.array([[3, 1, 1]]).T, [3.6], 'Oh',
+                         valWUnit('wavelength', 'length', .2, 'angstrom'), .0025)
+    pd.exclusions = None
+    instrument = HEDMInstrument(instrument_config={
+        'beam': {'energy': 62., 'vector': {'azimuth': 90., 'polar_angle': 90.}},
+        'oscillation_stage': {'chi': 0., 'translation': [0., 0., 0.]},
+        'detectors': {'panel': {'transform': {'tilt': [0., 0., 0.], 'translation': [0., 0., -100.]},
+                                'pixels': {'rows': 100, 'columns': 100, 'size': [1., 1.]}}}},
+        max_workers=1)
+    series = imageseries.open(None, 'array', data=np.zeros((2, 100, 100)),
+                              meta={'omega': np.array([[-180., 0.], [0., 180.]])})
+    experiment = HedmExperiment.from_objects(instrument, {'panel': series}, pd, {
+        'analysis_name': str(tmp_path), 'multiprocessing': 1, 'material': {'active': 'synthetic'},
+        'find_orientations': {'seed_search': {'hkl_seeds': [0]},
+                             'clustering': {'radius': .5, 'completeness': .9}}})
+    plane = experiment.get_active_material().plane_data
+    maps = SimpleNamespace(ring_ids=np.array([0]))
+    for translation, expected in ((0., 19), (50., 9), (0., 19)):
+        experiment.oscillation_stage.translation[0] = translation
+        assert fo._cached_min_samples(experiment, plane, maps) == expected
+
+
 @pytest.mark.parametrize('codec', [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED,
                                    zipfile.ZIP_BZIP2, zipfile.ZIP_LZMA])
 def test_npz_reader_preserves_codecs_and_checksums(tmp_path, codec):
@@ -910,7 +1053,8 @@ def test_dashboard_progress_preserves_scores(tmp_path, monkeypatch, workers):
     quats /= np.linalg.norm(quats, axis=0)
     maps = SimpleNamespace(ring_maps=args[10], ring_ids=np.arange(2),
                            eta_edges=args[5], omega_edges=args[6])
-    plane = SimpleNamespace(symm_hkls=[args[1][:2].T, args[1][2:].T],
+    plane = SimpleNamespace(unexcluded_hkls=args[1][[0, 2]],
+                            symm_hkls=[args[1][:2].T, args[1][2:].T],
                             B=args[2], wavelength=args[3])
     settings = SimpleNamespace(threshold=args[14],
         eta=SimpleNamespace(range=args[7].reshape(-1, 2), tolerance=2*np.pi/32),
@@ -935,6 +1079,14 @@ def test_dashboard_progress_preserves_scores(tmp_path, monkeypatch, workers):
     assert dashboard.stages['Scoring'].count == quats.shape[1]
     assert dashboard.stages['Scoring'].status == 'done'
     assert terminal.getvalue() == ''
+
+
+async def _wait_for_dashboard(pilot, condition):
+    import asyncio
+
+    async with asyncio.timeout(5):
+        while not condition():
+            await pilot.pause(0.01)
 
 
 def test_dashboard_navigation_and_cancellation(monkeypatch):
@@ -967,7 +1119,9 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
     async def interact():
         try:
             async with app.run_test(size=(100, 30)) as pilot:
-                await pilot.pause()
+                await _wait_for_dashboard(pilot, lambda:
+                    'Scoring' in str(app.query_one('#stage-name', Static).render())
+                    and app.query_one(RichLog).lines)
                 memory = app.query_one('#memory-bar', ProgressBar)
                 assert memory.progress / memory.total == 0.125
                 assert '2.00 / 16.0 GiB' in str(app.query_one('#memory-label', Static).render())
@@ -981,8 +1135,6 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.press('l')
                 assert not app.query_one(RichLog).display
                 app.query_one('#stages', DataTable).focus()
-                # Focus is dispatched asynchronously; let it settle before
-                # moving the cursor so the live-follow timer cannot race it.
                 await pilot.pause()
                 app.query_one('#stages', DataTable).move_cursor(row=0)
                 await pilot.press('enter')
@@ -994,7 +1146,7 @@ def test_dashboard_navigation_and_cancellation(monkeypatch):
                 await pilot.press('q')
                 assert dashboard.cancelled.is_set()
                 release.set()
-                await pilot.pause(0.2)
+                await _wait_for_dashboard(pilot, lambda: app.sub_title == 'CANCELLED')
                 assert app.is_running
                 assert app.sub_title == 'CANCELLED'
                 assert str(app.query_one('#cancel', Button).label) == 'Close'
@@ -1043,7 +1195,8 @@ def test_dashboard_retains_completion_and_failure(fails):
 
     async def interact():
         async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
+            await _wait_for_dashboard(pilot, lambda:
+                app.sub_title == ('FAILED' if fails else 'COMPLETE'))
             assert app.is_running and app.finished.is_set()
             assert app.sub_title == ('FAILED' if fails else 'COMPLETE')
             status = str(app.query_one('#status', Static).render())
@@ -1088,8 +1241,12 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
     quats /= np.linalg.norm(quats, axis=1, keepdims=True)
     maps = SimpleNamespace(ring_maps=args[10], ring_ids=np.arange(2),
                            eta_edges=args[5], omega_edges=args[6])
-    plane = SimpleNamespace(symm_hkls=[args[1][:2].T, args[1][2:].T],
+    plane = SimpleNamespace(unexcluded_hkls=args[1][[0, 2]],
+                            symm_hkls=[args[1][:2].T, args[1][2:].T],
                             B=args[2], wavelength=args[3])
+    maps.plane_data = plane
+    current = SimpleNamespace(**vars(plane))
+    current.wavelength *= 2
     settings = SimpleNamespace(threshold=args[14],
         eta=SimpleNamespace(range=args[7].reshape(-1, 2), tolerance=2*np.pi/32),
         omega=SimpleNamespace(period=np.array([-np.pi, np.pi]), tolerance=4*np.pi/21))
@@ -1101,8 +1258,10 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
         calls.append(1)
         return predict(*a)
     monkeypatch.setattr(native, 'scoreOrientations', record)
-    for change in ('initial', 'cached', 'threshold', 'map', 'geometry', 'damaged', 'lazy'):
-        if change == 'threshold':
+    for change in ('initial', 'cached', 'beam', 'threshold', 'map', 'geometry', 'damaged', 'lazy'):
+        if change == 'beam':
+            experiment.beam.vector = np.array([.2, -.1, -1.])
+        elif change == 'threshold':
             settings.threshold = args[14] = 0.95
         elif change == 'map':
             args[10][:] = 1.
@@ -1117,9 +1276,9 @@ def test_scoring_caches_invalidate_maps_threshold_and_geometry(tmp_path, monkeyp
             lazy._content_key = fo._map_key(maps)
             lazy.ring_maps = lambda: pytest.fail('cached scoring loaded dense maps')
             maps = lazy
-        np.testing.assert_array_equal(fo.score_orientations(experiment, plane, maps, quats.T),
+        np.testing.assert_array_equal(fo.score_orientations(experiment, current, maps, quats.T),
                                       predict(*args))
-        assert len(calls) == {'initial': 1, 'cached': 1, 'threshold': 1,
+        assert len(calls) == {'initial': 1, 'cached': 1, 'beam': 1, 'threshold': 1,
                              'map': 1, 'geometry': 2, 'damaged': 3, 'lazy': 4}[change]
 
 

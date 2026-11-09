@@ -147,6 +147,16 @@ Changing build flags requires `--force` or a clean build.
 
 ## Validation
 
+The November 9 master merge incorporates frame-cache pickling, panel-buffer,
+interpolation and crystallography fixes while retaining bounded native fitting.
+Native and staged measurements exclude buffered pixels; masked windows with
+negative thresholds use reference extraction to preserve connectivity.
+Validation against freshly built master `0a041b17` includes 18 bitwise example
+comparisons and four Sven grains with identical fits, returned spots and files.
+The Sven master reference uses bounded pixel input, not full-scan eager loading.
+The merged configuration models require Pydantic 2; rebuild native extensions
+when updating an existing installation. Earlier benchmark records are historical.
+
 Use the benchmark tool for guarded runs and exact comparisons:
 
 ```bash

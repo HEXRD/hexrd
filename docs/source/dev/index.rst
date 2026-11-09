@@ -8,3 +8,4 @@ Contents:
    :maxdepth: 1
 
    imageseries-overview
+   cake-matrix

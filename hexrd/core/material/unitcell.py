@@ -1,17 +1,18 @@
 import importlib.resources
+import time
+import warnings
+
+import h5py
 import numpy as np
 from numba import njit
+
+import hexrd.core.resources
 from hexrd.core import constants
 from hexrd.core.material import spacegroup, symbols, symmetry
+from hexrd.core.valunits import valWUnit
 
 # TODO: Resolve extra-core-dependency
-from hexrd.hedm.ipfcolor import sphere_sector, colorspace
-from hexrd.core.valunits import valWUnit
-import hexrd.core.resources
-import warnings
-import h5py
-from pathlib import Path
-import time
+from hexrd.hedm.ipfcolor import colorspace, sphere_sector
 
 eps = constants.sqrt_epsf
 ENERGY_ID = 0
@@ -80,6 +81,79 @@ def _calcstar(v, sym, mat):
             n = n + 1
 
     return vsym[0:n, :]
+
+
+def _prepare_betaij(
+    betaij: np.ndarray,
+    orbit_rotations: list[list[np.ndarray]],
+    numat: np.ndarray,
+) -> np.ndarray:
+    """Return per-atom coefficients ordered as:
+    beta_xx, beta_yy, beta_zz, 2*beta_xy, 2*beta_xz, 2*beta_yz.
+
+    Rotations act on fractional coordinates, as does the beta tensor.
+    Each atom's tensor is averaged over every operation that maps its
+    independent site onto it, which imposes the site symmetry on beta.
+    """
+    number_of_sites = len(numat)
+    maximum_atoms_per_site = int(np.max(numat))
+
+    coefficients = np.zeros(
+        (number_of_sites, maximum_atoms_per_site, 6), dtype=np.float64
+    )
+
+    for site_index in range(number_of_sites):
+        original_tensor = betaij[:, :, site_index]
+
+        for atom_index in range(numat[site_index]):
+            rotations = orbit_rotations[site_index][atom_index]
+
+            # Average the rotated tensor over the operations landing here.
+            rotated_tensor = np.mean(
+                rotations @ original_tensor @ rotations.transpose(0, 2, 1),
+                axis=0,
+            )
+
+            # Off-diagonal terms occur twice in h.T @ beta @ h.
+            coefficients[site_index, atom_index] = (
+                rotated_tensor[0, 0],
+                rotated_tensor[1, 1],
+                rotated_tensor[2, 2],
+                2.0 * rotated_tensor[0, 1],
+                2.0 * rotated_tensor[0, 2],
+                2.0 * rotated_tensor[1, 2],
+            )
+
+    return coefficients
+
+
+# 90 degree rotation about x taking b to -z (monoclinic unique axis)
+_IPF_ROT_X90 = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
+
+# 30 degree rotation about z (321 <-> 312, 3m1 <-> 31m)
+_IPF_ROT_Z30 = np.array(
+    [[np.sqrt(3.0) / 2.0, -0.5, 0.0], [0.5, np.sqrt(3.0) / 2.0, 0.0], [0.0, 0.0, 1.0]]
+)
+
+
+def _ipf_frame(sub: np.ndarray, sup: np.ndarray, lattice_type: str) -> np.ndarray:
+    """
+    return the first candidate rotation Q with Q g Q^T in the supergroup for
+    every g in sub, i.e. the rotation into the setting the supergroup's
+    sector is defined for.
+    """
+    if lattice_type == "monoclinic":
+        candidates = (_IPF_ROT_X90, np.eye(3))
+    else:
+        candidates = (np.eye(3), _IPF_ROT_Z30)
+    for Q in candidates:
+        if all(any(np.allclose(Q @ g @ Q.T, h, atol=1e-6) for h in sup) for g in sub):
+            return Q
+    warnings.warn(
+        "IPF coloring: the crystal symmetry is not a subgroup of its coloring "
+        "supergroup in any supported setting; colors may be wrong"
+    )
+    return np.eye(3)
 
 
 class unitcell:
@@ -448,7 +522,7 @@ class unitcell:
         self.SYM_PG_c[np.abs(self.SYM_PG_c) < eps] = 0.0
 
         if self._pointGroup == self._laueGroup:
-            self.SYM_PG_c_laue = self.SYM_PG_c
+            self.SYM_PG_c_laue = self.SYM_PG_c.copy()
         else:
             for sop in self.SYM_PG_d_laue:
                 self.SYM_PG_c_laue.append(np.dot(self.dsm, np.dot(sop, self.rsm.T)))
@@ -498,44 +572,56 @@ class unitcell:
         self.SYM_PG_supergroup_laue[np.abs(self.SYM_PG_supergroup_laue) < eps] = 0.0
 
         """
-        the standard setting for the monoclinic system has the b-axis aligned
-        with the 2-fold axis. this needs to be accounted for when reduction to
-        the standard stereographic triangle is performed. the siplest way is to
-        rotate all symmetry elements by 90 about the x-axis
-
-        the supergroups for the monoclinic groups are orthorhombic so they need
-        not be rotated as they have the c* axis already aligned with the z-axis
-        SS 12/10/2020
+        the generators of the monoclinic groups (cs, c2, c2h) are b-unique,
+        but their sectors in sphere_sector have the unique axis along z. the
+        supergroup cs (used for 1, -1 and m) is the only monoclinic supergroup,
+        so rotate it by 90 deg about x. the orthorhombic supergroups already
+        have their unique axis along z.
         """
-        if self.latticeType == "monoclinic":
-            om = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
+        om = _IPF_ROT_X90
+        if supergroup in ("cs", "c2", "c2h"):
+            self.SYM_PG_supergroup = np.einsum(
+                "ij,njk,lk->nil", om, self.SYM_PG_supergroup, om
+            )
+        if supergroup_laue in ("cs", "c2", "c2h"):
+            self.SYM_PG_supergroup_laue = np.einsum(
+                "ij,njk,lk->nil", om, self.SYM_PG_supergroup_laue, om
+            )
 
-            for i, s in enumerate(self.SYM_PG_c):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c[i, :, :] = ss
-
-            for i, s in enumerate(self.SYM_PG_c_laue):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_c_laue[i, :, :] = ss
         """
-        for the triclinic group c1, the supergroups are the monoclinic group m
-        therefore we need to rotate the mirror to be perpendicular to the z-axis
-        same shouldn't be done for the group ci, since the supergroup is just the
-        triclinic group c1!!
-        SS 12/10/2020
+        IPF frame: a rotation that brings the crystal symmetry into the setting
+        the supergroup and its sector are defined for (b -> z for monoclinic,
+        a 30 deg turn about z for 321 vs 312 and 3m1 vs 31m). directions are
+        rotated by it in reduce_dirvector. SYM_PG_c and SYM_PG_c_laue stay in
+        the true crystal frame, because other code (phase_transition.variants)
+        uses them.
+
+        _ipf_sub holds the operators that decide bright vs dark in
+        color_directions: the group itself, or for -1, -3 and -4 (which have
+        no jump-free key) its rotation subgroup.
         """
-        if self._pointGroup == "c1":
-            om = np.array([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
+        self._ipf_frame = {}
+        self._ipf_sym = {}
+        self._ipf_sub = {}
+        for mode, sym, pgsym, sup in (
+            ("pg", self.SYM_PG_c, self._pointGroup, self.SYM_PG_supergroup),
+            ("laue", self.SYM_PG_c_laue, self._laueGroup, self.SYM_PG_supergroup_laue),
+        ):
+            if pgsym in ("ci", "s4", "s6"):
+                sub = sym[np.linalg.det(sym) > 0]
+            else:
+                sub = sym
+            Q = _ipf_frame(sub, sup, self.latticeType)
+            self._ipf_frame[mode] = Q
+            self._ipf_sym[mode] = np.einsum("ij,njk,lk->nil", Q, sym, Q)
+            self._ipf_sub[mode] = np.einsum("ij,njk,lk->nil", Q, sub, Q)
 
-            for i, s in enumerate(self.SYM_PG_supergroup):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_supergroup[i, :, :] = ss
-
-            for i, s in enumerate(self.SYM_PG_supergroup_laue):
-                ss = np.dot(om, np.dot(s, om.T))
-                self.SYM_PG_supergroup_laue[i, :, :] = ss
-
-    def CalcOrbit(self, v, reduceToUC=True):
+    def CalcOrbit(
+        self,
+        v: np.ndarray,
+        reduceToUC: bool = True,
+        return_rotations: bool = False,
+    ) -> tuple:
         """
         @date 03/04/2021 SS 1.0 original
 
@@ -546,6 +632,9 @@ class unitcell:
         @params v is the factional coordinates in direct space
                 reduceToUC reduces the position to the
                 fundamental fractional unit cell (0-1)
+                return_rotations also returns, for each distinct
+                position, the fractional-coordinate rotations of every
+                operation that maps v onto it
         """
 
         asym_pos = []
@@ -557,6 +646,7 @@ class unitcell:
         r = np.hstack((r, 1.0))
 
         asym_pos = np.broadcast_to(r[0:3], [1, 3])
+        rotations = [[]]
 
         for symmat in self.SYM_SG:
             # get new position
@@ -571,21 +661,30 @@ class unitcell:
                 rr[np.abs(rr) < 1.0e-6] = 0.0
 
             # check if this is new
-            isnew = True
+            match = None
             for j in range(n):
                 v = rr - asym_pos[j]
+                if reduceToUC:
+                    # coordinates 0 and 1 are the same atom
+                    v = v - np.round(v)
                 dist = self.CalcLength(v, "d")
                 if dist < 1e-3:
-                    isnew = False
+                    match = j
                     break
 
             # if its new add this to the list
-            if isnew:
+            if match is None:
                 asym_pos = np.vstack((asym_pos, rr))
+                rotations.append([])
+                match = n
                 n += 1
+
+            rotations[match].append(symmat[:3, :3])
 
         numat = n
 
+        if return_rotations:
+            return asym_pos, numat, [np.array(r) for r in rotations]
         return asym_pos, numat
 
     def CalcStar(self, v, space, applyLaue=False):
@@ -608,23 +707,26 @@ class unitcell:
         vv = np.asarray(v).astype(float)
         return _calcstar(vv, sym, mat)
 
-    def CalcPositions(self):
+    def CalcPositions(self) -> None:
         """
-        calculate the asymmetric positions in the fundamental unitcell
-        used for structure factor calculations
+        Expand independent sites into distinct unit-cell positions and
+        retain their rotations for structure factor calculations.
         """
         numat = []
         asym_pos = []
+        orbit_rotations = []
 
         for i in range(self.atom_ntype):
             v = self.atom_pos[i, 0:3]
-            apos, n = self.CalcOrbit(v)
+            apos, n, rotations = self.CalcOrbit(v, return_rotations=True)
 
             asym_pos.append(apos)
             numat.append(n)
+            orbit_rotations.append(rotations)
 
         self.numat = np.array(numat)
         self.asym_pos = asym_pos
+        self.orbit_rotations = orbit_rotations
 
     def remove_duplicate_atoms(self, atom_pos=None, tol=1e-3):
         """
@@ -789,7 +891,7 @@ class unitcell:
             .open("rb")
         )
         with h5py.File(data, "r") as fid:
-            for i in range(0, self.atom_ntype):
+            for i in range(self.atom_ntype):
                 Z = self.atom_type[i]
                 elem = constants.ptableinverse[Z]
 
@@ -824,7 +926,7 @@ class unitcell:
             self.f_anomalous_data_sizes[i] = nd
             self.f_anomalous_data[i, :nd, :] = f_anomalous_data[i]
 
-    def CalcXRSF(self, hkl):
+    def CalcXRSF(self, hkl: np.ndarray) -> np.ndarray:
         # TODO: Resolve extra-core dependency
         from hexrd.powder.wppf.xtal import _calcxrsf
 
@@ -858,17 +960,19 @@ class unitcell:
         occ = self.atom_pos[:, 3]
         aniU = self.aniU
         if aniU:
-            betaij = self.betaij
+            # Rebuild coefficients after in-place U or lattice changes.
+            self.calcBetaij()
+            betaij = _prepare_betaij(self.betaij, self.orbit_rotations, self.numat)
         else:
             betaij = self.U
 
         self.asym_pos_arr = np.zeros([self.numat.max(), self.atom_ntype, 3])
-        for i in range(0, self.atom_ntype):
+        for i in range(self.atom_ntype):
             nn = self.numat[i]
             self.asym_pos_arr[:nn, i, :] = self.asym_pos[i]
 
         self.numat = np.zeros(self.atom_ntype, dtype=np.int32)
-        for i in range(0, self.atom_ntype):
+        for i in range(self.atom_ntype):
             self.numat[i] = self.asym_pos[i].shape[0]
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
@@ -1073,7 +1177,7 @@ class unitcell:
                 f"number of constants entered is not correct."
                 f" need a total of {x} independent constants."
             )
-            raise IOError(msg)
+            raise OSError(msg)
 
         # initialize all zeros and fill the supplied values
         C = np.zeros([6, 6])
@@ -1219,7 +1323,9 @@ class unitcell:
         this will be used later on in the coloring routines to determine if the
         points needs to be moved to the southern hemisphere or not
         """
-        dir3_copy = np.copy(dir3n)
+        mode = "laue" if switch in ("laue", "superlaue") else "pg"
+        dir3n = dir3n @ self._ipf_frame[mode].T
+        dir3_copy = dir3n.copy()
         dir3_reduced = np.array([])
         idx_copy = np.copy(idx)
         idx_red = np.array([], dtype=np.int32)
@@ -1232,13 +1338,13 @@ class unitcell:
         connectivity = self.sphere_sector.connectivity[switch]
 
         if switch == "pg":
-            sym = self.SYM_PG_c
+            sym = self._ipf_sym["pg"]
 
         elif switch == "super":
             sym = self.SYM_PG_supergroup
 
         elif switch == "laue":
-            sym = self.SYM_PG_c_laue
+            sym = self._ipf_sym["laue"]
 
         elif switch == "superlaue":
             sym = self.SYM_PG_supergroup_laue
@@ -1297,25 +1403,30 @@ class unitcell:
            replaceing barycenter to pi-theta)
         """
 
-        if laueswitch:
-            """
-            this is the case where we color orientations based on the laue group
-            of the crystal. this is always going to be the case with x-ray which
-            introduces inversion symmetry. For other probes, this is not the case.
-            """
-            dir3_red = self.reduce_dirvector(dir3, switch="laue")
-            dir3_red_supergroup = self.reduce_dirvector(dir3, switch="superlaue")
-            switch = "superlaue"
+        # use the correct ipf symmetry
+        mode = "laue" if laueswitch else "pg"
+        switch = "superlaue" if laueswitch else "super"
+        Q = self._ipf_frame[mode]
 
+        dir3 = np.atleast_2d(dir3)
+        dir3 = dir3 / np.linalg.norm(dir3, axis=1)[:, None]
+
+        if self._ipf_sub[mode].shape[0] < self._ipf_sym[mode].shape[0]:
+            # -1, -3, -4: reduce to the group's own sector first, then color
+            # it with the key of its rotation subgroup
+            d = self.reduce_dirvector(dir3, switch=mode)
+            dir3 = d @ Q
         else:
-            """
-            follow the logic in the function description
-            """
-            dir3_red = self.reduce_dirvector(dir3, switch="pg")
-            dir3_red_supergroup = self.reduce_dirvector(dir3, switch="super")
-            switch = "super"
+            d = dir3 @ Q.T
 
-        mask = np.linalg.norm(dir3_red - dir3_red_supergroup, axis=1) < eps
+        dir3_red_supergroup = self.reduce_dirvector(dir3, switch=switch)
+
+        # bright if the supergroup-reduced direction is equivalent to the
+        # direction under the group being colored, dark otherwise
+        images = np.einsum("kij,nj->kni", self._ipf_sub[mode], d)
+        dist = np.linalg.norm(images - dir3_red_supergroup[None], axis=2)
+        mask = np.any(dist < 1e-6, axis=0)
+
         hsl = self.sphere_sector.get_color(dir3_red_supergroup, mask, switch)
 
         rgb = colorspace.hsl2rgb(hsl)
@@ -1456,7 +1567,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "a")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1470,7 +1581,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "b")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1484,7 +1595,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "c")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1498,7 +1609,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "alpha")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1512,7 +1623,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "beta")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1526,7 +1637,7 @@ class unitcell:
             lp_valunit = self.fill_correct_lp_vals(lp, val, "gamma")
             self.lparms = lp_valunit
         else:
-            msg = f"not an editable field for this space group"
+            msg = "not an editable field for this space group"
             raise RuntimeError(msg)
 
     @property
@@ -1804,8 +1915,8 @@ def _sgrange(min, max):
 for coloring the fundamental zone IPF
 """
 _pgDict = {
-    _sgrange(1, 1): ("c1", laue_1, supergroup_1, supergroup_00),  # Triclinic
-    _sgrange(2, 2): ("ci", laue_1, supergroup_00, supergroup_00),  # laue 1
+    _sgrange(1, 1): ("c1", laue_1, supergroup_1, supergroup_1),  # Triclinic
+    _sgrange(2, 2): ("ci", laue_1, supergroup_1, supergroup_1),  # laue 1
     _sgrange(3, 5): ("c2", laue_2, supergroup_2, supergroup_3),  # Monoclinic
     _sgrange(6, 9): ("cs", laue_2, supergroup_1, supergroup_3),
     _sgrange(10, 15): ("c2h", laue_2, supergroup_3, supergroup_3),  # laue 2
@@ -1818,16 +1929,16 @@ _pgDict = {
     _sgrange(25, 46): ("c2v", laue_3, supergroup_2, supergroup_3),
     _sgrange(47, 74): ("d2h", laue_3, supergroup_3, supergroup_3),  # laue 3
     _sgrange(75, 80): ("c4", laue_4, supergroup_4, supergroup_5),  # Tetragonal
-    _sgrange(81, 82): ("s4", laue_4, supergroup_01, supergroup_5),
+    _sgrange(81, 82): ("s4", laue_4, supergroup_2, supergroup_5),
     _sgrange(83, 88): ("c4h", laue_4, supergroup_5, supergroup_5),  # laue 4
     _sgrange(89, 98): ("d4", laue_5, supergroup_5, supergroup_5),
     _sgrange(99, 110): ("c4v", laue_5, supergroup_4, supergroup_5),
     _sgrange(111, 122): ("d2d", laue_5, supergroup_5, supergroup_5),
     _sgrange(123, 142): ("d4h", laue_5, supergroup_5, supergroup_5),  # laue 5
     # Trigonal # laue 6 [also c3i]
-    _sgrange(143, 146): ("c3", laue_6, supergroup_6, supergroup_02),
-    _sgrange(147, 148): ("s6", laue_6, supergroup_02, supergroup_02),
-    _sgrange(149, 155): ("d3", laue_7, supergroup_7, supergroup_9),
+    _sgrange(143, 146): ("c3", laue_6, supergroup_6, supergroup_6),
+    _sgrange(147, 148): ("s6", laue_6, supergroup_6, supergroup_6),
+    _sgrange(149, 155): ("d3", laue_7, supergroup_8, supergroup_9),
     _sgrange(156, 161): ("c3v", laue_7, supergroup_6, supergroup_9),
     _sgrange(162, 167): ("d3d", laue_7, supergroup_9, supergroup_9),  # laue 7
     _sgrange(168, 173): (
@@ -1836,7 +1947,7 @@ _pgDict = {
         supergroup_7,
         supergroup_9,
     ),  # Hexagonal
-    _sgrange(174, 174): ("c3h", laue_8, supergroup_7, supergroup_9),
+    _sgrange(174, 174): ("c3h", laue_8, supergroup_8, supergroup_9),
     _sgrange(175, 176): ("c6h", laue_8, supergroup_9, supergroup_9),  # laue 8
     _sgrange(177, 182): ("d6", laue_9, supergroup_9, supergroup_9),
     _sgrange(183, 186): ("c6v", laue_9, supergroup_7, supergroup_9),

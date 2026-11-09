@@ -11,10 +11,11 @@ from __future__ import annotations
 import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import field
 from typing import Optional, TYPE_CHECKING
 
 import numpy as np
+from pydantic.dataclasses import dataclass
 import yaml
 
 _YamlLoader = getattr(yaml, 'CSafeLoader', yaml.SafeLoader)
@@ -27,23 +28,26 @@ from hexrd.core.extensions import transforms
 from hexrd.core.utils.npz import _NpzReader
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class ActiveMaterial:
-    definitions: str
-    active: str
-    dmin: float                # angstrom
-    two_theta_width: float     # degrees
-    min_sfac_ratio: float
+    definitions: str | None
+    active: str | None
+    dmin: float | None                # angstrom
+    two_theta_width: float | None     # degrees
+    min_sfac_ratio: float | None
     reset_exclusions: bool = True
+    exclusion_parameters: dict[str, float | None] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, d):
-        return cls(d.get('definitions'), d.get('active'), d.get('dmin'),
-                   d.get('tth_width'), d.get('min_sfac_ratio'),
-                   d.get('reset_exclusions', True))
+        return cls(d.get('definitions'), d.get('active'), d.get('dmin', 0.5),
+                   d.get('tth_width'), d.get('sfacmin', d.get('min_sfac_ratio')),
+                   d.get('reset_exclusions', True),
+                   {key: d.get(key) for key in
+                    ('dmax', 'tthmin', 'tthmax', 'sfacmax', 'pintmin', 'pintmax')})
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Distortion:
     function_name: str
     parameters: np.ndarray
@@ -53,7 +57,7 @@ class Distortion:
         return cls(d.get('function_name', ''), np.array(d.get('parameters', [])))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Transform:
     tilt: np.ndarray
     translation: np.ndarray
@@ -68,7 +72,7 @@ class Transform:
         return transforms.make_rot_mat_of_exp_map(self.tilt)
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Pixels:
     columns: int
     rows: int
@@ -81,23 +85,41 @@ class Pixels:
                    d.get('size', [0.0, 0.0]), d.get('roi'))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class Detector:
     name: str
     distortion: Distortion
     pixels: Pixels
     transform: Transform
-    buffer: Optional[np.ndarray]   # (2,) edge buffer in mm
+    buffer: np.ndarray | str | None  # edge widths in mm, pixel mask, or buffer name
     group: Optional[str]           # parent panel for ROI instruments
 
     @classmethod
     def from_dict(cls, name, d):
         buffer = d.get('buffer')
+        if buffer is not None and not isinstance(buffer, str):
+            buffer = np.asarray(buffer)
+            if buffer.ndim == 0:
+                buffer = np.repeat(buffer, 2)
         return cls(name, Distortion.from_dict(d.get('distortion', {})),
                    Pixels.from_dict(d.get('pixels', {})),
                    Transform.from_dict(d.get('transform', {})),
-                   None if buffer is None else np.asarray(buffer, dtype=np.float64),
+                   buffer,
                    d.get('group'))
+
+    @property
+    def buffer_mask(self):
+        """Valid pixels using the same buffer conventions as HEDMInstrument."""
+        from types import SimpleNamespace
+        from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
+
+        rows, cols = self.pixels.rows, self.pixels.columns
+        roi = self.pixels.roi
+        return panel_buffer_as_2d_array(SimpleNamespace(
+            panel_buffer=self.buffer, shape=(rows, cols),
+            pixel_size_row=self.pixels.size[0], pixel_size_col=self.pixels.size[1],
+            roi=None if roi is None else ((roi[0], roi[0] + rows),
+                                         (roi[1], roi[1] + cols))))
 
     @property
     def pixel_coordinates(self):
@@ -108,7 +130,7 @@ class Detector:
         return np.meshgrid(row, col, indexing='ij')
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class Beam:
     energy: float
     vector: np.ndarray
@@ -132,7 +154,7 @@ class Beam:
                    d.get('energy_correction'))
 
 
-@dataclass
+@dataclass(config={'arbitrary_types_allowed': True})
 class OscillationStage:
     chi: float
     translation: np.ndarray
@@ -189,17 +211,16 @@ def _pixel_chunks(frames, row_of_frame, max_pixels):
     stop = 0
     for stop, (pixels, weights) in enumerate(frames, 1):
         if counts and total + len(pixels) > max_pixels:
-            packed = pack(stop - 1) if total else None
+            packed = pack(stop - 1)
             ids, values, counts = [], [], []
             first, total = stop - 1, 0
-            if packed is not None:
-                yield packed
-                del packed
+            yield packed
+            del packed
         ids.append(pixels)
         values.append(weights)
         counts.append(len(pixels))
         total += len(pixels)
-    if total:
+    if counts:
         packed = pack(stop)
         ids, values, counts = [], [], []
         yield packed
@@ -215,6 +236,7 @@ class ImageSeries:
 
     def __init__(self, panel: str, filename: str, max_workers: int = 8):
         self.panel = panel
+        self._filename = filename
         self._arrs = _NpzReader(filename, metadata_only=True)
         self._shape = tuple(self._arrs['shape'])
         self._dtype = self._arrs['dtype'].tobytes().decode()
@@ -223,6 +245,27 @@ class ImageSeries:
         self.omega = np.radians(self._arrs['omega'])   # (n_frames, 2): [start, stop]
         self._images: list[csr_array] | None = None
         self._lock = threading.Lock()
+
+    def __getstate__(self) -> dict:
+        # The npz reader (an mmap) and lock can't be pickled, so the
+        # unpickled copy reopens the file instead
+        state = self.__dict__.copy()
+        del state['_arrs'], state['_lock']
+        state['_images'] = None
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__ = state
+        self._arrs = _NpzReader(self._filename, metadata_only=True)
+        self._lock = threading.Lock()
+
+    @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
+
+    @property
+    def dtype(self):
+        return np.dtype(self._dtype)
 
     @property
     def images(self) -> list[csr_array]:
@@ -304,6 +347,15 @@ class RoiImageSeries:
         self._images: list[csr_array] | None = None
 
     @property
+    def shape(self) -> tuple[int, int]:
+        return self._shape
+
+    @property
+    def dtype(self):
+        frames = self._images if self._images is not None else self._parent._images
+        return frames[0].dtype if frames else self._parent.dtype
+
+    @property
     def images(self) -> list[csr_array]:
         if self._images is None:
             r0, c0 = self._roi
@@ -311,6 +363,23 @@ class RoiImageSeries:
             self._images = [image[r0:r0 + rows, c0:c0 + cols]
                             for image in self._parent.images]
         return self._images
+
+    def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
+        """Pack cropped pixels without retaining extra ROI frame copies."""
+        r0, c0 = self._roi
+        rows, cols = self._shape
+
+        def pixels():
+            frames = self._images
+            if frames is None:
+                frames = (image[r0:r0 + rows, c0:c0 + cols]
+                          for image in self._parent.images)
+            for frame in frames:
+                ids = np.empty(frame.nnz, dtype=np.int64)
+                transforms._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
+                yield ids, frame.data
+
+        yield from _pixel_chunks(pixels(), row_of_frame, max_pixels)
 
     def __len__(self):
         return len(self._parent)
@@ -330,12 +399,12 @@ class RoiImageSeries:
 
 
 def _merge_config(base: dict, overlay: dict) -> dict:
-    """Recursively overlay one config document on another (hexrd multi-doc yml)."""
+    """Recursively overlay config documents; nulls preserve existing values."""
     merged = dict(base)
     for key, val in overlay.items():
         if isinstance(val, dict) and isinstance(merged.get(key), dict):
             merged[key] = _merge_config(merged[key], val)
-        else:
+        elif val is not None or merged.get(key) is None:
             merged[key] = val
     return merged
 
@@ -375,7 +444,13 @@ def _load_instrument(path: str) -> dict:
                     return _h5_to_dict(archive['instrument'])
             offset = 2 * offset if offset else 512
         f.seek(0)
-        return yaml.load(f, Loader=_YamlLoader)
+        try:
+            return yaml.load(f, Loader=_YamlLoader)
+        except yaml.constructor.ConstructorError:
+            from hexrd.core.config.loader import NumPyIncludeLoader
+
+            f.seek(0)
+            return yaml.load(f, Loader=NumPyIncludeLoader)
 
 
 class Experiment:
@@ -396,19 +471,13 @@ class Experiment:
             for overlay in self.studies[:study + 1]:
                 config = _merge_config(config, overlay)
         self.config = config
-
         instrument = _load_instrument(self._path(config['instrument']))
-        self._instrument_config = instrument
-        self.detectors = {name: Detector.from_dict(name, d)
-                          for name, d in instrument['detectors'].items()}
-        self.beam = Beam.from_dict(instrument.get('beam', {}))
-        self.oscillation_stage = OscillationStage.from_dict(
-            instrument.get('oscillation_stage', {}))
+        self._configure(config, instrument)
 
-        self.active_material = ActiveMaterial.from_dict(config['material'])
-        self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
         self.image_series_list = []
         for d in config['image_series']['data']:
+            if isinstance(d.get('panel'), (list, tuple)) and len(d['panel']) == 1:
+                d = dict(d, panel=d['panel'][0])
             panel, parent = self._load_image_series(d)
             if isinstance(panel, str):
                 self.image_series_list.append(parent)
@@ -423,10 +492,21 @@ class Experiment:
                 self.image_series_list.append(RoiImageSeries(
                     name, parent, det.pixels.roi,
                     (det.pixels.rows, det.pixels.columns)))
+        self._materials_file = self._path(config['material']['definitions'])
 
+    def _configure(self, config, instrument):
+        self.config = config
+        self._instrument_config = instrument
+        self.detectors = {name: Detector.from_dict(name, d)
+                          for name, d in instrument['detectors'].items()}
+        self.beam = Beam.from_dict(instrument.get('beam', {}))
+        self.oscillation_stage = OscillationStage.from_dict(
+            instrument.get('oscillation_stage', {}))
+
+        self.active_material = ActiveMaterial.from_dict(config['material'])
+        self.max_workers = _parse_multiprocessing(config.get('multiprocessing', -1))
         self.analysis_name = config['analysis_name']
         self.analysis_dir = self._path(self.analysis_name)
-        self._materials_file = self._path(config['material']['definitions'])
 
     def _load_image_series(self, spec):
         panel = spec['panel']
@@ -477,7 +557,8 @@ class Experiment:
                         dmin=self.active_material.dmin,
                         sfacmin=self.active_material.min_sfac_ratio,
                         beam_energy=self.beam.energy,
-                        reset_exclusions=self.active_material.reset_exclusions)
+                        reset_exclusions=self.active_material.reset_exclusions,
+                        exclusion_parameters=self.active_material.exclusion_parameters)
 
     @property
     def beam_energy(self) -> float:

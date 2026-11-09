@@ -94,6 +94,20 @@ class _SpotData:
         }
 
 
+def _masked_spot_stats(pixels, offsets, shapes, threshold, valid_pixels):
+    """Zero excluded pixels before nonnegative-threshold native statistics."""
+    from hexrd.core.extensions import transforms as native
+
+    first = 0
+    for i, shape in enumerate(shapes):
+        count = int(np.prod(shape[1:]))
+        valid = valid_pixels[first:first + count]
+        data = pixels[offsets[i]:offsets[i + 1]].reshape(shape[0], count)
+        data[:, ~valid] = 0
+        first += count
+    return native._spotStats(pixels, offsets, shapes, threshold)
+
+
 def pull_spots_batched(
     instrument,
     panel,
@@ -119,6 +133,7 @@ def pull_spots_batched(
     import logging
 
     from hexrd.hedm._fit_progress import current_reporter
+    from hexrd.core.utils.panel_buffer import panel_buffer_as_2d_array
 
     reporter = current_reporter()
     threshold = _comparison_threshold(view.dtype, threshold)
@@ -142,11 +157,21 @@ def pull_spots_batched(
         packed=True,
         max_points=max(1, 524288 // len(ome_grid)),
     )
+    buffer = panel_buffer_as_2d_array(panel) if panel.panel_buffer is not None else None
     batches = []
     for start, edges, patch_shapes, offsets, rows, cols in patches:
         ids = valid_ids[start : start + len(patch_shapes)]
         shapes = np.column_stack((np.full(len(ids), len(ome_grid)), patch_shapes))
-        stats = view.extract(frame_ids[ids], offsets, rows, cols, shapes, threshold)
+        valid = None if buffer is None else buffer[
+            rows.clip(0, panel.rows - 1), cols.clip(0, panel.cols - 1)]
+        if valid is None or valid.all():
+            stats = view.extract(frame_ids[ids], offsets, rows, cols, shapes, threshold)
+        elif hasattr(view, 'gather'):
+            stats = _masked_spot_stats(
+                view.gather(frame_ids[ids], offsets, rows, cols),
+                offsets * frame_ids.shape[1], shapes, threshold, valid)
+        else:
+            stats = view.extract(frame_ids[ids], offsets, rows, cols, shapes, threshold, valid)
         omega_start = series.omega[frame_ids[ids, 0], 0]
         batches.append((ids, edges, omega_start, stats))
 

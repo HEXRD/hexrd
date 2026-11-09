@@ -643,7 +643,9 @@ def fit_grains(
             instr = experiment.instrument
 
             # grab eta ranges and ome_period
-            eta_ranges = experiment.find_orientations.eta.range
+            eta_ranges = getattr(experiment, 'eta_ranges', None)
+            if eta_ranges is None:
+                eta_ranges = experiment.find_orientations.eta.range
 
             # handle omega period
             # !!! we assume all detector ims have the same ome ranges, so any will do!

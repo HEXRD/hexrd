@@ -47,7 +47,7 @@ def test_cli_only_computes_exclusions_when_applying_them(monkeypatch, tmp_path, 
     )
     maximum = Mock(return_value=0.3)
     monkeypatch.setattr(instrument, 'max_tth', maximum)
-    monkeypatch.setattr(cli, 'HedmExperiment', lambda *_: experiment)
+    monkeypatch.setattr(cli, 'HedmExperiment', lambda *_, **kw: experiment)
     monkeypatch.setattr(cli, '_needs_orientations', lambda *_: False)
     monkeypatch.setattr(cli, '_load_grains', lambda *_: np.zeros((0, 21)))
     monkeypatch.setattr(cli, 'write_results', lambda *_: None)

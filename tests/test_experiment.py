@@ -8,6 +8,8 @@ example repo (gated on ``HEXRD_EXAMPLE_REPO_PATH`` like the other
 example-data tests).
 """
 import os
+import pickle
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -59,12 +61,14 @@ def test_parse_multiprocessing():
 
 
 def test_merge_config_nested_overlay():
-    base = {'a': 1, 'b': {'x': 1, 'y': 2}, 'c': [1, 2]}
-    overlay = {'b': {'y': 20, 'z': 30}, 'c': [3], 'd': 4}
+    base = {'a': 1, 'b': {'x': 1, 'y': 2}, 'c': [1, 2], 'flag': False, 'zero': 0}
+    overlay = {'a': None, 'b': {'x': None, 'y': 20, 'z': 30}, 'c': [3],
+               'd': 4, 'flag': None, 'zero': None, 'new': None}
     merged = _merge_config(base, overlay)
-    assert merged == {'a': 1, 'b': {'x': 1, 'y': 20, 'z': 30}, 'c': [3], 'd': 4}
+    assert merged == {'a': 1, 'b': {'x': 1, 'y': 20, 'z': 30}, 'c': [3],
+                      'd': 4, 'flag': False, 'zero': 0, 'new': None}
     # the inputs are not mutated
-    assert base['b'] == {'x': 1, 'y': 2} and overlay['b'] == {'y': 20, 'z': 30}
+    assert base['b'] == {'x': 1, 'y': 2} and overlay['b'] == {'x': None, 'y': 20, 'z': 30}
 
 
 def test_beam_from_dict():
@@ -129,6 +133,21 @@ def test_transform_rotation_matrix():
     # a 90 degree rotation about z
     rmat = Transform(np.array([0.0, 0.0, np.pi / 2]), np.zeros(3)).rotation_matrix
     assert np.allclose(rmat @ [1, 0, 0], [0, 1, 0])
+
+
+def test_load_instrument_numpy_include(tmp_path, monkeypatch):
+    from hexrd.core.experiment import _load_instrument
+
+    directory = tmp_path / 'instrument'
+    directory.mkdir()
+    mask = np.array([[True, False], [False, True]])
+    np.save(directory / 'mask.npy', mask)
+    path = directory / 'instrument.yml'
+    path.write_text('detectors:\n  GE:\n    buffer: !include mask.npy\n')
+    monkeypatch.chdir(tmp_path)
+
+    loaded = _load_instrument(str(path))
+    np.testing.assert_array_equal(loaded['detectors']['GE']['buffer'], mask)
 
 
 @pytest.mark.parametrize('userblock', [0, 512, 4096])
@@ -257,6 +276,14 @@ def test_roi_image_series_slices_parent(tmp_path):
     # the parent's frames were decompressed once and shared
     assert top._parent is bottom._parent
 
+    # spawned multiprocessing workers must be able to unpickle the views
+    top2, bottom2 = pickle.loads(pickle.dumps((top, bottom)))
+    assert top2._parent is bottom2._parent
+    for i, frame in enumerate(frames):
+        assert np.array_equal(np.asarray(top2.images[i].todense()), frame[:3, :])
+        assert np.array_equal(np.asarray(bottom2.images[i].todense()),
+                              frame[3:6, 2:8])
+
 
 # ---------------------------------------------------------------------------
 # find-orientations config sections
@@ -316,6 +343,25 @@ def test_seed_search_from_dict():
         SeedSearch.from_dict({'method': {'watershed': {}}}, 0.25)
 
 
+def test_fiber_divisions_match_master():
+    from dataclasses import replace
+    from hexrd.core.config.root import RootConfig
+
+    for step in (0.25, 0.35, 0.45, 0.75, 1.5, 3., np.nextafter(0.15, np.inf), np.float32(0.75)):
+        for explicit in (False, True):
+            config = {'find_orientations': {
+                'omega': {'tolerance': step},
+                'seed_search': {'hkl_seeds': [0]},
+                'clustering': {'radius': 1., 'completeness': 0.85}}}
+            if explicit:
+                config['find_orientations']['seed_search']['fiber_step'] = step
+            expected = RootConfig(config).find_orientations.seed_search.fiber_ndiv
+            actual = FindOrientations.from_dict(config['find_orientations']).seed_search
+            assert actual.fiber_ndiv == expected, (step, explicit)
+    seed = SeedSearch.from_dict({'fiber_step': 1.0}, 0.5)
+    assert replace(seed, fiber_step=np.radians(0.35)).fiber_ndiv == 1028
+
+
 def test_eta_range_masks_rotation_axis():
     eta = Eta.from_dict({})
     assert np.isclose(eta.tolerance, np.radians(0.5))
@@ -334,7 +380,7 @@ def test_clustering_from_dict():
     assert cl.algorithm is ClusteringAlgorithm.SPH_DBSCAN
     assert Clustering.from_dict(
         {'radius': 1, 'completeness': 0.5}).algorithm is ClusteringAlgorithm.DBSCAN
-    with pytest.raises(ValueError, match="completeness.*radius|radius.*completeness"):
+    with pytest.raises(ValueError, match="(?s)completeness.*radius|radius.*completeness"):
         Clustering.from_dict({})
     with pytest.raises(ValueError):
         Clustering.from_dict({'radius': 1, 'completeness': 0.5,
@@ -363,15 +409,15 @@ def test_direct_search_from_dict():
               'clustering': {'radius': 1.0, 'completeness': 0.85}}
     direct = FindOrientations.from_dict(config).direct_search
     assert direct == DirectSearch(5.0)
-    with pytest.raises(ValueError, match='requires average_angular_spacing'):
+    with pytest.raises(ValueError, match='average_angular_spacing'):
         DirectSearch.from_dict({})
     assert DirectSearch.from_dict(
         {'average_angular_spacing': 3.0, 'point_group_number': 32}).point_group_number == 32
-    with pytest.raises(ValueError, match='mapping'):
+    with pytest.raises(ValueError, match='dictionary'):
         DirectSearch.from_dict(True)
     for spacing in (0, -1, np.nan, np.inf):
         with pytest.raises(ValueError, match='average_angular_spacing'):
-            DirectSearch(spacing)
+            DirectSearch(average_angular_spacing=spacing)
     for group in (0, 33, 1.5, True):
         with pytest.raises(ValueError, match='point_group_number'):
             DirectSearch(3.0, point_group_number=group)
@@ -425,7 +471,8 @@ def synthetic_config(tmp_path):
         },
     }
     study = {'analysis_name': 'study1',
-             'find_orientations': {'orientation_maps': {'eta_step': 10.0}}}
+             'find_orientations': {'orientation_maps': {'eta_step': 10.0},
+                                   'clustering': None}}
     path = tmp_path / 'config.yml'
     with open(path, 'w') as f:
         yaml.safe_dump_all([config, study], f, sort_keys=False)
@@ -463,6 +510,79 @@ def test_experiment_study_overlay(synthetic_config):
     assert study.find_orientations.clustering.radius == 1.0
 
 
+@pytest.mark.parametrize('style', ['npz', 'fch5'])
+def test_experiment_from_objects(synthetic_config, ruby_materials_file, monkeypatch, style):
+    from copy import deepcopy
+    from hexrd.core.material.material_data import Material
+    from hexrd.hedm.find_orientations import build_eta_omega_maps
+
+    source = HedmExperiment(str(synthetic_config))
+    instrument, series = source.instrument, source.image_series
+    if style == 'fch5':
+        from hexrd.core import imageseries
+        from hexrd.core.imageseries.omega import OmegaImageSeries
+
+        filename = synthetic_config.parent / 'frames.fch5'
+        frames = imageseries.open(str(synthetic_config.parent / 'p0_cache.npz'), 'frame-cache')
+        imageseries.write(frames, str(filename), 'frame-cache', style='fch5', threshold=0)
+        frames = imageseries.open(str(filename), 'frame-cache', style='fch5')
+        series = {'p0': OmegaImageSeries(frames)}
+
+        def no_bulk_load():
+            pytest.fail('in-memory series must retain streaming FCH5 access')
+
+        monkeypatch.setattr(frames._adapter, '_load_framelist', no_bulk_load)
+    pd = Material('ruby', ruby_materials_file, dmin=1.6, beam_energy=80.)._material.planeData
+    pd.exclusions = np.arange(pd.getNhklRef()) % 3 == 0
+    exclusions = pd.exclusions.copy()
+    config = deepcopy(source.config)
+    config.pop('instrument')
+    config.pop('image_series')
+    config['material'].pop('definitions')
+    config['working_dir'] = str(synthetic_config.parent)
+
+    experiment = HedmExperiment.from_objects(instrument, series, pd, config)
+    assert experiment.instrument is instrument
+    assert experiment.image_series['p0'] is series['p0']
+    assert experiment.get_active_material()._material.planeData is pd
+    assert experiment.get_materials() == [experiment.get_active_material()]
+    assert experiment.get_active_material().name == 'ruby'
+    np.testing.assert_array_equal(pd.exclusions, exclusions)
+    assert 'definitions' not in config['material']
+    assert experiment.analysis_dir == source.analysis_dir
+    np.testing.assert_array_equal(
+        build_eta_omega_maps(experiment, experiment.get_active_material().plane_data).ring_maps,
+        build_eta_omega_maps(source, experiment.get_active_material().plane_data).ring_maps)
+    assert source.image_series_list[0]._images is None
+
+
+@pytest.mark.parametrize('new_file_placement', [False, True])
+def test_cli_workflow_paths(synthetic_config, tmp_path, monkeypatch, new_file_placement):
+    from hexrd.hedm.cli import fit_grains
+    from types import SimpleNamespace
+
+    cwd = tmp_path / 'run'
+    cwd.mkdir()
+    documents = list(yaml.safe_load_all(synthetic_config.read_text()))
+    documents[0]['new_file_placement'] = new_file_placement
+    synthetic_config.write_text(yaml.safe_dump_all(documents))
+    monkeypatch.chdir(cwd)
+    # Input files are relative to cwd, just as in master's CLI.
+    for name in ('instrument.yml', 'p0_cache.npz'):
+        (cwd / name).symlink_to(synthetic_config.parent / name)
+    def check_paths(*args, **kwargs):
+        experiment = HedmExperiment(*args, **kwargs)
+        assert experiment.analysis_dir == str(cwd / 'analysis')
+        accepted = (cwd / 'analysis' / 'accepted-orientations-ruby.dat'
+                    if new_file_placement else cwd / 'accepted_orientations_analysis_ruby.dat')
+        assert experiment.accepted_orientations_file == str(accepted)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(fit_grains, 'HedmExperiment', check_paths)
+    with pytest.raises(KeyboardInterrupt):
+        fit_grains.execute(SimpleNamespace(yml=str(synthetic_config), force=False, clean=False), None)
+
+
 @pytest.mark.parametrize('workers', [1, 2])
 def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch, workers):
     from types import SimpleNamespace
@@ -477,7 +597,7 @@ def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch
     monkeypatch.setattr(series, 'pixel_chunks', lambda *args, **kwargs: iter([chunk]))
     monkeypatch.setattr(fo, '_iter_panel_bins', lambda *args: iter([
         (series, (np.zeros(24, dtype=np.int32), np.ones((1, 24), dtype=np.int64),
-                  np.ones((1, 72), dtype=bool)))]))
+                  np.ones((1, 72), dtype=bool), None))]))
     plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 1, 1]]),
                             two_thetas=np.array([0.01]), exclusions=np.array([False]))
     dashboard = Dashboard()
@@ -508,7 +628,7 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
     from hexrd.hedm import find_orientations as fo
 
     frames = np.zeros((3, 4, 6))
-    frames[:, 1, 2] = [1e16, 1., 1.]
+    frames[:, 1, 2] = [1e16, 1., 2.]
     _write_frame_cache(synthetic_config.parent / 'p0_cache.npz', frames,
                        [[0., 120.], [120., 240.], [240., 360.]])
     experiment = HedmExperiment(str(synthetic_config))
@@ -529,24 +649,24 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
                             (np.zeros(3, dtype=int), *omega_grid(series)[1:]))
     expected = fo.build_eta_omega_maps(experiment, plane)
     threads, last_started = set(), threading.Event()
-    bin_pixels = fo._bin_pixels
+    histogram_prefix = fo.native._histogramPrefix
 
-    def bin_concurrently(*args):
+    def bin_concurrently(values, *args, **kwargs):
         threads.add(threading.get_ident())
         if not repeated_rows:
-            if args[3][0] == 0:
+            if values.max() == 1e16:
                 assert last_started.wait(5), 'completed frames must free worker slots'
-            elif args[3][0] == 2:
+            elif values.max() == 2.:
                 last_started.set()
-        return bin_pixels(*args)
+        return histogram_prefix(values, *args, **kwargs)
 
-    monkeypatch.setattr(fo, '_bin_pixels', bin_concurrently)
+    monkeypatch.setattr(fo.native, '_histogramPrefix', bin_concurrently)
     experiment.max_workers = 2
     if style == 'fch5':
         experiment.image_series_list[0]._max_workers = 2
     actual = fo.build_eta_omega_maps(experiment, plane)
     assert actual.ring_maps.tobytes() == expected.ring_maps.tobytes()
-    assert np.nanmax(actual.ring_maps) == 1e16
+    assert np.nanmax(actual.ring_maps) == (1e16 + 2. if repeated_rows else 1e16)
     if repeated_rows:
         assert threads == {threading.get_ident()}
     else:
@@ -653,6 +773,32 @@ def test_fch5_filter_coalesces_before_thresholding(tmp_path, dtype, index_dtype)
             np.testing.assert_array_equal(values, reference.data[keep])
 
 
+def test_map_images_use_detector_shape(synthetic_config):
+    from types import SimpleNamespace
+    from hexrd.hedm.find_orientations import build_eta_omega_maps, _eta_bin_edges
+
+    experiment = HedmExperiment(str(synthetic_config))
+    plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 0, 0]]),
+                            exclusions=np.array([False]), two_thetas=np.radians([0.1]))
+    series = experiment.image_series_list[0]
+    frames = [frame.toarray().astype(float) + 1.1 for frame in series.images]
+    tth, eta = experiment.instrument.detectors['p0'].pixel_angles()
+    mask = (tth >= 0) & (tth <= np.radians(.2))
+    edges = _eta_bin_edges(5.)
+    expected = np.array([[np.histogram(eta[mask], bins=edges, weights=frame[mask])[0]
+                          for frame in frames]])
+    expected[:, :, np.histogram(eta[mask], bins=edges)[0] == 0] = np.nan
+    frames = [np.pad(frame, ((0, 1), (0, 1)), constant_values=60_000) for frame in frames]
+    path = synthetic_config.parent / 'padded.npz'
+    _write_frame_cache(path, frames, np.degrees(series.omega))
+    config = next(yaml.safe_load_all(synthetic_config.read_text()))
+    config['image_series']['data'][0].update(file=str(path), panel=['p0'])
+    synthetic_config.write_text(yaml.safe_dump(config))
+    experiment = HedmExperiment(str(synthetic_config))
+    np.testing.assert_array_equal(build_eta_omega_maps(experiment, plane).ring_maps, expected)
+    assert experiment.image_series_list[0]._images is None
+
+
 def test_grouped_panel_roi_config(synthetic_config):
     with open(synthetic_config) as stream:
         config = next(yaml.safe_load_all(stream))
@@ -710,12 +856,13 @@ def test_eta_ome_maps_file_paths(synthetic_config, tmp_path):
         exp.config['find_orientations'])
     assert relative.eta_ome_maps_file == str(tmp_path / 'my_maps.npz')
 
-    exp.config['find_orientations']['orientation_maps']['file'] = '/abs/maps.npz'
+    path = str(tmp_path / 'absolute_maps.npz')
+    exp.config['find_orientations']['orientation_maps']['file'] = path
     absolute = HedmExperiment.__new__(HedmExperiment)
     absolute.__dict__.update(exp.__dict__)
     absolute.find_orientations = FindOrientations.from_dict(
         exp.config['find_orientations'])
-    assert absolute.eta_ome_maps_file == '/abs/maps.npz'
+    assert absolute.eta_ome_maps_file == path
 
 
 def test_quaternion_grid_file_paths(synthetic_config, tmp_path):
@@ -758,9 +905,11 @@ def test_load_materials(ruby_materials_file):
 
 
 def test_material_bridge_parameters(ruby_materials_file):
+    from dataclasses import replace
     from hexrd.core.material.material_data import Material
 
     loose = Material('ruby', ruby_materials_file, dmin=1.6, beam_energy=80.725)
+    assert replace(loose.plane_data, strain_magnitude=None).strain_magnitude is None
     tight = Material('ruby', ruby_materials_file, dmin=1.0, beam_energy=80.725)
     # a smaller dmin admits more reflections
     assert len(tight.plane_data.unexcluded_hkls) > len(loose.plane_data.unexcluded_hkls)
@@ -778,8 +927,37 @@ def test_material_bridge_parameters(ruby_materials_file):
         assert any(np.array_equal(col, hkl) for col in symm.T)
 
 
+def test_material_exclusions_match_master(synthetic_config, ruby_materials_file):
+    from copy import deepcopy
+    from hexrd.core.config.root import RootConfig
+
+    base = next(yaml.safe_load_all(synthetic_config.read_text()))
+    base['working_dir'] = str(synthetic_config.parent)
+    base['material']['definitions'] = ruby_materials_file
+    for selection in (
+        None,
+        {'sfacmin': 0.5}, {'dmax': 1.2}, {'tthmin': 0.1}, {'tthmax': 0.1},
+        {'sfacmax': 0.5}, {'pintmin': 0.1}, {'pintmax': 0.1},
+        {'min_sfac_ratio': 0.5}, {'min_sfac_ratio': 0.9, 'sfacmin': 0.1},
+        {'min_sfac_ratio': 0.9, 'sfacmin': None},
+        {'dmax': 1.5, 'tthmin': 0.05, 'tthmax': 0.14,
+         'sfacmin': 0.01, 'sfacmax': 0.9, 'pintmin': 0.01, 'pintmax': 0.9},
+    ):
+        config = deepcopy(base)
+        if selection is None:
+            config['material'].pop('dmin')
+        else:
+            config['material'].update(selection)
+        synthetic_config.write_text(yaml.safe_dump(config))
+        expected = RootConfig(config).material.plane_data
+        actual = HedmExperiment(str(synthetic_config)).get_active_material().plane_data
+        np.testing.assert_array_equal(actual.exclusions, expected.exclusions, err_msg=str(selection))
+        np.testing.assert_array_equal(actual.unexcluded_hkls, expected.hkls.T, err_msg=str(selection))
+
+
+@pytest.mark.parametrize('with_dmin', [False, True])
 def test_experiment_preserves_saved_material_selection(
-        synthetic_config, ruby_materials_file):
+        synthetic_config, ruby_materials_file, with_dmin):
     from hexrd.core.material.material_data import Material
 
     saved = Material('ruby', ruby_materials_file, dmin=1.6,
@@ -788,7 +966,10 @@ def test_experiment_preserves_saved_material_selection(
     saved.dump_material(str(synthetic_config.parent/'materials.h5'))
     documents = list(yaml.safe_load_all(synthetic_config.read_text()))
     documents[0]['material'].update(reset_exclusions=False, dmin=0.35,
-                                     min_sfac_ratio=0.99)
+                                     min_sfac_ratio=0.99, sfacmin=1.0, dmax=0.1,
+                                     tthmax=0.01, sfacmax=0.0, pintmin=1.0, pintmax=0.0)
+    if not with_dmin:
+        documents[0]['material'].pop('dmin')
     synthetic_config.write_text(yaml.safe_dump_all(documents))
 
     experiment = HedmExperiment(str(synthetic_config))
@@ -813,3 +994,17 @@ def test_experiment_preserves_saved_material_selection(
              ring_ids=stale.ring_ids, eta_step=stale.eta_step)
     maps = load_or_build_eta_omega_maps(experiment, actual)
     np.testing.assert_array_equal(maps.ring_ids, np.arange(len(actual.unexcluded_hkls)))
+
+
+def test_staged_map_builder_rejects_nonplanar_panels(synthetic_config: Path) -> None:
+    from hexrd.core.material import Material
+    from hexrd.core.material.material_data import PlaneData
+    from hexrd.hedm.find_orientations import build_eta_omega_maps, find_orientations
+
+    experiment = HedmExperiment(str(synthetic_config))
+    experiment._instrument_config['detectors']['p0']['detector_type'] = 'cylindrical'
+    plane_data = PlaneData.from_plane_data(Material('test').planeData)
+    with pytest.raises(NotImplementedError, match="'cylindrical'"):
+        find_orientations(experiment)
+    with pytest.raises(NotImplementedError, match="'cylindrical'"):
+        build_eta_omega_maps(experiment, plane_data)
