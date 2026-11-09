@@ -70,19 +70,19 @@ the HKL evaluation.
 """
 
 from collections import OrderedDict
-from math import sqrt, floor
+from math import floor, sqrt
 from typing import TYPE_CHECKING
-
-from hexrd.core import constants
-from hexrd.core.material import symbols, symmetry
 
 import numpy as np
 from numpy.typing import NDArray
 
+from hexrd.core import constants
+from hexrd.core.material import symbols, symmetry
+
 if TYPE_CHECKING:
     from hexrd.core.material import Material
+    from hexrd.powder.wppf.phase import Material_Rietveld
 
-#
 __all__ = ['SpaceGroup']
 
 
@@ -377,7 +377,7 @@ _rqpDict = {
 }
 
 
-def get_symmetry_directions(mat: 'Material') -> NDArray[np.int32]:
+def get_symmetry_directions(mat: Material | Material_Rietveld) -> NDArray[np.int32]:
     """
     helper function to get a list of primary,
     secondary and tertiary directions of the
@@ -496,7 +496,6 @@ def omitscrewaxisabsences(sgnum, hkllist, ax, iax):
         """
         no systematic absences for the triclinic crystals
         """
-        pass
 
     elif latticeType == 'monoclinic':
         if ax != '2_1':

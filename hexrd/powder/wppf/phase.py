@@ -262,6 +262,9 @@ class Material_LeBail(AbstractMaterial):
         lhs = self.dmt if space == 'd' else self.rmt
         return np.sqrt(np.dot(u, np.dot(lhs, u)))
 
+    def NormVec(self, u, space):
+        return u / self.CalcLength(u, space)
+
     def CalcDot(self, u, v, space):
         if space == 'c':
             return np.dot(u, v)
