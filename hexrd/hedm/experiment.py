@@ -79,6 +79,7 @@ class _AdapterImageSeries(ImageSeries):
 
     def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
         from scipy.sparse import csr_array
+        from hexrd.core.imageseries.imageseriesabc import ImageSeriesABC
         from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
         from hexrd.core.imageseries.process import ProcessedImageSeries
         from hexrd.core.extensions import transforms as native
@@ -127,7 +128,7 @@ class _AdapterImageSeries(ImageSeries):
                 yield from _pixel_chunks(pixels(), row_of_frame, max_pixels)
             return
 
-        def sparse_frame(series, i):
+        def sparse_frame(series: ImageSeriesABC, i: int) -> csr_array:
             if isinstance(series, ProcessedImageSeries):
                 if any(k != series.RECT or series._opdict[k] != series._rectangle
                        for k, _ in series.oplist):
