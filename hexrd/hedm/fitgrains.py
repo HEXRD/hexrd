@@ -4,6 +4,7 @@ import os
 import gc
 import logging
 import multiprocessing
+import pickle
 import numpy as np
 import timeit
 import warnings
@@ -44,9 +45,11 @@ SPOTS_OUT_FILE = "spots_%05d.out"
 
 
 # multiprocessing fit funcs
-def fit_grain_FF_init(params):
-    """Initialize fit-local parameters and process-local progress reporting."""
+def fit_grain_FF_init(params, progress_queue=None):
+    """Decode shared spawn metadata and initialize process-local fit state."""
     global paramMP
+    if not isinstance(params, dict):
+        params = pickle.loads(params)
     paramMP = params
     cache = params.get('grain_cache')
     if cache is not None:
@@ -62,7 +65,7 @@ def fit_grain_FF_init(params):
         detach_dashboard()
     from hexrd.hedm._fit_progress import FitReporter, set_reporter
 
-    queue = params.get('progress_queue')
+    queue = params.setdefault('progress_queue', progress_queue)
     set_reporter(
         FitReporter(queue)
         if params.get('collect_metrics', current_dashboard() is not None)
@@ -521,16 +524,20 @@ def _fit_parallel(params, context, ncpus, bar, show_progress, check_if_canceled_
         if dashboard is not None or show_progress
         else None
     )
-    if progress_queue is not None:
-        params['progress_queue'] = progress_queue
     with ExitStack() as cleanup:
         if progress_queue is not None:
             cleanup.callback(progress_queue.join_thread)
             cleanup.callback(progress_queue.close)
+        initargs = (params, progress_queue)
+        if nproc > 1 and context.get_start_method() == 'spawn':
+            payload = pickle.dumps(params, protocol=pickle.HIGHEST_PROTOCOL)
+            initargs = (multiprocessing.RawArray('B', len(payload)), progress_queue)
+            memoryview(initargs[0]).cast('B')[:] = payload
+            del payload
         if freeze:
             gc.freeze()
         try:
-            pool = context.Pool(nproc, fit_grain_FF_init, (params,))
+            pool = context.Pool(nproc, fit_grain_FF_init, initargs)
         finally:
             # Workers keep their frozen heap; always restore the caller's GC.
             if freeze:
@@ -560,12 +567,10 @@ def _fit_parallel(params, context, ncpus, bar, show_progress, check_if_canceled_
         check_cancelled()
         fit_results = async_result.get()
         if dashboard is not None:
-            records = []
-            for result, snapshot in fit_results:
-                records.append(result)
+            for _, snapshot in fit_results:
                 if snapshot is not None:
                     report_fit_metrics(snapshot)
-            fit_results = records
+            fit_results = [result for result, _ in fit_results]
         if batched:
             fit_results = [result for batch in fit_results for result in batch]
         completed += _consume_fit_progress(progress_queue, bar)
@@ -800,6 +805,7 @@ def fit_grains(
                 finally:
                     fit_grain_FF_cleanup()
             else:
+                activity('Starting fitting workers')
                 fit_results = _fit_parallel(
                     params, context, ncpus, bar, show_progress, check_if_canceled_func
                 )

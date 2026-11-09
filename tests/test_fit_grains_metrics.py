@@ -254,10 +254,11 @@ def test_processing_does_not_double_count_source_reads():
 
 @pytest.mark.parametrize('enabled', [False, True])
 def test_batch_progress_does_not_enable_detailed_telemetry_unless_requested(enabled):
+    import pickle
     from hexrd.hedm import fitgrains
 
     queue = Queue()
-    fitgrains.fit_grain_FF_init({'progress_queue': queue, 'collect_metrics': enabled})
+    fitgrains.fit_grain_FF_init(pickle.dumps({'collect_metrics': enabled}), queue)
     try:
         assert (current_reporter() is not None) is enabled
         fitgrains._grain_event(1, 'Extracting', 1, 3)

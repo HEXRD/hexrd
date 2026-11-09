@@ -1,5 +1,4 @@
 #pragma once
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -20,29 +19,23 @@ class NativeChunkExecutor {
 public:
   static constexpr size_t maxChunk = 1024 * 1024;
   struct Buffer {
-    unsigned char *source = nullptr;
-    std::unique_ptr<unsigned char[]> decoded;
-    unsigned char *output() {
-      if (!decoded)
-        decoded.reset(new unsigned char[maxChunk]);
-      return decoded.get();
-    }
+    std::unique_ptr<unsigned char, decltype(&std::free)> source{nullptr, &std::free};
+    unsigned char *output() { return get() + maxChunk + 8192; }
     unsigned char *get() {
       if (!source) {
         void *raw = nullptr;
-        if (posix_memalign(&raw, 4096, maxChunk + 8192))
+        if (posix_memalign(&raw, 4096, 2 * maxChunk + 8192))
           throw std::bad_alloc();
-        source = static_cast<unsigned char *>(raw);
+        source.reset(static_cast<unsigned char *>(raw));
       }
-      return source;
+      return source.get();
     }
-    ~Buffer() { std::free(source); }
   };
 
 private:
   std::mutex mutex;
   std::condition_variable ready;
-  std::deque<std::function<void(Buffer &)>> pending;
+  std::deque<std::packaged_task<int(Buffer &)>> pending;
   std::vector<std::thread> threads;
   bool stopped = false;
 
@@ -53,7 +46,7 @@ public:
         threads.emplace_back([this] {
           Buffer buffer;
           for (;;) {
-            std::function<void(Buffer &)> task;
+            std::packaged_task<int(Buffer &)> task;
             {
               std::unique_lock<std::mutex> lock(mutex);
               ready.wait(lock, [this] { return stopped || !pending.empty(); });
@@ -71,14 +64,13 @@ public:
     }
   }
   std::future<int> submit(std::function<int(Buffer &)> function) {
-    auto task = std::make_shared<std::packaged_task<int(Buffer &)>>(
-        std::move(function));
-    auto future = task->get_future();
+    std::packaged_task<int(Buffer &)> task(std::move(function));
+    auto future = task.get_future();
     {
       std::lock_guard<std::mutex> lock(mutex);
       if (stopped)
         throw std::runtime_error("native chunk executor is closed");
-      pending.emplace_back([task](Buffer &buffer) { (*task)(buffer); });
+      pending.emplace_back(std::move(task));
     }
     ready.notify_one();
     return future;

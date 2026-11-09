@@ -9,12 +9,12 @@ profiling. Worker-pool ownership is separate from fit setup; serial, staged
 and worker results share completion-event formatting. These internal helpers
 do not change command options or the dashboard presentation.
 
-During startup, the existing stage-details panel reports window planning and
-image-chunk indexing. During extraction it shows frame counts across workers'
-current batches, even while the completed-grain count is zero. These counters
-reset as batches advance; they are not a percentage of the entire fit. Shared
-scans belong to a group rather than its last planned grain. The layout and
-controls are unchanged; no separate Fit Activity panel is added.
+Spawned workers read one shared metadata buffer, avoiding large per-worker writes
+through startup pipes. Stage details show worker startup, window planning and
+image-chunk indexing. Frame counts show each worker's current batch, even before
+any grain finishes; they reset between batches and are not overall progress.
+Shared scans belong to a group. The dashboard layout and controls are unchanged;
+no separate Fit Activity panel is added.
 
 ## Configuration
 

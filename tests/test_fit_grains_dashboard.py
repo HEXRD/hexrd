@@ -188,7 +188,7 @@ def test_dashboard_cancel_terminates_fit_pool(tmp_path, monkeypatch):
     )
 
     def make_pool(*args):
-        assert args[2][0]['progress_queue'] is not None
+        assert args[2][1] is not None
         return SimpleNamespace(
             map_async=lambda *a, **kw: future,
             terminate=lambda: events.append('terminate'),
