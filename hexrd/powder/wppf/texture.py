@@ -17,6 +17,11 @@ from hexrd.core import constants
 # hexrd imports
 # -------------
 from hexrd.core.transforms.xfcapi import angles_to_gvec
+from hexrd.phase_transition.orientation_relationship import OrientationRelationship
+from hexrd.phase_transition.texture import (
+    kernels,
+    unimodal_odf,
+)
 from hexrd.powder.wppf.phase import Material_Rietveld
 
 """
@@ -1908,7 +1913,10 @@ class PhaseTransitionTextureModel:
     one important point to note is that there is no sample symmetry
     here because that symmetry is statistical in nature and we
     are working with single/few crystal orientations. By default
-    the sample symmetry will be "ci" or just the inversion symmetry
+    the sample symmetry will be "ci" or just the inversion symmetry.
+
+    we will retain the option to specify the sample symmetry in case
+    of phase transitions with textured starting samples.
 
     Parameters
     ----------
@@ -1919,22 +1927,64 @@ class PhaseTransitionTextureModel:
     params: lmfit.Parameters
         Parameter class for the refinement
     bvec: numpy.ndarray
-            unit vector of xray beam in the lab frame. default value
-            is -Z direction
+        unit vector of xray beam in the lab frame. default value
+        is -Z direction
     evec: numpy.ndarray
-            direction which defines zero azimuth. default value is
-            x direction
-    sample_normal: numpy.ndarray
-            inclination of sample frame about x direction. default
-            value is 0, corresponding to no tilt.
+        direction which defines zero azimuth. default value is
+        x direction
+    sample_symmetry: str
+        sample symmetry for the starting sample. default case for
+        this model is "ci" because the sample is single crystal but
+        will maintain flexibility to specify this for textured
+        starting samples
+
     """
 
     def __init__(
         self,
-        material_parent=None,
-        material_daughter=None,
+        OR: OrientationRelationship,
+        params: Parameters,
+        bvec: np.ndarray = bvec_ref,
+        evec: np.ndarray = eta_ref,
+        sample_symmetry: str = "ci",
     ):
-        pass
+
+        self.OR = OR
+        self.beam_vector = bvec
+        self.eta_vector = evec
+        self.sample_symmetry = sample_symmetry
+
+        self.parent_kernel_width = params[f"{OR.material_parent.name}_kernel_width"]
+        self.daughter_kernel_width = params[f"{OR.material_parent.name}_kernel_width"]
+
+        self.init_kernels()
+        self.compute_odfs()
+
+    def init_kernels(self):
+        self.parent_kernel = kernels.DeLaValleePoussinKernel(
+            np.radians(self.parent_kernel_width),
+            crystal_symmetry=self.OR.material_parent.laueGroup,
+            sample_symmetry=self.sample_symmetry,
+        )
+
+        self.daughter_kernel = kernels.DeLaValleePoussinKernel(
+            np.radians(self.daughter_kernel_width),
+            crystal_symmetry=self.OR.material_daughter.laueGroup,
+            sample_symmetry=self.sample_symmetry,
+        )
+
+    def compute_odfs(self):
+        self.odfs = dict.fromkeys(["parent", "daughter"])
+
+        self.odfs["parent"] = unimodal_odf.UnimodalODF(
+            self.OR.rmat_parent,
+            self.parent_kernel,
+        )
+
+        self.odfs["daughter"] = unimodal_odf.UnimodalODF(
+            self.OR.rmat_variants,
+            self.daughter_kernel,
+        )
 
 
 class InversePoleFigures:
