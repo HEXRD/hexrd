@@ -189,8 +189,8 @@ def plot_OR(
 def getPhaseTransformationVariants(
     mat1: Material,
     mat2: Material,
-    parallel_planes: np.ndarray,
-    parallel_directions: np.ndarray,
+    parallel_planes: list[np.ndarray],
+    parallel_directions: list[np.ndarray],
     rmat_parent: list[np.ndarray] | None = None,
     apply_parent_rotation_to_variants: bool = False,
     plot: bool = False,
