@@ -129,10 +129,6 @@ class OrientationRelationship:
         return self._rmat_variants
 
     @property
-    def num_variants(self):
-        return self._num_variants
-
-    @property
     def rmat_parent(self):
         return self._rmat_parent
 
@@ -152,20 +148,16 @@ class OrientationRelationship:
     def num_variants(self):
         return len(self._rmat_variants)
 
-    @property
-    def rmat_variants(self):
-        return self._rmat_variants
-
     @material_parent.setter
     def material_parent(self, mat):
-        if not isinstance(mat, (Material, Material_Rietveld)):
+        if not isinstance(mat, Material_Rietveld):
             msg = "incorrect material class of parent phase"
             raise TypeError(msg)
         self._material_parent = mat
 
     @material_daughter.setter
     def material_daughter(self, mat):
-        if not isinstance(mat, (Material, Material_Rietveld)):
+        if not isinstance(mat, Material_Rietveld):
             msg = "incorrect material class of parent phase"
             raise TypeError(msg)
         self._material_daughter = mat
@@ -194,12 +186,12 @@ class OrientationRelationship:
             mat_d = self.material_daughter
             p1, p2 = self.plane_parent, self.plane_daughter
 
-            p1 = mat_p.unitcell.TransSpace(p1, "r", "c")
-            p1 = mat_p.unitcell.NormVec(p1, "c")
+            p1 = mat_p.TransSpace(p1, "r", "c")
+            p1 = mat_p.NormVec(p1, "c")
             self._plane_parent_c = p1
 
-            p2 = mat_d.unitcell.TransSpace(p2, "r", "c")
-            p2 = mat_d.unitcell.NormVec(p2, "c")
+            p2 = mat_d.TransSpace(p2, "r", "c")
+            p2 = mat_d.NormVec(p2, "c")
             self._plane_daughter_c = p2
 
         else:
@@ -234,12 +226,12 @@ class OrientationRelationship:
             mat_d = self.material_daughter
             d1, d2 = self.direction_parent, self.direction_daughter
 
-            d1 = mat_p.unitcell.TransSpace(d1, "d", "c")
-            d1 = mat_p.unitcell.NormVec(d1, "c")
+            d1 = mat_p.TransSpace(d1, "d", "c")
+            d1 = mat_p.NormVec(d1, "c")
             self._direction_parent_c = d1
 
-            d2 = mat_d.unitcell.TransSpace(d2, "d", "c")
-            d2 = mat_d.unitcell.NormVec(d2, "c")
+            d2 = mat_d.TransSpace(d2, "d", "c")
+            d2 = mat_d.NormVec(d2, "c")
             self._direction_daughter_c = d2
         else:
             msg = (

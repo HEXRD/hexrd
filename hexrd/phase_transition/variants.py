@@ -6,12 +6,35 @@ from matplotlib.figure import Figure
 
 from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
+from hexrd.wppf.phase import Material_Rietveld
 
 logger = logging.getLogger(__name__)
 
 """
 define some helper functions
 """
+
+
+def geometry(mat):
+    if isinstance(mat, Material):
+        return mat.unitcell
+    if isinstance(mat, Material_Rietveld):
+        return mat
+    raise TypeError("Expected Material or Material_Rietveld")
+
+
+def normalized_cartesian(mat, vector, space):
+    geom = geometry(mat)
+    vector = geom.TransSpace(vector, space, "c")
+    return vector / geom.CalcLength(vector, "c")
+
+
+def cartesian_point_group(mat):
+    geom = geometry(mat)
+    if hasattr(geom, "SYM_PG_c"):
+        return geom.SYM_PG_c
+
+    return geom.dsm @ geom.SYM_PG_d @ geom.rsm.T
 
 
 def removeinversion(ksym: np.ndarray) -> np.ndarray:
@@ -41,8 +64,8 @@ def expected_num_variants(
     N_alpha = |G_beta|/|H_beta|
     """
     T = np.dot(r1, r2.T)
-    sym1 = mat1.unitcell.SYM_PG_c
-    sym2 = mat2.unitcell.SYM_PG_c
+    sym1 = cartesian_point_group(mat1)
+    sym2 = cartesian_point_group(mat2)
     ctr = 0
     for s2 in sym2:
         ss = np.dot(T, np.dot(s2, T.T))
@@ -86,15 +109,11 @@ def prepare_data(
     p1, p2 = parallel_planes
     d1, d2 = parallel_directions
 
-    p1 = mat1.unitcell.TransSpace(p1, "r", "c")
-    p1 = mat1.unitcell.NormVec(p1, "c")
-    d1 = mat1.unitcell.TransSpace(d1, "d", "c")
-    d1 = mat1.unitcell.NormVec(d1, "c")
+    p1 = normalized_cartesian(mat1, p1, "r")
+    d1 = normalized_cartesian(mat1, d1, "d")
 
-    p2 = mat2.unitcell.TransSpace(p2, "r", "c")
-    p2 = mat2.unitcell.NormVec(p2, "c")
-    d2 = mat2.unitcell.TransSpace(d2, "d", "c")
-    d2 = mat2.unitcell.NormVec(d2, "c")
+    p2 = normalized_cartesian(mat2, p2, "r")
+    d2 = normalized_cartesian(mat2, d2, "d")
 
     return (p1, p2), (d1, d2)
 
@@ -107,8 +126,8 @@ def getOR(r1: np.ndarray, r2: np.ndarray, mat1: Material, mat2: Material) -> np.
     r2 ---> mat2
     """
     rmat = []
-    sym1 = mat1.unitcell.SYM_PG_c
-    sym2 = mat2.unitcell.SYM_PG_c
+    sym1 = cartesian_point_group(mat1)
+    sym2 = cartesian_point_group(mat2)
     for sa in sym1:
         ma = np.dot(sa, r1)
         # for sb in sym2:
@@ -129,21 +148,22 @@ def plot_OR_mat(rmat: np.ndarray, mat: Material, fig: Figure, ax: Axes, title: s
         "size": 12,
     }
 
-    Gs = get_symmetry_directions(mat)
+    geom = geometry(mat)
+
+    Us = get_symmetry_directions(mat)
     markers = ["ok", "^g", "sb"]
 
     leg = []
-    for G in Gs:
-        leg.append(rf"$[{G[0]},{G[1]},{G[2]}]$")
+    for U in Us:
+        leg.append(rf"$[{U[0]},{U[1]},{U[2]}]$")
 
-    for m, g in zip(markers, Gs):
-        hkl = mat.unitcell.CalcStar(g, "d")
+    for m, u in zip(markers, Us):
+        uvw = geom.CalcStar(u, "d")
         dip = []
         strike = []
 
-        for v in hkl:
-            vv = mat.unitcell.TransSpace(v, "d", "c")
-            vec = mat.unitcell.NormVec(vv, "c")
+        for v in uvw:
+            vec = normalized_cartesian(mat, v, "d")
             for r in rmat:
                 xyz = np.dot(r, vec)
                 if xyz[2] < 0.0:
@@ -164,8 +184,8 @@ def plot_OR_mat(rmat: np.ndarray, mat: Material, fig: Figure, ax: Axes, title: s
 def plot_OR(
     rmat_parent: np.ndarray,
     rmat_variants: np.ndarray,
-    mat1: Material,
-    mat2: Material,
+    mat1: Material | Material_Rietveld,
+    mat2: Material | Material_Rietveld,
     fig: Figure | None = None,
     ax: Axes | None = None,
 ):
@@ -187,8 +207,8 @@ def plot_OR(
 
 
 def getPhaseTransformationVariants(
-    mat1: Material,
-    mat2: Material,
+    mat1: Material | Material_Rietveld,
+    mat2: Material | Material_Rietveld,
     parallel_planes: list[np.ndarray],
     parallel_directions: list[np.ndarray],
     rmat_parent: list[np.ndarray] | None = None,
