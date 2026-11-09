@@ -83,6 +83,7 @@ class Material_LeBail(AbstractMaterial):
         self.CalcMaxGIndex()
         self._calchkls()
         self.sg = SpaceGroup(self.sgnum)
+        self.pointGroup, self.laueGroup = self.sg.pointGroup, self.sg.laueGroup
 
     def _init_from_materials(self, material_obj):
         """
@@ -99,6 +100,8 @@ class Material_LeBail(AbstractMaterial):
         self.sgsetting = material_obj.sgsetting
         self.sg = SpaceGroup(self.sgnum)
         self.sf_and_twin_probability()
+        self.laueGroup = material_obj.unitcell._laueGroup
+        self.pointGroup = material_obj.unitcell._pointGroup
 
         # lattice parameters
         self.lparms = np.array(
@@ -160,6 +163,8 @@ class Material_LeBail(AbstractMaterial):
             'centrosymmetric',
             'symmorphic',
             'hkls',
+            'laueGroup',
+            'pointGroup',
         ]
         for name in attrs_to_copy:
             setattr(self, name, copy.deepcopy(getattr(mat, name)))
