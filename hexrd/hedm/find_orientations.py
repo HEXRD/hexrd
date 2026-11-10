@@ -720,9 +720,12 @@ def _load_or_generate_fibers(experiment, plane_data, maps, cache_file):
     """Reuse seed search across scoring changes, validating the actual map data."""
     from dataclasses import asdict
 
-    settings = dict(seed=asdict(experiment.find_orientations.seed_search),
+    fo = experiment.find_orientations
+    settings = dict(seed=asdict(fo.seed_search),
                     chi=experiment.oscillation_stage.chi,
                     laue_group=plane_data.laue_group, eta_step=maps.eta_step,
+                    pairing_tolerances=(_seed_pairing_tolerances(experiment, maps)
+                            if fo.seed_search.friedel_pairing else None),
                     maps=_map_key(maps))
     sources = [__file__,
                rotations.__file__, mutil.__file__, xfcapi.__file__,
@@ -771,16 +774,25 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
             seed_ids))
 
     centers = []
-    for hkl, tth, (num_spots, coms) in zip(seed_hkls, seed_tths, spots):
+    for seed_id, hkl, tth, (num_spots, coms) in zip(
+            seed_ids, seed_hkls, seed_tths, spots):
         report_peaks(hkl, num_spots)
         if not num_spots:
             continue
         prepared = _prepare_fiber(hkl, plane_data.B, fiber_ndiv)
-        for com in coms[:num_spots]:
-            if np.isnan(com[0]):
-                continue
-            ome_c = maps.omega_edges[0] + (0.5 + com[0]) * d_omega
-            eta_c = maps.eta_edges[0] + (0.5 + com[1]) * maps.eta_step
+        coms = coms[:num_spots]
+        coms = coms[np.isfinite(coms).all(axis=1)]
+        angles = np.column_stack([
+            maps.eta_edges[0] + (0.5 + coms[:, 1]) * maps.eta_step,
+            maps.omega_edges[0] + (0.5 + coms[:, 0]) * d_omega])
+        if fo.seed_search.friedel_pairing:
+            pixels = np.rint(coms).astype(int)
+            pixels = np.clip(pixels, 0, np.array(maps.ring_maps[seed_id].shape) - 1)
+            intensities = np.nan_to_num(maps.ring_maps[seed_id][tuple(pixels.T)])
+            keep = _pair_friedel_seed_peaks(
+                angles, intensities, tth, chi, *_seed_pairing_tolerances(experiment, maps))
+            angles = angles[keep]
+        for eta_c, ome_c in angles:
             centers.append((*prepared, tth, eta_c, ome_c))
     workers = max(1, min(experiment.max_workers, len(centers)))
     with progress_bar(total=len(centers), desc='Generating fibers', unit='fiber', disable=None) as progress:
@@ -797,51 +809,18 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     return np.asfortranarray(np.hstack(q_fibers)) if q_fibers else np.empty((4, 0))
 
 
-@dataclass
-class SeedPeak:
-    eta: float
-    ome: float
-    intensity: float
-    support: int = 1
-
-
-def _wrapped_angle_difference(angle_0: float, angle_1: float) -> float:
-    return float(
-        rotations.angularDifference(
-            np.asarray([angle_0], dtype=float),
-            np.asarray([angle_1], dtype=float),
-        )[0]
-    )
-
-
-def _rotate_vectors_about_axis(
-    vecs: np.ndarray,
-    axis: np.ndarray,
-    angles: np.ndarray,
-) -> np.ndarray:
-    axis = np.asarray(axis, dtype=float).reshape(3)
-    axis /= np.linalg.norm(axis)
-
-    vecs = np.asarray(vecs, dtype=float)
-    angles = np.asarray(angles, dtype=float)
-
-    cos_ang = np.cos(angles)
-    sin_ang = np.sin(angles)
-    cross_term = np.cross(np.tile(axis, (vecs.shape[1], 1)), vecs.T).T
-    dot_term = np.dot(axis, vecs)
-    return (
-        vecs * cos_ang
-        + cross_term * sin_ang
-        + axis.reshape(3, 1) * dot_term * (1.0 - cos_ang)
-    )
-
-
 def _predict_friedel_pair_angles(
     tth: np.ndarray | float,
     eta0: np.ndarray,
     ome0: np.ndarray,
     chi: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """Predict the nearest Friedel partner's (omega, eta), in radians.
+
+    Solve the Bragg condition for the opposite reciprocal vector under
+    rotation about (0, cos(chi), sin(chi)), then rotate it to recover eta.
+    Inaccessible partners have NaN angles.
+    """
     eta0 = rotations.mapAngle(np.asarray(eta0, dtype=float), [-np.pi, np.pi])
     ome0 = rotations.mapAngle(np.asarray(ome0, dtype=float), [-np.pi, np.pi])
     tth = np.asarray(tth, dtype=float)
@@ -856,17 +835,19 @@ def _predict_friedel_pair_angles(
     ctht = np.cos(tht0)
     stht = np.sin(tht0)
 
+    # Solve a*sin(delta) + b*cos(delta) = c for the opposite vector.
     a = cchi * ceta * ctht
-    b = -cchi * stht
-    c = stht + schi * seta * ctht
+    # The component along the tilted rotation axis does not rotate.
+    axis_term = -schi * (cchi * seta * ctht + schi * stht)
+    b = -stht - axis_term
+    c = stht - axis_term
 
     ab_mag = np.sqrt(a * a + b * b)
-    if np.any(ab_mag <= const.sqrt_epsf):
-        raise RuntimeError("Beam vector specification is infeasible!")
+    singular = ab_mag <= const.sqrt_epsf
 
     phase_ang = np.arctan2(b, a)
-    rhs = c / ab_mag
-    invalid = np.abs(rhs) > 1.0
+    rhs = np.divide(c, ab_mag, out=np.zeros_like(c), where=~singular)
+    invalid = singular | (np.abs(rhs) > 1.0)
     rhs = np.clip(rhs, -1.0, 1.0)
     rhs_ang = np.arcsin(rhs)
 
@@ -880,7 +861,8 @@ def _predict_friedel_pair_angles(
 
     axis = np.array([0.0, cchi, schi], dtype=float)
     ghat0_l = -np.vstack([ceta * ctht, seta * ctht, stht])
-    rotated_gvecs = _rotate_vectors_about_axis(ghat0_l, axis, ome_delta)
+    rotated_gvecs = xfcapi.rotate_vecs_about_axis(
+        ome_delta, np.broadcast_to(axis[:, None], ghat0_l.shape), ghat0_l)
 
     partner_ome = rotations.mapAngle(ome0 + ome_delta, [-np.pi, np.pi])
     partner_eta = rotations.mapAngle(
@@ -892,147 +874,67 @@ def _predict_friedel_pair_angles(
     return partner_ome, partner_eta
 
 
-def _friedel_pair_matching(
-    peaks: list[SeedPeak],
-    tth: float,
-    chi: float,
-    eta_tol: float,
-    ome_tol: float,
-) -> dict[str, np.ndarray] | None:
+def _pair_friedel_seed_peaks(
+    angles: np.ndarray, intensities: np.ndarray, tth: float, chi: float,
+    eta_tol: float, ome_tol: float,
+) -> np.ndarray:
+    """Return seed indices, retaining the stronger of each mutual Friedel pair.
+
+    ``angles`` contains (eta, omega) rows, in radians. Friedel partners have
+    opposite reciprocal vectors and constrain the same orientation fiber.
+    Require agreement in both directions; keep every unmatched peak, since
+    detector gaps and partial scans can hide its partner.
+    """
     from scipy.spatial import cKDTree
 
-    peak_count = len(peaks)
-    if peak_count == 0:
-        return None
+    if len(angles) < 2:
+        return np.arange(len(angles))
+    observed = rotations.mapAngle(angles, [-np.pi, np.pi])
+    pred_ome, pred_eta = _predict_friedel_pair_angles(
+        tth, observed[:, 0], observed[:, 1], chi)
+    predicted = np.column_stack([pred_eta, pred_ome])
+    valid = np.isfinite(predicted).all(axis=1)
+    scale = np.maximum([eta_tol, ome_tol], np.radians(0.25))
+    intensities = np.maximum(intensities, const.sqrt_epsf)
 
-    eta_tol = max(float(eta_tol), np.radians(0.25))
-    ome_tol = max(float(ome_tol), np.radians(0.25))
+    # Include periodic images so neighbors across either branch cut match.
+    shifts = np.array([(eta, ome) for eta in (-2*np.pi, 0, 2*np.pi)
+                       for ome in (-2*np.pi, 0, 2*np.pi)])
+    tree = cKDTree(np.vstack([observed + shift for shift in shifts]) / scale)
+    best_match = np.full(len(angles), -1, dtype=int)
+    best_cost = np.full(len(angles), np.inf)
+    for i in np.flatnonzero(valid):
+        neighbors = tree.query_ball_point(predicted[i] / scale, np.sqrt(2.0))
+        candidates = np.unique(np.asarray(neighbors, dtype=int) % len(angles))
+        candidates = candidates[(candidates != i) & valid[candidates]]
+        forward = np.abs(rotations.mapAngle(
+            predicted[i] - observed[candidates], [-np.pi, np.pi])) / scale
+        reverse = np.abs(rotations.mapAngle(
+            predicted[candidates] - observed[i], [-np.pi, np.pi])) / scale
+        within = (forward <= 1).all(axis=1) & (reverse <= 1).all(axis=1)
+        if not np.any(within):
+            continue
+        candidates = candidates[within]
+        cost = (np.sum(forward[within]**2 + reverse[within]**2, axis=1)
+                + 0.05 * np.abs(np.log(
+                    (intensities[i] + 1) / (intensities[candidates] + 1))))
+        best = np.argmin(cost)
+        best_match[i], best_cost[i] = candidates[best], cost[best]
 
-    etas = rotations.mapAngle(
-        np.asarray([peak.eta for peak in peaks], dtype=float),
-        [-np.pi, np.pi],
-    )
-    omes = rotations.mapAngle(
-        np.asarray([peak.ome for peak in peaks], dtype=float),
-        [-np.pi, np.pi],
-    )
-    intensities = np.asarray(
-        [max(float(peak.intensity), const.sqrt_epsf) for peak in peaks],
-        dtype=float,
-    )
-
-    pred_omes, pred_etas = _predict_friedel_pair_angles(tth, etas, omes, chi=chi)
-    valid = ~(np.isnan(pred_omes) | np.isnan(pred_etas))
-    best_match = np.full(peak_count, -1, dtype=int)
-    best_cost = np.full(peak_count, np.inf)
-
-    if np.count_nonzero(valid) >= 2:
-        scale = np.array([eta_tol, ome_tol], dtype=float)
-        obs_coords = np.column_stack([etas, omes]) / scale
-
-        periodic_shifts = np.array(
-            [
-                [deta, dome]
-                for deta in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
-                for dome in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
-            ],
-            dtype=float,
-        ) / scale
-        tiled_coords = np.vstack([obs_coords + shift for shift in periodic_shifts])
-        source_ids = np.tile(np.arange(peak_count), len(periodic_shifts))
-        tree = cKDTree(tiled_coords)
-
-        search_radius = np.sqrt(2.0)
-        intensity_weight = 0.05
-        for i in np.where(valid)[0]:
-            pred_point = np.array([pred_etas[i], pred_omes[i]], dtype=float) / scale
-            candidate_ids = np.unique(
-                source_ids[tree.query_ball_point(pred_point, search_radius)]
-            )
-
-            for j in candidate_ids:
-                if i == j or not valid[j]:
-                    continue
-
-                forward_eta = _wrapped_angle_difference(pred_etas[i], etas[j])
-                forward_ome = _wrapped_angle_difference(pred_omes[i], omes[j])
-                if forward_eta > eta_tol or forward_ome > ome_tol:
-                    continue
-
-                reverse_eta = _wrapped_angle_difference(pred_etas[j], etas[i])
-                reverse_ome = _wrapped_angle_difference(pred_omes[j], omes[i])
-                if reverse_eta > eta_tol or reverse_ome > ome_tol:
-                    continue
-
-                cost = (
-                    (forward_eta / eta_tol) ** 2
-                    + (forward_ome / ome_tol) ** 2
-                    + (reverse_eta / eta_tol) ** 2
-                    + (reverse_ome / ome_tol) ** 2
-                    + intensity_weight
-                    * abs(np.log((intensities[i] + 1.0) / (intensities[j] + 1.0)))
-                )
-                if cost < best_cost[i]:
-                    best_cost[i] = cost
-                    best_match[i] = j
-
-    return {
-        'etas': etas,
-        'omes': omes,
-        'intensities': intensities,
-        'pred_etas': pred_etas,
-        'pred_omes': pred_omes,
-        'valid': valid,
-        'best_match': best_match,
-        'best_cost': best_cost,
-    }
-
-
-def _pair_friedel_seed_peaks(
-    peaks: list[SeedPeak],
-    tth: float,
-    chi: float,
-    eta_tol: float,
-    ome_tol: float,
-) -> list[SeedPeak]:
-    if len(peaks) < 2:
-        return peaks
-    match_data = _friedel_pair_matching(peaks, tth, chi, eta_tol, ome_tol)
-    if match_data is None or np.count_nonzero(match_data['valid']) < 2:
-        return peaks
-
-    best_match = match_data['best_match']
-    best_cost = match_data['best_cost']
-    intensities = match_data['intensities']
-    reduced_peaks = []
-    used = np.zeros(len(peaks), dtype=bool)
-
+    keep = np.ones(len(angles), dtype=bool)
     for i in np.argsort(best_cost):
-        if used[i]:
-            continue
-
         j = best_match[i]
-        if j < 0 or used[j] or best_match[j] != i:
-            continue
+        if j >= 0 and keep[i] and keep[j] and best_match[j] == i:
+            keep[j if intensities[i] >= intensities[j] else i] = False
+    return np.flatnonzero(keep)
 
-        rep_idx = i if intensities[i] >= intensities[j] else j
-        rep_peak = peaks[rep_idx]
-        reduced_peaks.append(
-            SeedPeak(
-                eta=rep_peak.eta,
-                ome=rep_peak.ome,
-                intensity=float(peaks[i].intensity + peaks[j].intensity),
-                support=peaks[i].support + peaks[j].support,
-            )
-        )
-        used[i] = True
-        used[j] = True
 
-    for i, peak in enumerate(peaks):
-        if not used[i]:
-            reduced_peaks.append(peak)
-
-    return reduced_peaks
+def _seed_pairing_tolerances(
+    experiment: HedmExperiment, maps: EtaOmegaMaps,
+) -> tuple[float, float]:
+    fo = experiment.find_orientations
+    return (max(abs(maps.eta_step), fo.eta.tolerance),
+            max(abs(maps.omega_edges[1] - maps.omega_edges[0]), fo.omega.tolerance))
 
 
 def _find_peaks(ring_map: np.ndarray, seed_search) -> tuple[int, np.ndarray]:
@@ -1252,6 +1154,9 @@ def _cached_min_samples(experiment, plane_data, maps):
     fo = experiment.find_orientations
     key = fingerprint(dict(chi=experiment.oscillation_stage.chi, wavelength=plane_data.wavelength,
         completeness=fo.clustering.completeness,
+        friedel_pairing=fo.seed_search.friedel_pairing,
+        pairing_tolerances=(_seed_pairing_tolerances(experiment, maps)
+                            if fo.seed_search.friedel_pairing else None),
         detectors={name: asdict(panel) for name, panel in experiment.detectors.items()}),
         arrays=(plane_data.B, plane_data.master_hkl_ids, experiment.beam.vector,
                 experiment.oscillation_stage.translation,
@@ -1259,7 +1164,7 @@ def _cached_min_samples(experiment, plane_data, maps):
                 (getattr(maps, 'plane_data', None) or plane_data).master_hkl_ids,
                 maps.ring_ids, fo.seed_search.hkl_seeds, fo.eta.range, *plane_data.symm_hkls),
         files=(__file__, native.__file__, rotations.__file__, xfcapi.__file__, const.__file__),
-        packages=('numpy',))
+        packages=('numpy', 'scipy'))
     path = os.path.join(_cache_dir(experiment), 'min-samples.npz')
     cached = load_array_cache(path, key)
     if cached is not None and 'value' in cached and cached['value'].shape == ():
@@ -1274,8 +1179,10 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
     """Estimate DBSCAN's minimum cluster size from deterministic random grains.
 
     Count visible seed-ring reflections on the instrument within eta/omega
-    ranges, then use half the completeness threshold times the smallest count,
-    floored and bounded below by two. Panel distortion is ignored.
+    ranges, condense Friedel partners as in seed generation, and use the 10th
+    percentile of the counts to avoid a single poorly visible grain setting
+    the threshold. With pairing disabled, retain the legacy minimum count.
+    Panel distortion is ignored.
     """
     fo = experiment.find_orientations
     chi = experiment.oscillation_stage.chi
@@ -1313,7 +1220,9 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
     panels = [(detector, ac(detector.transform.rotation_matrix),
                ac(detector.transform.translation).ravel())
               for detector in experiment.detectors.values()]
-    min_reflections = np.inf
+    ring_ids = np.tile(np.repeat(seed_rings,
+        [plane_data.symm_hkls[r].shape[1] for r in seed_rings]), 2)
+    counts = []
     for rmat_c in rotations.rotMatOfQuat(quats).reshape(-1, 3, 3):
         a0, a1 = xfcapi.oscill_angles_of_hkls(
             symm_hkls, chi, rmat_c, bmat, plane_data.wavelength,
@@ -1326,8 +1235,9 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
         ome = np.mod(angs[:, 2] - ome_lo, 2 * np.pi) + ome_lo
         ok &= in_spans(ome, valid_ome)
 
-        # Count a reflection once per panel it hits.
+        # Maps combine panels: count each visible seed once when pairing.
         count = 0
+        visible = np.zeros(np.count_nonzero(ok), dtype=bool)
         angs = angs[ok]
         gvecs = xfcapi.angles_to_gvec(angs, chi=chi, rmat_c=rmat_c)
         rmats_s = _sample_rmats(chi, angs[:, 2])
@@ -1335,13 +1245,23 @@ def estimate_min_samples(experiment: HedmExperiment, plane_data: PlaneData,
             xy = transforms_c_api.gvecToDetectorXYArray(
                 ac(gvecs), rmat_d, rmats_s, rmat_c, tvec_d,
                 ac(experiment.oscillation_stage.translation), np.zeros(3), experiment.beam.vector)
-            count += np.count_nonzero(_clip_to_panel(detector, xy))
-        min_reflections = min(min_reflections, count)
-        if 0.5 * fo.clustering.completeness * min_reflections < 3:
+            on_panel = _clip_to_panel(detector, xy)
+            visible |= on_panel
+            count += np.count_nonzero(on_panel)
+        if fo.seed_search.friedel_pairing:
+            count = 0
+            for ring in seed_rings:
+                peaks = angs[visible & (ring_ids[ok] == ring)]
+                if len(peaks):
+                    count += len(_pair_friedel_seed_peaks(
+                        peaks[:, 1:], np.ones(len(peaks)), float(peaks[0, 0]), chi,
+                        *_seed_pairing_tolerances(experiment, maps)))
+        counts.append(count)
+        if not fo.seed_search.friedel_pairing and min(counts) * fo.clustering.completeness < 6:
             return 2
 
-    return max(int(np.floor(
-        0.5 * fo.clustering.completeness * min_reflections)), 2)
+    support = np.percentile(counts, 10) if fo.seed_search.friedel_pairing else min(counts)
+    return max(int(np.floor(0.5 * fo.clustering.completeness * support)), 2)
 
 
 def _sample_rmats(chi: float, omes: np.ndarray) -> np.ndarray:

@@ -91,7 +91,7 @@ def test_generate_eta_ome_maps(multiruby_experiment):
                                    ref['etas'], rtol=0, atol=1e-14)
 
 
-def test_find_orientations(multiruby_experiment):
+def test_find_orientations(multiruby_experiment: HedmExperiment) -> None:
     from hexrd.core.rotations import misorientation
 
     experiment = multiruby_experiment
@@ -101,12 +101,56 @@ def test_find_orientations(multiruby_experiment):
         experiment.find_orientations,
         orientation_maps=replace(experiment.find_orientations.orientation_maps,
                                  file=str(results / f'{name}_eta-ome_maps.npz')))
-    actual = find_orientations(experiment).grain_orientations
     expected = np.loadtxt(results / f'accepted_orientations_{name}.dat', ndmin=2).T
-    assert actual.shape == expected.shape
-    for quat in actual.T:
-        angles, _ = misorientation(quat[:, None], expected)
-        assert angles.min() <= np.radians(0.05)
+    trial_counts = []
+    for pairing in (False, True):
+        experiment.find_orientations = replace(
+            experiment.find_orientations, seed_search=replace(
+                experiment.find_orientations.seed_search, friedel_pairing=pairing))
+        result = find_orientations(experiment)
+        actual = result.grain_orientations
+        trial_counts.append(result.test_orientations.shape[1])
+        assert actual.shape == expected.shape
+        for quat in actual.T:
+            angles, _ = misorientation(quat[:, None], expected)
+            # Removing a sampled fiber shifts its cluster centroid within the grid.
+            tolerance = (experiment.find_orientations.seed_search.fiber_step / 2
+                         if pairing else np.radians(0.05))
+            assert angles.min() <= tolerance
+    assert trial_counts[1] < 0.6 * trial_counts[0]
+
+
+def test_friedel_pairing_geometry_and_unmatched_peaks() -> None:
+    from hexrd.core.transforms import xfcapi
+    from hexrd.hedm.find_orientations import (
+        _pair_friedel_seed_peaks, _predict_friedel_pair_angles,
+    )
+
+    tth = 0.2
+    for chi in (0., 0.1):
+        eta = np.array([-0.001, 0.4])
+        omega = np.array([np.pi - 0.01, -2.])
+        partner_omega, partner_eta = _predict_friedel_pair_angles(tth, eta, omega, chi)
+        original = np.column_stack([np.full(2, tth), eta, omega])
+        partner = np.column_stack([np.full(2, tth), partner_eta, partner_omega])
+        # Independently verify opposite sample-frame reciprocal vectors.
+        np.testing.assert_allclose(xfcapi.angles_to_gvec(partner, chi=chi),
+                                   -xfcapi.angles_to_gvec(original, chi=chi), atol=1e-14)
+        # Keep one pair plus an unmatched spot, as in a partial scan.
+        peaks = np.vstack([original[:, 1:], partner[:1, 1:]])
+        # Both branch cuts must be periodic.
+        peaks[2] += 2*np.pi
+        keep = _pair_friedel_seed_peaks(peaks, np.array([1., 2., 3.]),
+                                        tth, chi, 0.01, 0.01)
+        np.testing.assert_array_equal(keep, [1, 2])
+        for count in (0, 1):
+            np.testing.assert_array_equal(
+                _pair_friedel_seed_peaks(peaks[:count], np.ones(count),
+                                         tth, chi, 0.01, 0.01), np.arange(count))
+    # An inaccessible partner must not discard the observed seed or abort.
+    peaks = np.array([[np.pi/2, 0.], [0., 1.]])
+    np.testing.assert_array_equal(
+        _pair_friedel_seed_peaks(peaks, np.ones(2), tth, 0.2, 0.01, 0.01), [0, 1])
 
 
 def test_grid_sampler_preserves_legacy_order():
@@ -335,6 +379,8 @@ def test_ruby_pipeline(example_repo_path, test_data_dir, tmp_path, monkeypatch, 
         config = next(yaml.safe_load_all(stream))
     config['analysis_name'] = str(tmp_path / 'results')
     config['multiprocessing'] = 1
+    # These saved arrays predate Friedel pairing and test exact legacy behavior.
+    config['find_orientations']['seed_search']['friedel_pairing'] = False
     filename = tmp_path / 'config.yml'
     filename.write_text(yaml.safe_dump(config))
 
@@ -894,12 +940,15 @@ for name, target in hexrd.module_aliases.items():
     subprocess.run([sys.executable, '-c', script], check=True)
 
 
-def test_fiber_cache_invalidates_search_and_maps(tmp_path, monkeypatch):
+def test_fiber_cache_invalidates_search_and_maps(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import hexrd.hedm.find_orientations as fo
 
     seed = SeedSearch.from_dict({'hkl_seeds': [0]}, 1.0)
     experiment = SimpleNamespace(
-        find_orientations=SimpleNamespace(seed_search=seed, threshold=1),
+        find_orientations=SimpleNamespace(seed_search=seed, threshold=1,
+            eta=SimpleNamespace(tolerance=0.01), omega=SimpleNamespace(tolerance=0.01)),
         oscillation_stage=SimpleNamespace(chi=0.0))
     pd = SimpleNamespace(laue_group='Oh', B=np.eye(3), q_sym=np.ones((4, 1)),
                          unexcluded_hkls=np.array([[1, 0, 0]]))
@@ -909,7 +958,7 @@ def test_fiber_cache_invalidates_search_and_maps(tmp_path, monkeypatch):
                            ring_ids=np.array([0]))
     calls = []
 
-    def generate(*args):
+    def generate(*args: object) -> np.ndarray:
         calls.append(1)
         return np.array([[1.], [0.], [0.], [0.]])
 
@@ -929,6 +978,12 @@ def test_fiber_cache_invalidates_search_and_maps(tmp_path, monkeypatch):
     pd.B[0, 0] = 2
     _load_or_generate_fibers(experiment, pd, maps, cache)
     assert len(calls) == 4
+    experiment.find_orientations.eta.tolerance = 1.0
+    _load_or_generate_fibers(experiment, pd, maps, cache)
+    assert len(calls) == 5
+    experiment.find_orientations.seed_search = replace(seed, friedel_pairing=False)
+    _load_or_generate_fibers(experiment, pd, maps, cache)
+    assert len(calls) == 6
 
 
 def test_saved_maps_preserve_crystallography(tmp_path):
@@ -956,7 +1011,7 @@ def test_saved_maps_preserve_crystallography(tmp_path):
         np.testing.assert_array_equal(loaded.plane_data.unexcluded_hkls, original.unexcluded_hkls)
 
 
-def test_cluster_support_accounts_for_stage_translation(tmp_path):
+def test_cluster_support_accounts_for_stage_translation(tmp_path: Path) -> None:
     import hexrd.hedm.find_orientations as fo
     from hexrd.core import imageseries
     from hexrd.core.instrument import HEDMInstrument
@@ -976,13 +1031,19 @@ def test_cluster_support_accounts_for_stage_translation(tmp_path):
                               meta={'omega': np.array([[-180., 0.], [0., 180.]])})
     experiment = HedmExperiment.from_objects(instrument, {'panel': series}, pd, {
         'analysis_name': str(tmp_path), 'multiprocessing': 1, 'material': {'active': 'synthetic'},
-        'find_orientations': {'seed_search': {'hkl_seeds': [0]},
+        'find_orientations': {'seed_search': {'hkl_seeds': [0], 'friedel_pairing': False},
                              'clustering': {'radius': .5, 'completeness': .9}}})
     plane = experiment.get_active_material().plane_data
-    maps = SimpleNamespace(ring_ids=np.array([0]))
+    maps = SimpleNamespace(ring_ids=np.array([0]), eta_step=np.radians(0.25),
+                           omega_edges=np.radians([-180., -179.75]))
     for translation, expected in ((0., 19), (50., 9), (0., 19)):
         experiment.oscillation_stage.translation[0] = translation
-        assert fo._cached_min_samples(experiment, plane, maps) == expected
+        # The shifted detector hides partners; retain those unmatched seeds.
+        for pairing, count in ((False, expected), (True, 10)):
+            experiment.find_orientations = replace(
+                experiment.find_orientations, seed_search=replace(
+                    experiment.find_orientations.seed_search, friedel_pairing=pairing))
+            assert fo._cached_min_samples(experiment, plane, maps) == count
 
 
 @pytest.mark.parametrize('codec', [zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED,

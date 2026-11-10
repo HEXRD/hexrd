@@ -234,11 +234,16 @@ class OrientationMaps:
 
 @dataclass(frozen=True, config={'arbitrary_types_allowed': True})
 class SeedSearch:
+    """Seed search settings; Friedel pairing removes redundant seed fibers.
+
+    Set ``friedel_pairing=False`` to restore unpaired seeds and legacy support.
+    """
     hkl_seeds: np.ndarray               # indices into the active rings
     fiber_step: float                   # radians
     method: SeedSearchMethod
     method_kwargs: dict[str, Any]
     _fiber_step_degrees: float | np.floating | None = None
+    friedel_pairing: bool = True
 
     @classmethod
     def from_dict(cls, d: dict, omega_tolerance_deg: float) -> 'SeedSearch':
@@ -251,7 +256,8 @@ class SeedSearch:
                              f'got {d.get("hkl_seeds")!r}')
         step = d.get('fiber_step', omega_tolerance_deg)
         return cls(seeds, np.radians(step),
-                   SeedSearchMethod(name.lower()), kwargs or {}, step)
+                   SeedSearchMethod(name.lower()), kwargs or {}, step,
+                   d.get('friedel_pairing', True))
 
     @property
     def fiber_ndiv(self) -> int:
