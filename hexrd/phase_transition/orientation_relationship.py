@@ -2,6 +2,8 @@
 # ---------
 import logging
 
+import matplotlib
+
 # 3rd party imports
 # -----------------
 import numpy as np
@@ -9,6 +11,7 @@ import numpy as np
 # hexrd imports
 # -------------
 from hexrd.core.material import Material
+from hexrd.core.material.spacegroup import get_symmetry_directions
 from hexrd.phase_transition.variants import getPhaseTransformationVariants
 from hexrd.powder.wppf.phase import Material_Rietveld
 
@@ -49,8 +52,6 @@ class OrientationRelationship:
         parallel_planes: dict[str, np.ndarray],
         parallel_directions: dict[str, np.ndarray],
         rmat_parent: list[np.ndarray] | None = None,
-        apply_parent_rotation_to_variants: bool = False,
-        display_data: bool = False,
         verbose: bool = False,
     ):
 
@@ -58,23 +59,88 @@ class OrientationRelationship:
         self.material_daughter = material_daughter
         self.parallel_planes = parallel_planes
         self.parallel_directions = parallel_directions
-        self.rmat_parent = rmat_parent
-        self.apply_parent_rotation_to_variants = apply_parent_rotation_to_variants
-        self.display_data = display_data
         self.verbose = verbose
         self.compute_variant_rmats()
+        self.rmat_parent = rmat_parent
 
     def compute_variant_rmats(self):
-        self.rmat_variants, _ = getPhaseTransformationVariants(
+        self._rmat_variants, _ = getPhaseTransformationVariants(
             self.material_parent,
             self.material_daughter,
             [pp for pp in self.parallel_planes.values()],
             [pd for pd in self.parallel_directions.values()],
-            rmat_parent=self.rmat_parent,
-            apply_parent_rotation_to_variants=self.apply_parent_rotation_to_variants,
-            plot=self.display_data,
+            rmat_parent=[np.eye(3)],
+            apply_parent_rotation_to_variants=False,
+            plot=False,
             verbose=self.verbose,
         )
+
+    def plot_OR_mat(
+        self,
+        parent_or_daughter: str,
+        title: str,
+        fig: matplotlib.figure.Figure = None,
+        ax: matplotlib.axes.Axes = None,
+    ):
+        font = {
+            "family": "serif",
+            "weight": "bold",
+            "size": 12,
+        }
+
+        if parent_or_daughter.lower() == "parent":
+            mat = self.material_parent
+            rmat = self.rmat_parent
+        elif parent_or_daughter.lower() == "daughter":
+            mat = self.material_daughter
+            rmat = self.rmat_variants_rotated
+
+        Us = get_symmetry_directions(mat)
+        markers = ["ok", "^g", "sb"]
+
+        leg = []
+        for U in Us:
+            leg.append(rf"$[{U[0]},{U[1]},{U[2]}]$")
+
+        for m, u in zip(markers, Us):
+            uvw = mat.CalcStar(u, "d")
+            dip = []
+            strike = []
+
+            for v in uvw:
+                vv = mat.TransSpace(v, "d", "c")
+                vec = mat.NormVec(vv, "c")
+                for r in rmat:
+                    xyz = np.dot(r, vec)
+                    if xyz[2] < 0.0:
+                        xyz = -xyz
+                    dip.append(np.degrees(np.arccos(xyz[2])))
+                    strike.append(180.0 + np.degrees(np.arctan2(xyz[1], xyz[0])))
+
+            ax.pole(strike, dip, m, markersize=12, markeredgecolor="red")
+        ax.tick_params(axis="both", size=24)
+        ax.grid(True, which="both", ls=":", lw=1)
+        ax.set_longitude_grid(10)
+        # ax.set_latitude_grid(10)
+        ax.set_azimuth_ticks([])
+        ax.legend(leg, bbox_to_anchor=(1.15, 1.15), loc="upper right", prop=font)
+        ax.set_title(title, **font)
+
+    def plot_OR(self):
+        try:
+            import mplstereonet
+        except ImportError:
+            raise RuntimeError('mplstereonet must be installed to use plot_OR')
+
+        fig, ax = mplstereonet.subplots(
+            ncols=2, figsize=(10, 5), projection='equal_angle_stereonet'
+        )
+
+        self.plot_OR_mat("parent", fig=fig, ax=ax[0], title="Parent")
+        self.plot_OR_mat("daughter", fig=fig, ax=ax[1], title="Variants")
+        # cosmetic
+        fig.subplots_adjust(hspace=0, wspace=0.05, left=0.01, bottom=0.1, right=0.99)
+        fig.show()
 
     @property
     def material_parent(self):
@@ -133,12 +199,8 @@ class OrientationRelationship:
         return self._rmat_parent
 
     @property
-    def apply_parent_rotation_to_variants(self):
-        return self._apply_parent_rotation_to_variants
-
-    @property
-    def display_data(self):
-        return self._display_data
+    def rmat_variants_rotated(self):
+        return self._rmat_variants_rotated
 
     @property
     def verbose(self):
@@ -251,19 +313,12 @@ class OrientationRelationship:
             raise TypeError(msg)
         self._rmat_parent = rmat_p
 
-    @apply_parent_rotation_to_variants.setter
-    def apply_parent_rotation_to_variants(self, v):
-        if not isinstance(v, bool):
-            msg = "apply_parent_rotation_to_variants should be type bool"
-            raise TypeError(msg)
-        self._apply_parent_rotation_to_variants = v
-
-    @display_data.setter
-    def display_data(self, v):
-        if not isinstance(v, bool):
-            msg = "display_data should be type bool"
-            raise TypeError(msg)
-        self._display_data = v
+        if hasattr(self, "_rmat_variants"):
+            self._rmat_variants_rotated = [
+                parent @ variant
+                for parent in self.rmat_parent
+                for variant in self.rmat_variants
+            ]
 
     @verbose.setter
     def verbose(self, v):
