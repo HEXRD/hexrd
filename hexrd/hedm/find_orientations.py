@@ -797,6 +797,244 @@ def generate_orientation_fibers(experiment: HedmExperiment, plane_data: PlaneDat
     return np.asfortranarray(np.hstack(q_fibers)) if q_fibers else np.empty((4, 0))
 
 
+@dataclass
+class SeedPeak:
+    eta: float
+    ome: float
+    intensity: float
+    support: int = 1
+
+
+def _wrapped_angle_difference(angle_0: float, angle_1: float) -> float:
+    return float(
+        rotations.angularDifference(
+            np.asarray([angle_0], dtype=float),
+            np.asarray([angle_1], dtype=float),
+        )[0]
+    )
+
+
+def _rotate_vectors_about_axis(
+    vecs: np.ndarray,
+    axis: np.ndarray,
+    angles: np.ndarray,
+) -> np.ndarray:
+    axis = np.asarray(axis, dtype=float).reshape(3)
+    axis /= np.linalg.norm(axis)
+
+    vecs = np.asarray(vecs, dtype=float)
+    angles = np.asarray(angles, dtype=float)
+
+    cos_ang = np.cos(angles)
+    sin_ang = np.sin(angles)
+    cross_term = np.cross(np.tile(axis, (vecs.shape[1], 1)), vecs.T).T
+    dot_term = np.dot(axis, vecs)
+    return (
+        vecs * cos_ang
+        + cross_term * sin_ang
+        + axis.reshape(3, 1) * dot_term * (1.0 - cos_ang)
+    )
+
+
+def _predict_friedel_pair_angles(
+    tth: np.ndarray | float,
+    eta0: np.ndarray,
+    ome0: np.ndarray,
+    chi: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    eta0 = rotations.mapAngle(np.asarray(eta0, dtype=float), [-np.pi, np.pi])
+    ome0 = rotations.mapAngle(np.asarray(ome0, dtype=float), [-np.pi, np.pi])
+    tth = np.asarray(tth, dtype=float)
+    tth, eta0, ome0 = np.broadcast_arrays(tth, eta0, ome0)
+
+    tht0 = 0.5 * tth
+
+    cchi = np.cos(chi)
+    schi = np.sin(chi)
+    ceta = np.cos(eta0)
+    seta = np.sin(eta0)
+    ctht = np.cos(tht0)
+    stht = np.sin(tht0)
+
+    a = cchi * ceta * ctht
+    b = -cchi * stht
+    c = stht + schi * seta * ctht
+
+    ab_mag = np.sqrt(a * a + b * b)
+    if np.any(ab_mag <= const.sqrt_epsf):
+        raise RuntimeError("Beam vector specification is infeasible!")
+
+    phase_ang = np.arctan2(b, a)
+    rhs = c / ab_mag
+    invalid = np.abs(rhs) > 1.0
+    rhs = np.clip(rhs, -1.0, 1.0)
+    rhs_ang = np.arcsin(rhs)
+
+    ome_1 = rotations.mapAngle(rhs_ang - phase_ang, [-np.pi, np.pi])
+    ome_2 = rotations.mapAngle(np.pi - rhs_ang - phase_ang, [-np.pi, np.pi])
+
+    ome_stack = np.vstack([ome_1, ome_2])
+    min_idx = np.argmin(np.abs(ome_stack), axis=0)
+    ome_delta = ome_stack[min_idx, np.arange(ome_stack.shape[1])]
+    ome_delta[invalid] = np.nan
+
+    axis = np.array([0.0, cchi, schi], dtype=float)
+    ghat0_l = -np.vstack([ceta * ctht, seta * ctht, stht])
+    rotated_gvecs = _rotate_vectors_about_axis(ghat0_l, axis, ome_delta)
+
+    partner_ome = rotations.mapAngle(ome0 + ome_delta, [-np.pi, np.pi])
+    partner_eta = rotations.mapAngle(
+        np.arctan2(rotated_gvecs[1], rotated_gvecs[0]),
+        [-np.pi, np.pi],
+    )
+    partner_ome[invalid] = np.nan
+    partner_eta[invalid] = np.nan
+    return partner_ome, partner_eta
+
+
+def _friedel_pair_matching(
+    peaks: list[SeedPeak],
+    tth: float,
+    chi: float,
+    eta_tol: float,
+    ome_tol: float,
+) -> dict[str, np.ndarray] | None:
+    from scipy.spatial import cKDTree
+
+    peak_count = len(peaks)
+    if peak_count == 0:
+        return None
+
+    eta_tol = max(float(eta_tol), np.radians(0.25))
+    ome_tol = max(float(ome_tol), np.radians(0.25))
+
+    etas = rotations.mapAngle(
+        np.asarray([peak.eta for peak in peaks], dtype=float),
+        [-np.pi, np.pi],
+    )
+    omes = rotations.mapAngle(
+        np.asarray([peak.ome for peak in peaks], dtype=float),
+        [-np.pi, np.pi],
+    )
+    intensities = np.asarray(
+        [max(float(peak.intensity), const.sqrt_epsf) for peak in peaks],
+        dtype=float,
+    )
+
+    pred_omes, pred_etas = _predict_friedel_pair_angles(tth, etas, omes, chi=chi)
+    valid = ~(np.isnan(pred_omes) | np.isnan(pred_etas))
+    best_match = np.full(peak_count, -1, dtype=int)
+    best_cost = np.full(peak_count, np.inf)
+
+    if np.count_nonzero(valid) >= 2:
+        scale = np.array([eta_tol, ome_tol], dtype=float)
+        obs_coords = np.column_stack([etas, omes]) / scale
+
+        periodic_shifts = np.array(
+            [
+                [deta, dome]
+                for deta in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
+                for dome in (-2.0 * np.pi, 0.0, 2.0 * np.pi)
+            ],
+            dtype=float,
+        ) / scale
+        tiled_coords = np.vstack([obs_coords + shift for shift in periodic_shifts])
+        source_ids = np.tile(np.arange(peak_count), len(periodic_shifts))
+        tree = cKDTree(tiled_coords)
+
+        search_radius = np.sqrt(2.0)
+        intensity_weight = 0.05
+        for i in np.where(valid)[0]:
+            pred_point = np.array([pred_etas[i], pred_omes[i]], dtype=float) / scale
+            candidate_ids = np.unique(
+                source_ids[tree.query_ball_point(pred_point, search_radius)]
+            )
+
+            for j in candidate_ids:
+                if i == j or not valid[j]:
+                    continue
+
+                forward_eta = _wrapped_angle_difference(pred_etas[i], etas[j])
+                forward_ome = _wrapped_angle_difference(pred_omes[i], omes[j])
+                if forward_eta > eta_tol or forward_ome > ome_tol:
+                    continue
+
+                reverse_eta = _wrapped_angle_difference(pred_etas[j], etas[i])
+                reverse_ome = _wrapped_angle_difference(pred_omes[j], omes[i])
+                if reverse_eta > eta_tol or reverse_ome > ome_tol:
+                    continue
+
+                cost = (
+                    (forward_eta / eta_tol) ** 2
+                    + (forward_ome / ome_tol) ** 2
+                    + (reverse_eta / eta_tol) ** 2
+                    + (reverse_ome / ome_tol) ** 2
+                    + intensity_weight
+                    * abs(np.log((intensities[i] + 1.0) / (intensities[j] + 1.0)))
+                )
+                if cost < best_cost[i]:
+                    best_cost[i] = cost
+                    best_match[i] = j
+
+    return {
+        'etas': etas,
+        'omes': omes,
+        'intensities': intensities,
+        'pred_etas': pred_etas,
+        'pred_omes': pred_omes,
+        'valid': valid,
+        'best_match': best_match,
+        'best_cost': best_cost,
+    }
+
+
+def _pair_friedel_seed_peaks(
+    peaks: list[SeedPeak],
+    tth: float,
+    chi: float,
+    eta_tol: float,
+    ome_tol: float,
+) -> list[SeedPeak]:
+    if len(peaks) < 2:
+        return peaks
+    match_data = _friedel_pair_matching(peaks, tth, chi, eta_tol, ome_tol)
+    if match_data is None or np.count_nonzero(match_data['valid']) < 2:
+        return peaks
+
+    best_match = match_data['best_match']
+    best_cost = match_data['best_cost']
+    intensities = match_data['intensities']
+    reduced_peaks = []
+    used = np.zeros(len(peaks), dtype=bool)
+
+    for i in np.argsort(best_cost):
+        if used[i]:
+            continue
+
+        j = best_match[i]
+        if j < 0 or used[j] or best_match[j] != i:
+            continue
+
+        rep_idx = i if intensities[i] >= intensities[j] else j
+        rep_peak = peaks[rep_idx]
+        reduced_peaks.append(
+            SeedPeak(
+                eta=rep_peak.eta,
+                ome=rep_peak.ome,
+                intensity=float(peaks[i].intensity + peaks[j].intensity),
+                support=peaks[i].support + peaks[j].support,
+            )
+        )
+        used[i] = True
+        used[j] = True
+
+    for i, peak in enumerate(peaks):
+        if not used[i]:
+            reduced_peaks.append(peak)
+
+    return reduced_peaks
+
+
 def _find_peaks(ring_map: np.ndarray, seed_search) -> tuple[int, np.ndarray]:
     """Clean the map in place; return peak count and (omega, eta) bin centers."""
     _clean_map(ring_map)
