@@ -7,6 +7,7 @@ import json
 import logging
 import re
 from collections.abc import Iterable, Iterator
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field, fields
 from itertools import pairwise
 from pathlib import Path
@@ -18,7 +19,7 @@ import h5py
 import numpy as np
 import yaml
 
-from hexrd.core import imageseries
+from hexrd.core import constants, imageseries
 from hexrd.core.config.loader import NumPyIncludeLoader
 from hexrd.core.instrument import HEDMInstrument
 from hexrd.core.instrument.hedm_instrument import pixel_resolution
@@ -125,6 +126,7 @@ class CakeDataConfig:
     start_layer: int = _option(0, 'l', 'first par-file layer to process')
     par_version: int = _option(5, 'v', 'CHESS par-file version')
     max_input_frames: int | None = _option(None, 'm', 'maximum raw frames per layer')
+    processes: int = _option(1, 'j', 'number of layers to process in parallel')
 
     image_pattern: str | dict[str, str] = _option(
         'EIG16M_CdTe_*.h5', 'g',
@@ -199,7 +201,9 @@ class CakeDataConfig:
             msg = 'cake_width, dome, and refinement must be finite and positive'
             raise ValueError(msg)
 
-        minimums = {'skip_frames': 0, 'start_layer': 0, 'max_input_frames': 1}
+        minimums = {
+            'skip_frames': 0, 'start_layer': 0, 'max_input_frames': 1, 'processes': 1
+        }
         for name, minimum in minimums.items():
             value = getattr(self, name)
             if value is not None and value < minimum:
@@ -498,21 +502,43 @@ def _profiles(
     return full, profiles
 
 
+# Each worker process gets the config, matrix and wedge bounds from _init_worker
+_worker_args: tuple[CakeDataConfig, CakeMatrix, np.ndarray]
+
+
+def _init_worker(
+    config: CakeDataConfig, operator: CakeMatrix, bounds: np.ndarray
+) -> None:
+    global _worker_args
+    _worker_args = config, operator, bounds
+
+
+def _cake_layer(
+    layer: tuple[dict[str | None, Path], int, bool],
+    args: tuple[CakeDataConfig, CakeMatrix, np.ndarray] | None = None,
+) -> list[tuple[float, np.ndarray, np.ndarray]]:
+    """Return the omega, full profile and wedge profiles of each layer frame
+
+    Worker processes omit args and use the ones from _init_worker.
+    """
+    config, operator, bounds = args or _worker_args
+    wedges = [operator[first:last] for first, last in pairwise(bounds)]
+    results = []
+    for angle, frame in _read_integrated_frames(config, operator, *layer):
+        # Process one wedge at a time to keep memory usage down
+        results.append((angle, *_profiles(wedge.apply(frame) for wedge in wedges)))
+
+    return results
+
+
 def _write_layer_profiles(
     group: h5py.Group,
-    frames: Iterable[tuple[float, np.ndarray]],
-    wedges: list[CakeMatrix],
+    results: list[tuple[float, np.ndarray, np.ndarray]],
     tth: np.ndarray,
     eta_key: np.ndarray,
 ) -> None:
-    full_profiles = []
-    omega = []
-    for index, (angle, frame) in enumerate(frames):
-        # Process one wedge at a time to keep memory usage down
-        full, profiles = _profiles(wedge.apply(frame) for wedge in wedges)
-        full_profiles.append(full)
-        omega.append(angle)
-
+    omega, full_profiles, _ = zip(*results)
+    for index, (_, _, profiles) in enumerate(results):
         omega_group = group.create_group(f'Ome/{index}')
         omega_group['IvTTH'] = profiles
         omega_group['eta_key'] = eta_key
@@ -583,28 +609,40 @@ def cake_data(config: CakeDataConfig) -> tuple[Path, Path]:
         bounds = np.searchsorted(operator.eta_centers, edges)
         if np.any(np.diff(bounds) == 0):
             raise ValueError('each cake wedge must contain at least one eta row')
-        wedges = [operator[first:last] for first, last in pairwise(bounds)]
         eta = (edges[:-1] + edges[1:]) / 2
         eta_key = np.vstack((np.arange(len(eta)), eta))
 
         staged_h5 = temporary / h5_path.name
         staged_par = temporary / par_path.name
         par_rows = []
-        with h5py.File(staged_h5, 'w') as wf:
+        layer_inputs: list[tuple[dict[str | None, Path], int, bool]] = [
+            (raw_paths[layer], metadata['num_frames'][layer], metadata['flip'][layer])
+            for layer in layers
+        ]
+        args = (config, operator, bounds)
+        processes = min(config.processes, len(layers))
+        results: Iterable[list[tuple[float, np.ndarray, np.ndarray]]]
+        with ExitStack() as stack:
+            if processes > 1:
+                # Start the workers before opening the output file, so that none
+                # inherit it. With fork, they share the matrix instead of copying it.
+                pool = stack.enter_context(
+                    constants.mp_context.Pool(processes, _init_worker, args)
+                )
+                results = pool.imap(_cake_layer, layer_inputs)
+            else:
+                # Run the layers in this process
+                results = (_cake_layer(layer, args) for layer in layer_inputs)
+
+            wf = stack.enter_context(h5py.File(staged_h5, 'w'))
             wf['XYZ_key'] = metadata['position_key']
             for layer, xyz in enumerate(metadata['position_key'][1:].T):
                 wf[f'Cake/{layer}/xyz'] = xyz
 
-            for layer in layers:
-                frames = _read_integrated_frames(
-                    config,
-                    operator,
-                    raw_paths[layer],
-                    metadata['num_frames'][layer],
-                    metadata['flip'][layer],
-                )
+            # Results arrive in layer order, even when computed in parallel
+            for layer, profiles in zip(layers, results):
                 group = wf[f'Cake/{layer}']
-                _write_layer_profiles(group, frames, wedges, operator.tth_centers, eta_key)
+                _write_layer_profiles(group, profiles, operator.tth_centers, eta_key)
 
                 # Preserve the legacy par column order and placeholders
                 scan = metadata['scan_number'][layer]
