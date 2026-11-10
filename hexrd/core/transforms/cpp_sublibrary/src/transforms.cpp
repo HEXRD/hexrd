@@ -738,8 +738,10 @@ struct OscillationGeometry {
 
   void predict(Index n, const double *reciprocal, const double *rmat,
                double *out0, double *out1, const double *lengths = nullptr,
-               const Index *opposites = nullptr, const double *visibility = nullptr) const {
+               const Index *opposites = nullptr, const double *visibility = nullptr,
+               const double *wavelengths = nullptr) const {
     for (Index i = 0; i < n; ++i) {
+      const double wavelength = wavelengths ? wavelengths[i] : this->wavelength;
       if (visibility) {
         double y = std::abs(rmat[3]*reciprocal[3*i]+rmat[4]*reciprocal[3*i+1]+
                             rmat[5]*reciprocal[3*i+2]);
@@ -817,16 +819,22 @@ struct OscillationGeometry {
 };
 
 static py::tuple oscillAnglesOfHKLs(CArray<double> hkls, double chi,
-    CArray<double> rmat, CArray<double> bmat, double wavelength,
+    CArray<double> rmat, CArray<double> bmat, CArray<double> wavelength,
     CArray<double> vinv, CArray<double> beam, CArray<double> eta) {
   checkShape(rmat, {3, 3}); checkShape(vinv, {6});
   checkShape(beam, {3}); checkShape(eta, {3});
   auto reciprocal = reciprocalVectors(hkls, bmat);
+  if (wavelength.ndim() > 1 ||
+      (wavelength.ndim() == 1 && wavelength.size() != hkls.shape(0)))
+    throw py::value_error("wavelength must be scalar or have one value per HKL");
+  const bool scalar = wavelength.ndim() == 0;
   py::array_t<double> out0({hkls.shape(0), Index(3)}), out1({hkls.shape(0), Index(3)});
-  OscillationGeometry geometry(chi, wavelength, vinv.data(), beam.data(), eta.data());
+  OscillationGeometry geometry(chi, scalar ? *wavelength.data() : 0.,
+                               vinv.data(), beam.data(), eta.data());
   { py::gil_scoped_release release;
     geometry.predict(hkls.shape(0), reciprocal.data(), rmat.data(),
-                     out0.mutable_data(), out1.mutable_data()); }
+                     out0.mutable_data(), out1.mutable_data(), nullptr, nullptr, nullptr,
+                     scalar ? nullptr : wavelength.data()); }
   return py::make_tuple(out0, out1);
 }
 

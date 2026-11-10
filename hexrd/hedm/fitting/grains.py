@@ -1,6 +1,14 @@
 """Grain fitting functions"""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import numpy as np
+from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from hexrd.core.instrument import HEDMInstrument
 
 from scipy import optimize
 
@@ -31,18 +39,18 @@ gScl_ref = np.ones(12, dtype=bool)
 
 
 def fitGrain(
-    gFull,
-    instrument,
-    reflections_dict,
-    bMat,
-    wavelength,
-    gFlag=gFlag_ref,
-    gScl=gScl_ref,
-    omePeriod=None,
-    factor=0.1,
-    xtol=sqrt_epsf,
-    ftol=sqrt_epsf,
-):
+    gFull: NDArray[np.float64],
+    instrument: HEDMInstrument,
+    reflections_dict: dict,
+    bMat: NDArray[np.float64],
+    wavelength: float | dict[str, float | NDArray[np.float64]],
+    gFlag: NDArray[np.bool_] = gFlag_ref,
+    gScl: np.ndarray = gScl_ref,
+    omePeriod: tuple[float, float] | None = None,
+    factor: float = 0.1,
+    xtol: float = sqrt_epsf,
+    ftol: float = sqrt_epsf,
+) -> NDArray[np.float64]:
     """
     Perform least-squares optimization of grain parameters.
 
@@ -56,8 +64,9 @@ def fitGrain(
         DESCRIPTION.
     bMat : TYPE
         DESCRIPTION.
-    wavelength : TYPE
-        DESCRIPTION.
+    wavelength : float or dict[str, ndarray]
+        Wavelength in angstroms, or arrays aligned with each detector's
+        reflection rows. A dictionary must include every detector with reflections.
     gFlag : TYPE, optional
         DESCRIPTION. The default is gFlag_ref.
     gScl : TYPE, optional
@@ -140,17 +149,17 @@ def fitGrain(
 
 
 def objFuncFitGrain(
-    gFit,
-    gFull,
-    gFlag,
-    instrument,
-    reflections_dict,
-    bMat,
-    wavelength,
-    omePeriod,
-    simOnly=False,
-    return_value_flag=return_value_flag,
-):
+    gFit: NDArray[np.float64],
+    gFull: NDArray[np.float64],
+    gFlag: NDArray[np.bool_],
+    instrument: HEDMInstrument,
+    reflections_dict: dict,
+    bMat: NDArray[np.float64],
+    wavelength: float | dict[str, float | NDArray[np.float64]],
+    omePeriod: tuple[float, float] | None,
+    simOnly: bool = False,
+    return_value_flag: int | None = return_value_flag,
+) -> NDArray[np.float64] | dict | float:
     """
     Calculate residual between measured and simulated ff-HEDM G-vectors.
 
@@ -190,8 +199,9 @@ def objFuncFitGrain(
         DESCRIPTION.
     bMat : TYPE
         DESCRIPTION.
-    wavelength : TYPE
-        DESCRIPTION.
+    wavelength : float or dict[str, ndarray]
+        Wavelength in angstroms, or arrays aligned with each detector's
+        reflection rows. A dictionary must include every detector with reflections.
     omePeriod : TYPE
         DESCRIPTION.
     simOnly : TYPE, optional
@@ -223,14 +233,6 @@ def objFuncFitGrain(
     tVec_c = gFull[3:6].reshape(3, 1)
     vInv_s = gFull[6:]
     vMat_s = mutil.vecMVToSymm(vInv_s)  # NOTE: Inverse of V from F = V * R
-
-    # Apply an energy correction according to grain position
-    corrected_wavelength = apply_correction_to_wavelength(
-        wavelength,
-        energy_correction,
-        tVec_s,
-        tVec_c,
-    )
 
     # loop over instrument panels
     # CAVEAT: keeping track of key ordering in the "detectors" attribute of
@@ -280,6 +282,12 @@ def objFuncFitGrain(
             hkls = results['hkls']
             meas_xyo = results['meas_xyo']
 
+        # Each detector may have a different energy trace.
+        if isinstance(wavelength, dict):
+            det_wavelength = wavelength[det_key]
+        else:
+            det_wavelength = wavelength
+
         # distortion handling
         if panel.distortion is not None:
             meas_omes = meas_xyo[:, 2]
@@ -298,6 +306,14 @@ def objFuncFitGrain(
         gVec_c = np.dot(bMat, hkls)
         gVec_s = np.dot(vMat_s, np.dot(rMat_c, gVec_c))
         gHat_c = mutil.unitVector(np.dot(rMat_c.T, gVec_s))
+
+        # Compose the existing position correction with the frame energy.
+        corrected_wavelength = apply_correction_to_wavelength(
+            det_wavelength,
+            energy_correction,
+            tVec_s,
+            tVec_c,
+        )
 
         # !!!: check that this operates on UNWARPED xy
         match_omes, calc_omes = matchOmegas(
@@ -382,20 +398,23 @@ def objFuncFitGrain(
 
 
 def matchOmegas(
-    xyo_det,
-    hkls_idx,
-    chi,
-    rMat_c,
-    bMat,
-    wavelength,
-    vInv=vInv_ref,
-    beamVec=bVec_ref,
-    etaVec=eta_ref,
-    omePeriod=None,
-):
+    xyo_det: NDArray[np.float64],
+    hkls_idx: NDArray[np.float64],
+    chi: float,
+    rMat_c: NDArray[np.float64],
+    bMat: NDArray[np.float64],
+    wavelength: float | NDArray[np.float64],
+    vInv: NDArray[np.float64] = vInv_ref,
+    beamVec: NDArray[np.float64] = bVec_ref,
+    etaVec: NDArray[np.float64] = eta_ref,
+    omePeriod: tuple[float, float] | None = None,
+) -> tuple[NDArray[np.bool_], NDArray[np.float64]]:
     """
     For a given list of (x, y, ome) points, outputs the index into the results
     from oscillAnglesOfHKLs, including the calculated omega values.
+
+    wavelength may be a scalar float or a 1-D array of per-reflection
+    wavelengths (one per column of hkls_idx).
     """
     # get omegas for rMat_s calculation
     if omePeriod is not None:

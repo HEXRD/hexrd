@@ -251,7 +251,8 @@ def scoreOrientations(
     /,
 ) -> NDArray[np.float64]: ...
 def oscillAnglesOfHKLs(
-    hkls: FloatArray, chi: float, rmat_c: Mat3, bmat: Mat3, wavelength: float,
+    hkls: FloatArray, chi: float, rmat_c: Mat3, bmat: Mat3,
+    wavelength: float | FloatArray,
     v_inv: FloatArray, beam_vec: Vec3, eta_vec: Vec3, /,
 ) -> tuple[FloatArray, FloatArray]: ...
 

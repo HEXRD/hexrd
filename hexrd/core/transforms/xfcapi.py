@@ -353,7 +353,7 @@ def oscill_angles_of_hkls(
     chi: float,
     rmat_c: NDArray[np.float64],
     bmat: NDArray[np.float64],
-    wavelength: float,
+    wavelength: float | NDArray[np.float64],
     v_inv: Optional[NDArray[np.float64]] = None,
     beam_vec: NDArray[np.float64] = cnst.beam_vec,
     eta_vec: NDArray[np.float64] = cnst.eta_vec,
@@ -375,7 +375,9 @@ def oscill_angles_of_hkls(
                   to SAMPLE FRAME
     bmat       -- (3, 3) ndarray, the COB taking RECIPROCAL LATTICE components
                   to CRYSTAL FRAME
-    wavelength -- float representing the x-ray wavelength in Angstroms
+    wavelength -- float or (n,) ndarray of x-ray wavelength(s) in Angstroms.
+                  Array values are applied elementwise to the corresponding
+                  reflections.
 
     Optional Keyword Arguments:
     v_inv      -- (6, ) ndarray, vec representation inverse stretch tensor
