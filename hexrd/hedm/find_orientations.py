@@ -895,7 +895,7 @@ def score_orientations(experiment: HedmExperiment, plane_data: PlaneData,
         np.vstack([s.T for s in symm_hkls_per_ring]), dtype=np.float64)
 
     eta_ranges = fo.eta.range
-    ome_offset = fo.omega.period.min()
+    ome_offset = maps.omega_edges.min()
     valid_eta = normalize_ranges(eta_ranges[:, 0], eta_ranges[:, 1], -np.pi)
     valid_ome = normalize_ranges(
         np.array([maps.omega_edges.min()]),
