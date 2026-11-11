@@ -185,6 +185,38 @@ def test_scan_from_instrument(
         assert np.all(np.diff(layer['tth'][:]) > 0)
 
 
+def test_parallel_layers_match_serial(
+    tmp_path: Path, small_scan: CakeDataConfig
+) -> None:
+    # Three layers with different intensities, and only the middle one flipped
+    par = np.repeat(np.loadtxt(small_scan.par_file, ndmin=2), 3, axis=0)
+    par[:, 6] = [1, 2, 3]
+    par[[0, 2], 10] = 0
+    np.savetxt(small_scan.par_file, par)
+    with h5py.File(tmp_path / 'raw.h5') as stream:
+        raw = stream['entry/data/data'][()]
+    for image in (1, 2, 3):
+        (tmp_path / str(image)).mkdir()
+        with h5py.File(tmp_path / f'{image}/raw.h5', 'w') as stream:
+            stream['entry/data/data'] = np.where(raw < 99, raw * image, raw)
+
+    config = replace(small_scan, data_dir=str(tmp_path / '%d'))
+    serial, parallel = (
+        cake_data(replace(config, output_dir=tmp_path / f'out{n}', processes=n))
+        for n in (1, 2)
+    )
+    for expected, actual in zip(serial, parallel):
+        assert actual.read_bytes() == expected.read_bytes()
+
+    # Floored omega averages of each layer, in par-file order
+    with h5py.File(serial[0]) as output:
+        means = [np.nanmean(output[f'Cake/{i}/IvTTHvW'], axis=1) for i in range(3)]
+    np.testing.assert_array_equal(means, [[1, 3], [7, 2], [3, 10]])
+
+    with pytest.raises(ValueError, match='processes must be an integer >= 1'):
+        cake_data(replace(config, processes=0))
+
+
 def test_two_detectors_with_four_subpanels(
     tmp_path: Path, small_scan: CakeDataConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:

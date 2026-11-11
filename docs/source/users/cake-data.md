@@ -109,6 +109,10 @@ Each image glob must match exactly one file per layer. `data_dir` supports
 Use `instrument` (YAML or HDF5) instead of `matrix` to build a temporary matrix;
 a saved matrix cannot be combined with instrument or geometry overrides.
 
+Set `processes` (`-j`) to cake several layers at once. Outputs match a single
+process. On Linux, worker processes share the matrix memory, but each still
+needs memory for the frames of the layer it is processing.
+
 For dual Dexelas, replace `image_pattern` with a mapping:
 
 ```yaml
