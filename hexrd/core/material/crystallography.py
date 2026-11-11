@@ -921,11 +921,11 @@ class PlaneData(object):
             else:
                 if len(exclusions.shape) == 1:
                     # treat exclusions as indices
-                    excl[self.tThSortInv[exclusions]] = True
+                    excl[self.tThSort[exclusions]] = True
                 elif len(exclusions.shape) == 2:
                     # treat exclusions as ranges of indices
                     for r in exclusions:
-                        excl[self.tThSortInv[r[0] : r[1]]] = True
+                        excl[self.tThSort[r[0] : r[1]]] = True
                 else:
                     raise RuntimeError(f'Unclear behavior for shape {exclusions.shape}')
         self._exclusions = excl
@@ -1314,7 +1314,7 @@ class PlaneData(object):
     def _thisHKL(self, iHKLr: int) -> bool:
         hklData = self.hklDataList[iHKLr]
         if self._exclusions is not None:
-            if self._exclusions[self.tThSortInv[iHKLr]]:
+            if self._exclusions[self.tThSort[iHKLr]]:
                 return False
         if self._tThMax is not None:
             if hklData['tTheta'] > self._tThMax or np.isnan(hklData['tTheta']):
@@ -1514,7 +1514,7 @@ class PlaneData(object):
         else:
             hklList = self.getSymHKLs()  # !!! list, reduced by exclusions
             intl_hklIDs = np.asarray([i['hklID'] for i in self.hklDataList])
-            intl_hklIDs_sorted = intl_hklIDs[~self.exclusions[self.tThSortInv]]
+            intl_hklIDs_sorted = intl_hklIDs[~self.exclusions]
             dHKLInv = {}
             for iHKL, symHKLs in enumerate(hklList):
                 idx = intl_hklIDs_sorted[iHKL] if master else iHKL
@@ -1592,7 +1592,7 @@ class PlaneData(object):
             #     RuntimeError, and if allHKLs=True and the hkl_id is
             #     excluded, it also raises a RuntimeError
             all_hkl_ids = np.asarray([i['hklID'] for i in self.hklDataList])
-            sorted_excl = self.exclusions[self.tThSortInv]
+            sorted_excl = self.exclusions
             idx = np.zeros(len(self.hklDataList), dtype=int)
             for i, hkl_id in enumerate(hkl_ids):
                 # find ordinal index of current hklID
