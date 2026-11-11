@@ -32,12 +32,12 @@ def test_exclusion():
     assert pd.getNhklRef() == 3
 
 
-def test_exclusions_survive_lparms_change():
+def test_exclusions_survive_lparms_change() -> None:
     pd = PlaneData(
         np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
         np.array([2.0, 3.0, 4.0, 90.0, 90.0, 90.0]),
         'D2h',
-        0.5,
+        80.0,
         0.01,
     )
 
@@ -47,14 +47,15 @@ def test_exclusions_survive_lparms_change():
     pd.exclusions = excl
     selected_hkl = pd.getHKLs(allHKLs=True)[1].tolist()
 
-    # Change lparms enough to re-sort
-    pd.lparms = [2.0, 3.0, 1.5, 90.0, 90.0, 90.0]
+    # Change lparms so the sort becomes a 3-cycle of the input order
+    pd.lparms = [2.0, 4.0, 3.0, 90.0, 90.0, 90.0]
 
     # The same hkl should still be selected
     all_hkls = pd.getHKLs(allHKLs=True)
     new_excl = pd.exclusions
     new_selected = [all_hkls[i].tolist() for i, e in enumerate(new_excl) if not e]
     assert new_selected == [selected_hkl]
+    assert pd.getHKLs().tolist() == [selected_hkl]
 
 
 def test_exclusions_with_unsorted_hkls() -> None:
