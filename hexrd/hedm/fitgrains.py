@@ -106,7 +106,8 @@ def fit_grain_FF_reduced(grain_id):
 
     return_pull_spots_data: bool = paramMP.get('return_pull_spots_data', False)
 
-    grain = grains_table[grain_id]
+    row = np.flatnonzero(grains_table[:, 0] == grain_id)[0]
+    grain = grains_table[row]
     grain_params = grain[3:15]
 
     for tols in zip(tth_tol, eta_tol, ome_tol):
@@ -423,7 +424,7 @@ def fit_grains(
         material = experiment.get_active_material()
 
     if ids_to_refine is not None:
-        grains_table = np.atleast_2d(grains_table[ids_to_refine, :])
+        grains_table = grains_table[np.isin(grains_table[:, 0], ids_to_refine)]
 
     spots_filename = SPOTS_OUT_FILE if write_spots_files else None
     params = dict(
