@@ -3,6 +3,7 @@ import h5py
 import pytest
 
 from hexrd.core.material import Material, load_materials_hdf5
+from hexrd.core.material.material import _parse_cif_type_symbol
 
 # Tolerance for comparing floats
 FLOAT_TOL = 1.0e-8
@@ -117,6 +118,21 @@ def test_remove_duplicate_atoms(test_material_file_duplicate_atoms):
 
     mats['xtal3'].unitcell.remove_duplicate_atoms()
     assert np.all(np.isclose(mats['xtal3'].atom_pos, apos_xtal3))
+
+
+@pytest.mark.parametrize(
+    'symbol, expected',
+    [
+        ('Na+', ('Na', '1+')),
+        ('Cl1-', ('Cl', '1-')),
+        ('O-2', ('O', '2-')),
+        ('K+', ('K', '1+')),
+        ('Si', ('Si', '0')),
+    ],
+)
+def test_parse_cif_type_symbol(symbol: str, expected: tuple[str, str]) -> None:
+    # One-character charges used to cut the element short ("Na+" -> "N")
+    assert _parse_cif_type_symbol(symbol) == expected
 
 
 class TestExclusions:

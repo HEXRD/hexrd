@@ -32,6 +32,7 @@ Use the Material class directly for new materials.  Known
 materials are defined by name in materialDict.
 """
 import logging
+import re
 
 from configparser import ConfigParser as Parser
 import numpy as np
@@ -73,6 +74,29 @@ def get_default_sgsetting(sgnum):
     # Origin choice 1 for every group, like the bundled material library
     # and the GUI; a CIF in origin choice 2 must be transformed first.
     return 0
+
+
+def _parse_cif_type_symbol(s: str) -> tuple[str, str]:
+    # Split a CIF type symbol such as 'Na+', 'O2-' or 'Fe3+' into the
+    # element and a charge in the '<n><sign>' form of `chargestate`
+    m = re.fullmatch(r'([A-Z][a-z]?)(\d*)([+-]?)(\d*)', s.strip())
+    if m is None:
+        return s, '0'
+
+    elem, n1, sign, n2 = m.groups()
+    if not sign:
+        return elem, '0'
+
+    n = n1 or n2 or '1'
+    charge = f'{int(n)}{sign}'
+    if charge not in chargestate.get(elem, []):
+        warn(
+            f'charge state {charge} of {elem} is not supported. '
+            'setting it to 0'
+        )
+        charge = '0'
+
+    return elem, charge
 
 
 #
@@ -780,20 +804,7 @@ class Material(object):
         atomtype = []
         charge = []
         for s in satype:
-            if "+" in s:
-                ss = s[:-2]
-                c = s[-2:]
-                if c[0] == '+':
-                    c = c[::-1]
-            elif "-" in s:
-                ss = s[:-2]
-                c = s[-2:]
-                if c[0] == '-':
-                    c = c[::-1]
-            else:
-                ss = s
-                c = "0"
-
+            ss, c = _parse_cif_type_symbol(s)
             atomtype.append(ptable[ss])
             charge.append(c)
 
