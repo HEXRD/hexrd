@@ -57,3 +57,19 @@ def test_hdf5_instrument_round_trip(tmp_path: Path) -> None:
         single = HEDMInstrument(stream)
     assert single.beam_names == ['secondary']
     assert single.beam_energy == 80
+
+
+def test_write_config_hdf5_leaves_state_intact(tmp_path: Path) -> None:
+    # Writing to HDF5 used to empty the returned dict, the energy
+    # correction, and the caller's calibration dict
+    instr = HEDMInstrument()
+    instr.detectors.clear()
+    instr.detectors['panel'] = PlanarDetector(rows=2, cols=3, saturation_level=1)
+    correction = {'intercept': 1.0, 'slope': 2.0, 'axis': 'y'}
+    instr.energy_correction = dict(correction)
+    calibration = {'grain_params': {'tvec': [0.0, 0.0, 0.0]}}
+    path = str(tmp_path / 'instrument.h5')
+    cfg = instr.write_config(path, style='hdf5', calibration_dict=calibration)
+    assert 'detectors' in cfg
+    assert instr.energy_correction == correction
+    assert calibration == {'grain_params': {'tvec': [0.0, 0.0, 0.0]}}
