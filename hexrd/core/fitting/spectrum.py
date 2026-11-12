@@ -656,21 +656,24 @@ class SpectrumModel(object):
                     param.vary = False
 
             res0 = self.model.fit(ydata, params=self.params, x=xdata)
-            # With fixed asymmetry supplied, skip the second-stage alpha/beta
-            # refinement and return the first-stage fit (only amp + cen vary).
-            if self._fixed_pink_asymmetry is not None:
-                return res0
             if res0.success:
                 new_p = res0.params
-                _set_refinement_by_name(new_p, 'alpha0', vary=True)
-                _set_refinement_by_name(new_p, 'alpha1', vary=False)
-                _set_refinement_by_name(new_p, 'beta', vary=True)
-                _set_equality_constraints(new_p, 'alpha0')
-                _set_equality_constraints(new_p, 'alpha1')
-                _set_equality_constraints(new_p, 'beta0')
-                _set_equality_constraints(new_p, 'beta1')
-                _set_bound_constraints(new_p, 'alpha', min_val=-10, max_val=30)
-                _set_bound_constraints(new_p, 'beta', min_val=-10, max_val=30)
+                # With fixed asymmetry supplied (e.g. from WPPF), alpha and
+                # beta stay at the supplied values; only the width is freed.
+                if self._fixed_pink_asymmetry is None:
+                    _set_refinement_by_name(new_p, 'alpha0', vary=True)
+                    _set_refinement_by_name(new_p, 'alpha1', vary=False)
+                    _set_refinement_by_name(new_p, 'beta', vary=True)
+                    _set_equality_constraints(new_p, 'alpha0')
+                    _set_equality_constraints(new_p, 'alpha1')
+                    _set_equality_constraints(new_p, 'beta0')
+                    _set_equality_constraints(new_p, 'beta1')
+                    _set_bound_constraints(new_p, 'alpha', min_val=-10, max_val=30)
+                    _set_bound_constraints(new_p, 'beta', min_val=-10, max_val=30)
+                # Stage 1 held the width at its initial guess. Free it here,
+                # before fwhm_g is tied to fwhm_l, since setting vary=True
+                # clears an lmfit expr.
+                _set_refinement_by_name(new_p, 'fwhm', vary=True)
                 _set_width_mixing_bounds(
                     new_p,
                     min_w=fwhm_min,
