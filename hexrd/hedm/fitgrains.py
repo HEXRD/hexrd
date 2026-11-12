@@ -59,14 +59,14 @@ def fit_grain_FF_cleanup():
     del paramMP
 
 
-def fit_grain_FF_reduced(grain_id):
+def fit_grain_FF_reduced(grain):
     """
     Perform non-linear least-square fit for the specified grain.
 
     Parameters
     ----------
-    grain_id : int
-        The grain id.
+    grain : ndarray
+        A row of the grains table, with the grain ID in its first column.
 
     Returns
     -------
@@ -88,7 +88,7 @@ def fit_grain_FF_reduced(grain_id):
     [plane_data, instrument, imgser_dict,
     tth_tol, eta_tol, ome_tol, npdiv, threshold]
     """
-    grains_table = paramMP['grains_table']
+    grain_id = int(grain[0])
     plane_data = paramMP['plane_data']
     instrument = paramMP['instrument']
     imgser_dict = paramMP['imgser_dict']
@@ -106,8 +106,6 @@ def fit_grain_FF_reduced(grain_id):
 
     return_pull_spots_data: bool = paramMP.get('return_pull_spots_data', False)
 
-    row = np.flatnonzero(grains_table[:, 0] == grain_id)[0]
-    grain = grains_table[row]
     grain_params = grain[3:15]
 
     for tols in zip(tth_tol, eta_tol, ome_tol):
@@ -399,6 +397,14 @@ def fit_grains(
     cancelable.
     """
     grains_table = np.atleast_2d(grains_table)
+    grain_ids = set(grains_table[:, 0])
+    if len(grain_ids) != len(grains_table):
+        raise ValueError('Grain IDs in grains_table must be unique')
+    if ids_to_refine is not None:
+        missing_ids = set(ids_to_refine) - grain_ids
+        if missing_ids:
+            raise ValueError(f'Requested grain IDs not found: {sorted(missing_ids)}')
+        grains_table = grains_table[np.isin(grains_table[:, 0], ids_to_refine)]
 
     # grab imageseries dict
     imsd = experiment.image_series
@@ -423,12 +429,8 @@ def fit_grains(
     if material is None:
         material = experiment.get_active_material()
 
-    if ids_to_refine is not None:
-        grains_table = grains_table[np.isin(grains_table[:, 0], ids_to_refine)]
-
     spots_filename = SPOTS_OUT_FILE if write_spots_files else None
     params = dict(
-        grains_table=grains_table,
         plane_data=material._material.planeData,
         instrument=instr,
         imgser_dict=imsd,
@@ -454,9 +456,7 @@ def fit_grains(
         logger.info("\tstarting serial fit")
         start = timeit.default_timer()
         fit_grain_FF_init(params)
-        fit_results = list(
-            map(fit_grain_FF_reduced, np.array(grains_table[:, 0], dtype=int))
-        )
+        fit_results = list(map(fit_grain_FF_reduced, grains_table))
         fit_grain_FF_cleanup()
         elapsed = timeit.default_timer() - start
     else:
@@ -480,7 +480,7 @@ def fit_grains(
         try:
             async_result = pool.map_async(
                 fit_grain_FF_reduced,
-                np.array(grains_table[:, 0], dtype=int),
+                grains_table,
                 chunksize=chunksize,
             )
             while not async_result.ready():
