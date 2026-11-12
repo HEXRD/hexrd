@@ -66,6 +66,11 @@ logger = logging.getLogger(__name__)
 #
 
 
+# Space groups in Laue class -31m. Their twofolds are normal to the a axes,
+# while the 'd3d' symmetry that PlaneData uses has them along a (-3m1).
+_LAUE_31M_SGNUMS = frozenset((149, 151, 153, 157, 159, 162, 163))
+
+
 def _key(x):
     return x.name
 
@@ -305,7 +310,7 @@ class Material(object):
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
         if pdata := getattr(self, '_pData', None):
-            laue = self.unitcell._laueGroup
+            laue = self._plane_data_laue_group
             reduced_lparms = self.reduced_lattice_parameters
             if pdata.laueGroup != laue or pdata.lparms != reduced_lparms:
                 pdata.set_laue_and_lparms(laue, reduced_lparms)
@@ -350,7 +355,7 @@ class Material(object):
         else:
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
-            laue = self.unitcell._laueGroup
+            laue = self._plane_data_laue_group
             self._pData = PlaneData(
                 hkls,
                 lprm,
@@ -1317,6 +1322,13 @@ class Material(object):
         self._lparms = lp
         self._newUnitcell()
         self._hkls_changed()
+
+    @property
+    def _plane_data_laue_group(self) -> str:
+        # PlaneData builds its symmetry operators from this tag
+        if self.sgnum in _LAUE_31M_SGNUMS:
+            return 'd3d_31m'
+        return self.unitcell._laueGroup
 
     @property
     def reduced_lattice_parameters(self):

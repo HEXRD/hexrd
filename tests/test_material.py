@@ -151,6 +151,25 @@ def test_absorption_length_mass_weighting(test_materials_file: Path) -> None:
         assert np.isclose(m.absorption_length, expected, rtol=0.02)
 
 
+def test_trigonal_plane_data_symmetry(default_material: Material) -> None:
+    # -3m1 and -31m groups have their twofolds 30 degrees apart, so
+    # PlaneData must not use one set of symmetry operators for both
+    mat = default_material
+    for sgnum in (164, 162, 149, 166):
+        mat.sgnum = sgnum
+        mat.latticeParameters = [5.1, 5.1, 7.3, 90, 90, 120]
+        families = {}
+        for d in mat.planeData.hklDataList:
+            stars = mat.unitcell.CalcStar(d['hkl'], 'r', applyLaue=True)
+            expected = {tuple(round(x) for x in v) for v in stars}
+            family = {tuple(v) for v in d['symHKLs'].T.tolist()}
+            assert family == expected
+            families.update(dict.fromkeys(family, len(family)))
+
+        # e.g. {101} has 12 members in P-31m and P312, but 6 in P-3m1
+        assert families[(1, 0, 1)] == (12 if sgnum in (162, 149) else 6)
+
+
 class TestExclusions:
 
     def test_d(self, default_material):

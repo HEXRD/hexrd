@@ -486,8 +486,8 @@ class HedmExperiment(Experiment):
             view._initialize(panel, series, experiment.max_workers)
             experiment.image_series_list.append(view)
         groups = {'ci': 2, 'c2h': 5, 'd2h': 8, 'c4h': 11, 'd4h': 15,
-                  'c3i': 17, 's6': 17, 'd3d': 20, 'c6h': 23, 'd6h': 27,
-                  'th': 29, 'oh': 32}
+                  'c3i': 17, 's6': 17, 'd3d': 20, 'd3d_31m': 20,
+                  'c6h': 23, 'd6h': 27, 'th': 29, 'oh': 32}
         material = Material.__new__(Material)
         material.name = experiment.active_material.active
         material.dmin = material.sfacmin = None
