@@ -3,6 +3,7 @@ import json
 
 import numpy as np
 
+from hexrd.core.transforms import xfcapi
 from hexrd.core.transforms.xfcapi import gvec_to_xy
 
 from common import convert_axis_angle_to_rmat
@@ -36,3 +37,13 @@ def test_gvec_to_xy(test_data_dir):
 
         result = gvec_to_xy(**rotated_kwargs)
         assert np.allclose(result, expected)
+
+
+def test_c_api_integer_inputs() -> None:
+    # The C module rejected integer arrays, or for the detector tilt read
+    # them as raw doubles and silently returned the identity
+    rmat = xfcapi.make_detector_rmat(np.array([0.0, 0.0, 1.0]))
+    assert np.allclose(xfcapi.make_detector_rmat(np.array([0, 0, 1])), rmat)
+    assert np.allclose(xfcapi.unit_vector(np.array([3, 4, 0])), [0.6, 0.8, 0.0])
+    assert np.allclose(xfcapi.make_oscill_rmat([0, 0]), np.eye(3))
+    assert np.allclose(xfcapi.make_oscill_rmat_array(0, np.array([0])), np.eye(3))
