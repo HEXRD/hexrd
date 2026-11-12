@@ -73,3 +73,24 @@ def test_write_config_hdf5_leaves_state_intact(tmp_path: Path) -> None:
     assert 'detectors' in cfg
     assert instr.energy_correction == correction
     assert calibration == {'grain_params': {'tvec': [0.0, 0.0, 0.0]}}
+
+
+def test_integer_config_values_are_stored_as_float() -> None:
+    # YAML often gives integer translations and tilts, and calibration
+    # updates them in place (e.g. `panel.tvec += diff`)
+    cfg = {
+        'beam': {'energy': 65.0, 'vector': {'azimuth': 90.0, 'polar_angle': 90.0}},
+        'oscillation_stage': {'chi': 0, 'translation': [0, 0, 0]},
+        'detectors': {
+            'd': {
+                'pixels': {'rows': 10, 'columns': 12, 'size': [0.2, 0.2]},
+                'transform': {'tilt': [0, 0, 0], 'translation': [0, 0, -1000]},
+            }
+        },
+    }
+    instr = HEDMInstrument(cfg)
+    panel = instr.detectors['d']
+    panel.tilt = [0, 0, 0]
+    for vec in (instr.tvec, panel.tvec, panel.tilt):
+        vec += 0.5
+    assert panel.tvec[2] == -999.5
