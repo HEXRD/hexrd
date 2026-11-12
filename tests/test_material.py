@@ -1,9 +1,12 @@
+from pathlib import Path
+
 import numpy as np
 import h5py
 import pytest
 
 from hexrd.core.material import Material, load_materials_hdf5
 from hexrd.core.material.material import _parse_cif_type_symbol
+from hexrd.core.material.utils import calculate_linear_absorption_length
 
 # Tolerance for comparing floats
 FLOAT_TOL = 1.0e-8
@@ -133,6 +136,19 @@ def test_remove_duplicate_atoms(test_material_file_duplicate_atoms):
 def test_parse_cif_type_symbol(symbol: str, expected: tuple[str, str]) -> None:
     # One-character charges used to cut the element short ("Na+" -> "N")
     assert _parse_cif_type_symbol(symbol) == expected
+
+
+def test_absorption_length_mass_weighting(test_materials_file: Path) -> None:
+    # Elements must be mixed by mass fraction, like the formula-based NIST
+    # calculation in `material.utils` (CeO2 and LaB6 were 2.3x and 4x off)
+    mats = load_materials_hdf5(test_materials_file)
+    for m in (mats['CeO2'], mats['LaB6']):
+        uc = m.unitcell
+        energy = [m.beamEnergy.value]
+        expected = calculate_linear_absorption_length(
+            uc.density, uc.chemical_formula, energy
+        )[0]
+        assert np.isclose(m.absorption_length, expected, rtol=0.02)
 
 
 class TestExclusions:
