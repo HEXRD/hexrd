@@ -55,7 +55,7 @@ def oscillAnglesOfHKLs(
     chi: float,
     rMat_c: NDArray[np.float64],
     bMat: NDArray[np.float64],
-    wavelen: float,
+    wavelen: float | NDArray[np.float64],
     vInv: NDArray[np.float64],
     beamVec: NDArray[np.float64],
     etaVec: NDArray[np.float64],

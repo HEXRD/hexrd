@@ -7,6 +7,7 @@ with the settings for find-orientations and fit-grains.
 import enum
 import os
 import threading
+from collections.abc import Callable
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -399,12 +400,17 @@ class FitGrains:
     tth_max: bool | float
     reset_exclusions: bool
     exclusion_parameters: dict
+    beam_energy_iterations: int = Field(default=1, ge=0, strict=True)
+    beam_energy_file: str | None = None
 
     @classmethod
-    def from_dict(cls, d: dict, path) -> 'FitGrains':
+    def from_dict(cls, d: dict, path: Callable[[str], str]) -> 'FitGrains':
         estimate = d.get('estimate')
         if estimate is not None and not os.path.isabs(estimate):
             estimate = path(estimate)
+        energy_file = d.get('beam_energy_file')
+        if energy_file is not None and not os.path.isabs(energy_file):
+            energy_file = path(energy_file)
         names = ('dmin', 'dmax', 'tthmin', 'tthmax', 'sfacmin', 'sfacmax',
                  'pintmin', 'pintmax')
         exclusions = {name: d.get(name) for name in names}
@@ -413,7 +419,9 @@ class FitGrains:
                    d.get('threshold'),
                    FitGrainsTolerance.from_dict(d.get('tolerance', {})),
                    _pair(d.get('refit')), d.get('tth_max', True),
-                   d.get('reset_exclusions', True), exclusions)
+                   d.get('reset_exclusions', True), exclusions,
+                   beam_energy_iterations=d.get('beam_energy_iterations', 1),
+                   beam_energy_file=energy_file)
 
 
 class HedmExperiment(Experiment):

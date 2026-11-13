@@ -1637,19 +1637,17 @@ class HEDMInstrument(object):
 
     def simulate_rotation_series(
         self,
-        plane_data,
-        grain_param_list,
-        eta_ranges=[
-            (-np.pi, np.pi),
-        ],
-        ome_ranges=[
-            (-np.pi, np.pi),
-        ],
-        ome_period=(-np.pi, np.pi),
-        wavelength=None,
-    ):
+        plane_data: PlaneData,
+        grain_param_list: list[Sequence[float]],
+        eta_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi),),
+        ome_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi),),
+        ome_period: tuple[float, float] = (-np.pi, np.pi),
+        wavelength: float | None = None,
+        imgser_dict: dict[str, OmegaImageSeries] | None = None,
+        beam_energy_iterations: int = 1,
+    ) -> dict[str, tuple[list[np.ndarray], ...]]:
         """
-        Simulate a monochromatic rotation series over the instrument.
+        Simulate a rotation series over the instrument.
 
         Parameters
         ----------
@@ -1665,6 +1663,14 @@ class HEDMInstrument(object):
             DESCRIPTION. The default is (-np.pi, np.pi).
         wavelength : TYPE, optional
             DESCRIPTION. The default is None.
+        imgser_dict : dict, optional
+            Map of detector IDs to OmegaImageSeries objects.  When the
+            image series metadata contains ``beam_energy``, per-frame
+            energies correct the nominal prediction within that series' omega coverage.
+        beam_energy_iterations : int, optional
+            Correction passes after the nominal solve, default 1. Zero disables
+            per-frame correction in prediction; higher values repeat the frame lookup.
+            With an energy trace, its omega coverage also filters nominal predictions.
 
         Returns
         -------
@@ -1673,8 +1679,20 @@ class HEDMInstrument(object):
 
         TODO: revisit output; dict, or concatenated list?
         """
+        has_frame_energy = imgser_dict is not None and any(
+            'beam_energy' in ims.metadata for ims in imgser_dict.values()
+        )
         results = dict.fromkeys(self.detectors)
         for det_key, panel in self.detectors.items():
+            ome_ims = None
+            if has_frame_energy:
+                ome_ims = _parse_imgser_dict(
+                    imgser_dict,
+                    det_key,
+                    roi=panel.roi,
+                    group=panel.group,
+                )
+
             results[det_key] = panel.simulate_rotation_series(
                 plane_data,
                 grain_param_list,
@@ -1685,6 +1703,8 @@ class HEDMInstrument(object):
                 tVec_s=self.tvec,
                 wavelength=wavelength,
                 energy_correction=self.energy_correction,
+                ome_image_series=ome_ims,
+                beam_energy_iterations=beam_energy_iterations,
             )
         return results
 
@@ -1699,7 +1719,8 @@ class HEDMInstrument(object):
         threshold: int = 10,
         eta_ranges: Sequence[tuple[float, float]] = ((-np.pi, np.pi),),
         ome_period: Optional[tuple[float, float]] = None,
-    ):
+        beam_energy_iterations: int = 1,
+    ) -> tuple[list[np.bool_], defaultdict[str, list[list]]]:
         rMat_c = make_rmat_of_expmap(grain_params[:3])
         tVec_c = np.asarray(grain_params[3:6])
 
@@ -1723,6 +1744,8 @@ class HEDMInstrument(object):
             eta_ranges=eta_ranges,
             ome_ranges=omega_ranges,
             ome_period=ome_period,
+            imgser_dict=imgser_dict,
+            beam_energy_iterations=beam_energy_iterations,
         )
 
         patch_has_signal = []
@@ -1802,6 +1825,7 @@ class HEDMInstrument(object):
         check_only: bool = False,
         interp: Literal['nearest', 'bilinear'] = 'nearest',
         quiet: Optional[Any] = None,
+        beam_energy_iterations: int = 1,
     ) -> tuple[list[np.bool_], defaultdict[str, list[list]]]:
         """Extract reflection info from a rotation series.
 
@@ -1849,6 +1873,9 @@ class HEDMInstrument(object):
             With 'bilinear', interpolation stencils may still include buffered
             neighbors. Use 'nearest' to exclude their intensities completely.
 
+        beam_energy_iterations : int, optional
+            Per-frame energy correction passes after nominal prediction, default 1.
+
         Returns
         -------
         patch_has_signal : list[bool]
@@ -1872,6 +1899,7 @@ class HEDMInstrument(object):
                 threshold=threshold,
                 eta_ranges=eta_ranges,
                 ome_period=ome_period,
+                beam_energy_iterations=beam_energy_iterations,
             )
 
         if filename is not None and not isinstance(filename, str):
@@ -1914,6 +1942,8 @@ class HEDMInstrument(object):
             eta_ranges=eta_ranges,
             ome_ranges=omega_ranges,
             ome_period=ome_period,
+            imgser_dict=imgser_dict,
+            beam_energy_iterations=beam_energy_iterations,
         )
 
         if write_hdf5:

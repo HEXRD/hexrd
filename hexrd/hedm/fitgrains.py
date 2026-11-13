@@ -5,10 +5,12 @@ Created on Wed Mar 22 19:04:10 2017
 
 @author: bernier2
 """
+
 import os
 import logging
 import multiprocessing
 import numpy as np
+from numpy.typing import NDArray
 import timeit
 import warnings
 
@@ -17,6 +19,13 @@ from collections import defaultdict
 from hexrd.core import constants
 from hexrd.core import instrument
 from hexrd.core import rotations
+from hexrd.core.imageseries.omega import OmegaImageSeries
+from hexrd.core.instrument.hedm_instrument import _parse_imgser_dict
+from hexrd.core.instrument.beam_energy import (
+    load_beam_energy_file,
+    omegas_to_frames,
+    validate_beam_energy_series,
+)
 from .fitting import fitGrain, objFuncFitGrain, gFlag_ref
 
 logger = logging.getLogger(__name__)
@@ -27,6 +36,43 @@ logger = logging.getLogger(__name__)
 
 OVERLAP_TABLE_FILE = 'overlap_table.npz'
 SPOTS_OUT_FILE = "spots_%05d.out"
+
+
+class _FrameEnergySeries(OmegaImageSeries):
+    """Override energy metadata while preserving the source's pixel indexing."""
+
+    def __init__(
+        self, series: OmegaImageSeries, energies: NDArray[np.float64]
+    ) -> None:
+        super().__init__(series)
+        self._metadata = dict(series.metadata, beam_energy=energies)
+
+    @property
+    def metadata(self) -> dict:
+        return self._metadata
+
+
+def _per_refl_wavelengths(
+    culled_results: dict[str, list],
+    imgser_dict: dict[str, OmegaImageSeries],
+    default_wavelength: float,
+) -> float | dict[str, float | NDArray[np.float64]]:
+    """Look up each measured spot's energy in its detector's image series."""
+    if not any('beam_energy' in ims.metadata for ims in imgser_dict.values()):
+        return default_wavelength
+
+    wavelengths = dict.fromkeys(culled_results, default_wavelength)
+    for det_key, spots in culled_results.items():
+        ims = imgser_dict[det_key]
+        if 'beam_energy' not in ims.metadata:
+            continue
+        energies = validate_beam_energy_series(ims.metadata['beam_energy'], ims)
+        omegas = np.degrees([spot[6][-1] for spot in spots])
+        frames = omegas_to_frames(omegas, ims)
+        if np.any(frames < 0):
+            raise ValueError(f'{det_key}: measured omega has no frame energy')
+        wavelengths[det_key] = constants.keVToAngstrom(energies[frames])
+    return wavelengths
 
 
 # multiprocessing fit funcs
@@ -117,6 +163,7 @@ def fit_grain_FF_reduced(grain):
             eta_tol=tols[1],
             ome_tol=tols[2],
             npdiv=npdiv,
+            beam_energy_iterations=paramMP['beam_energy_iterations'],
             threshold=threshold,
             eta_ranges=eta_ranges,
             ome_period=ome_period,
@@ -143,12 +190,16 @@ def fit_grain_FF_reduced(grain):
                 result += ((complvec, results),)
             return result
         else:
+            wavelength = _per_refl_wavelengths(
+                culled_results, imgser_dict, plane_data.wavelength
+            )
+
             grain_params = fitGrain(
                 grain_params,
                 instrument,
                 culled_results,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength,
             )
             # get chisq
             # TODO: do this while evaluating fit???
@@ -159,7 +210,7 @@ def fit_grain_FF_reduced(grain):
                 instrument,
                 culled_results,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength,
                 ome_period,
                 simOnly=False,
                 return_value_flag=2,
@@ -175,7 +226,7 @@ def fit_grain_FF_reduced(grain):
             instrument,
             culled_results,
             plane_data.latVecOps['B'],
-            plane_data.wavelength,
+            wavelength,
             ome_period,
             simOnly=True,
             return_value_flag=2,
@@ -187,12 +238,17 @@ def fit_grain_FF_reduced(grain):
 
         # only execute fit if left with enough reflections
         if num_refl_valid > 12:
+            # Recompute per-reflection wavelengths for refined set
+            wavelength_r = _per_refl_wavelengths(
+                culled_results_r, imgser_dict, plane_data.wavelength
+            )
+
             grain_params = fitGrain(
                 grain_params,
                 instrument,
                 culled_results_r,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength_r,
             )
             # get chisq
             # TODO: do this while evaluating fit???
@@ -203,7 +259,7 @@ def fit_grain_FF_reduced(grain):
                 instrument,
                 culled_results_r,
                 plane_data.latVecOps['B'],
-                plane_data.wavelength,
+                wavelength_r,
                 ome_period,
                 simOnly=False,
                 return_value_flag=2,
@@ -408,9 +464,32 @@ def fit_grains(
 
     # grab imageseries dict
     imsd = experiment.image_series
+    energy_file = experiment.fit_grains.beam_energy_file
+    if energy_file is not None:
+        energies = load_beam_energy_file(energy_file, next(iter(imsd.values())))
+        # Override metadata for this fit without changing the caller's series.
+        imsd = {
+            key: _FrameEnergySeries(ims, energies)
+            for key, ims in imsd.items()
+        }
+        logger.info(
+            'Loaded frame energies from %s: %g to %g keV',
+            energy_file, energies.min(), energies.max(),
+        )
 
     # grab instrument
     instr = experiment.instrument
+    if any('beam_energy' in ims.metadata for ims in imsd.values()):
+        # Add detector aliases without changing the caller's first omega series.
+        imsd = imsd | {
+            key: _parse_imgser_dict(imsd, key, roi=panel.roi, group=panel.group)
+            for key, panel in instr.detectors.items()
+        }
+        # Reject ambiguous frame energies before starting any fit workers.
+        for key in instr.detectors:
+            ims = imsd[key]
+            if 'beam_energy' in ims.metadata:
+                validate_beam_energy_series(ims.metadata['beam_energy'], ims)
 
     # grab eta ranges and ome_period
     eta_ranges = experiment.eta_ranges
@@ -438,6 +517,7 @@ def fit_grains(
         eta_tol=experiment.fit_grains.tolerance.eta,
         ome_tol=experiment.fit_grains.tolerance.omega,
         npdiv=experiment.fit_grains.npdiv,
+        beam_energy_iterations=experiment.fit_grains.beam_energy_iterations,
         refit=experiment.fit_grains.refit,
         threshold=threshold,
         eta_ranges=eta_ranges,

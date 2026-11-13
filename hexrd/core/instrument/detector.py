@@ -21,7 +21,10 @@ from hexrd.core.instrument.constants import (
 )
 from hexrd.core.instrument.physics_package import AbstractPhysicsPackage
 
+from .beam_energy import omegas_to_frames, validate_beam_energy_series
+
 if TYPE_CHECKING:
+    from hexrd.core.imageseries.omega import OmegaImageSeries
     from hexrd.hed.xrdutil.phutil import (
         LayerDistortion,
         PinholeDistortion,
@@ -1575,9 +1578,11 @@ class Detector:
         tVec_s: NDArray[np.float64] = ct.zeros_3,
         wavelength: float | None = None,
         energy_correction: dict[str, float] | None = None,
-    ):
+        ome_image_series: "OmegaImageSeries | None" = None,
+        beam_energy_iterations: int = 1,
+    ) -> tuple[list[np.ndarray], ...]:
         """
-        Simulate a monochromatic rotation series for a list of grains.
+        Simulate a rotation series for a list of grains.
 
         Parameters
         ----------
@@ -1598,6 +1603,18 @@ class Detector:
         wavelength : TYPE, optional
             DESCRIPTION. The default is None.
 
+        ome_image_series : OmegaImageSeries, optional
+            If metadata contains beam_energy, use its positive per-frame energies
+            in keV. Only reflections in its omega coverage are returned, including
+            when beam_energy_iterations is zero.
+        beam_energy_iterations : int, optional
+            Number of correction passes after the nominal-energy solve, default 1.
+            Each pass looks up each omega solution's frame energy and solves again.
+            Zero uses nominal energy. The last prediction is returned even if its
+            frame assignment has not converged; discontinuous traces can oscillate.
+            Corrections require a valid nominal prediction within omega coverage;
+            they do not search for additional solutions at other energies.
+
         Returns
         -------
         valid_ids : TYPE
@@ -1612,19 +1629,33 @@ class Detector:
             DESCRIPTION.
 
         """
+        if (
+            isinstance(beam_energy_iterations, (bool, np.bool_))
+            or not isinstance(beam_energy_iterations, (int, np.integer))
+            or beam_energy_iterations < 0
+        ):
+            raise ValueError('beam_energy_iterations must be a nonnegative integer')
+        frame_wavelengths = None
+        if ome_image_series is not None and 'beam_energy' in ome_image_series.metadata:
+            energies = validate_beam_energy_series(
+                ome_image_series.metadata['beam_energy'], ome_image_series
+            )
+            frame_wavelengths = ct.keVToAngstrom(energies)
+
         # grab B-matrix from plane data
         bMat = plane_data.latVecOps['B']
 
         # reconcile wavelength
         #   * added sanity check on exclusions here; possible to
         #   * make some reflections invalid (NaN)
+        check_exclusions = wavelength is None or frame_wavelengths is None
         if wavelength is None:
             wavelength = plane_data.wavelength
-        else:
+        elif frame_wavelengths is None:
             # TODO: This function should not be modifying input arguments
             if plane_data.wavelength != wavelength:
                 plane_data.wavelength = ct.keVToAngstrom(wavelength)
-        assert not np.any(np.isnan(plane_data.getTTh())), (
+        assert not check_exclusions or not np.any(np.isnan(plane_data.getTTh())), (
             "plane data exclusions incompatible with wavelength"
         )
 
@@ -1643,17 +1674,10 @@ class Detector:
             tVec_c = np.array(gparm[3:6])
             vInv_s = np.array(gparm[6:])
 
-            # Apply an energy correction according to grain position
             corrected_wavelength = xrdutil.apply_correction_to_wavelength(
-                wavelength,
-                energy_correction,
-                tVec_s,
-                tVec_c,
+                wavelength, energy_correction, tVec_s, tVec_c
             )
-
-            # All possible bragg conditions as vstacked [tth, eta, ome]
-            # for each omega solution
-            angList = np.vstack(
+            angles = list(
                 oscill_angles_of_hkls(
                     full_hkls[:, 1:],
                     chi,
@@ -1664,12 +1688,35 @@ class Detector:
                     beam_vec=self.bvec,
                 )
             )
-
-            # filter by eta and omega ranges
-            # ??? get eta range from detector?
+            if frame_wavelengths is not None:
+                for _ in range(beam_energy_iterations):
+                    for branch in (0, 1):
+                        frames = omegas_to_frames(
+                            np.degrees(angles[branch][:, 2]), ome_image_series
+                        )
+                        covered = frames >= 0
+                        wavelengths = np.full(len(frames), wavelength, dtype=float)
+                        wavelengths[covered] = frame_wavelengths[frames[covered]]
+                        wavelengths = xrdutil.apply_correction_to_wavelength(
+                            wavelengths, energy_correction, tVec_s, tVec_c
+                        )
+                        angles[branch] = oscill_angles_of_hkls(
+                            full_hkls[:, 1:],
+                            chi,
+                            rMat_c,
+                            bMat,
+                            wavelengths,
+                            v_inv=vInv_s,
+                            beam_vec=self.bvec,
+                        )[branch]
             allAngs, allHKLs = xrdutil._filter_hkls_eta_ome(
-                full_hkls, angList, eta_ranges, ome_ranges
+                full_hkls, np.vstack(angles), eta_ranges, ome_ranges
             )
+            if frame_wavelengths is not None:
+                covered = (
+                    omegas_to_frames(np.degrees(allAngs[:, 2]), ome_image_series) >= 0
+                )
+                allAngs, allHKLs = allAngs[covered], allHKLs[covered]
             allAngs[:, 2] = mapAngle(allAngs[:, 2], ome_period)
 
             # find points that fall on the panel
