@@ -37,8 +37,7 @@ def unwrap_dict_to_h5(
     None.
 
     """
-    while len(d) > 0:
-        key, item = d.popitem()
+    for key, item in d.items():
         if isinstance(item, dict):
             subgrp = grp.create_group(key)
             unwrap_dict_to_h5(subgrp, item, asattr=asattr, **dataset_options)

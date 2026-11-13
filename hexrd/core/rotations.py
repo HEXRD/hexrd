@@ -1333,7 +1333,7 @@ def ltypeOfLaueGroup(tag):
         ltype = 'orthorhombic'
     elif tag.lower() == 'c4h' or tag.lower() == 'd4h':
         ltype = 'tetragonal'
-    elif tag.lower() == 'c3i' or tag.lower() == 's6' or tag.lower() == 'd3d':
+    elif tag.lower() in ('c3i', 's6', 'd3d', 'd3d_31m'):
         ltype = 'trigonal'
     elif tag.lower() == 'c6h' or tag.lower() == 'd6h':
         ltype = 'hexagonal'
@@ -1367,7 +1367,8 @@ def quatOfLaueGroup(tag):
               Tetragonal      C4h         4
                               D4h         8
               Trigonal        C3i (S6)    3
-                              D3d         6
+                              D3d         6   (-3m1, 2-folds along a)
+                              D3d_31m     6   (-31m, 2-folds normal to a)
               Hexagonal       C6h         6
                               D6h         12
               Cubic           Th          12
@@ -1451,6 +1452,16 @@ def quatOfLaueGroup(tag):
             [np.pi, 1, 0, 0],  # twofold about  2 -1 -1  0 (x1,a1)
             [np.pi, -0.5, sq3by2, 0],  # twofold about -1  2 -1  0 (a2)
             [np.pi, -0.5, -sq3by2, 0],  # twofold about -1 -1  2  0 (a3)
+        ]
+    elif tag.lower() == 'd3d_31m':
+        # TRIGONAL (HIGH), -31m setting: the twofolds are normal to a1, a2, a3
+        angleAxis = np.c_[
+            [0.0, 1, 0, 0],  # identity
+            [piby3 * 2, 0, 0, 1],  # threefold about 0001 (x3,c)
+            [piby3 * 4, 0, 0, 1],  #
+            [np.pi, sq3by2, 0.5, 0],  # twofold about  1  0 -1  0 (normal to a2)
+            [np.pi, 0, 1, 0],  # twofold about  0  1 -1  0 (x2, normal to a1)
+            [np.pi, -sq3by2, 0.5, 0],  # twofold about -1  1  0  0 (normal to a3)
         ]
     elif tag.lower() == 'c6h':
         # HEXAGONAL (LOW)

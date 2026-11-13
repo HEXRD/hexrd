@@ -384,19 +384,22 @@ def test_fixed_pink_shape_ignored_for_other_pktypes() -> None:
     assert sm._fixed_pink_asymmetry is None
 
 
-def test_fixed_pink_dcs_skips_second_stage_refinement() -> None:
-    # dcs is the one type whose second stage would otherwise free alpha0; the
-    # fixed flow must skip it. (heating/exponential never refine their shape
-    # params, so they have no equivalent contrast.)
-    data, cen = _pink_data('pink_beam_dcs')
-    sm_free = SpectrumModel(
-        data,
-        [cen],
+@pytest.mark.parametrize("fixed", [True, False])
+def test_pink_beam_dcs_refines_width(fixed: bool) -> None:
+    # The width must be refined, both with and without fixed asymmetry.
+    # The default initial guess here is 0.5 / 20 = 0.025, far from 0.1.
+    asym = FIXED_PINK_VALUES['pink_beam_dcs']
+    x = np.linspace(9.75, 10.25, 201)
+    y = s.pink_beam_dcs(x, 1000.0, 10.0, *asym.values(), 0.1, 0.1) + 10.0
+    sm = SpectrumModel(
+        np.vstack([x, y]).T,
+        [10.01],
         pktype="pink_beam_dcs",
         bgtype="linear",
-        fwhm_init=0.05,
-        min_ampl=1e-8,
+        fixed_pink_asymmetry=asym if fixed else None,
     )
-    res_free = sm_free.fit()
-    assert res_free.success
-    assert res_free.params['pk0_alpha0'].vary is True
+    res = sm.fit()
+    assert res.params['pk0_fwhm_l'].value == pytest.approx(0.1, abs=1e-4)
+    assert res.params['pk0_cen'].value == pytest.approx(10.0, abs=1e-4)
+    # The asymmetry is refined only when it is not fixed
+    assert res.params['pk0_alpha0'].vary is not fixed

@@ -1,8 +1,12 @@
+from pathlib import Path
+
 import numpy as np
 import h5py
 import pytest
 
 from hexrd.core.material import Material, load_materials_hdf5
+from hexrd.core.material.material import _parse_cif_type_symbol
+from hexrd.core.material.utils import calculate_linear_absorption_length
 
 # Tolerance for comparing floats
 FLOAT_TOL = 1.0e-8
@@ -117,6 +121,53 @@ def test_remove_duplicate_atoms(test_material_file_duplicate_atoms):
 
     mats['xtal3'].unitcell.remove_duplicate_atoms()
     assert np.all(np.isclose(mats['xtal3'].atom_pos, apos_xtal3))
+
+
+@pytest.mark.parametrize(
+    'symbol, expected',
+    [
+        ('Na+', ('Na', '1+')),
+        ('Cl1-', ('Cl', '1-')),
+        ('O-2', ('O', '2-')),
+        ('K+', ('K', '1+')),
+        ('Si', ('Si', '0')),
+    ],
+)
+def test_parse_cif_type_symbol(symbol: str, expected: tuple[str, str]) -> None:
+    # One-character charges used to cut the element short ("Na+" -> "N")
+    assert _parse_cif_type_symbol(symbol) == expected
+
+
+def test_absorption_length_mass_weighting(test_materials_file: Path) -> None:
+    # Elements must be mixed by mass fraction, like the formula-based NIST
+    # calculation in `material.utils` (CeO2 and LaB6 were 2.3x and 4x off)
+    mats = load_materials_hdf5(test_materials_file)
+    for m in (mats['CeO2'], mats['LaB6']):
+        uc = m.unitcell
+        energy = [m.beamEnergy.value]
+        expected = calculate_linear_absorption_length(
+            uc.density, uc.chemical_formula, energy
+        )[0]
+        assert np.isclose(m.absorption_length, expected, rtol=0.02)
+
+
+def test_trigonal_plane_data_symmetry(default_material: Material) -> None:
+    # -3m1 and -31m groups have their twofolds 30 degrees apart, so
+    # PlaneData must not use one set of symmetry operators for both
+    mat = default_material
+    for sgnum in (164, 162, 149, 166):
+        mat.sgnum = sgnum
+        mat.latticeParameters = [5.1, 5.1, 7.3, 90, 90, 120]
+        families = {}
+        for d in mat.planeData.hklDataList:
+            stars = mat.unitcell.CalcStar(d['hkl'], 'r', applyLaue=True)
+            expected = {tuple(round(x) for x in v) for v in stars}
+            family = {tuple(v) for v in d['symHKLs'].T.tolist()}
+            assert family == expected
+            families.update(dict.fromkeys(family, len(family)))
+
+        # e.g. {101} has 12 members in P-31m and P312, but 6 in P-3m1
+        assert families[(1, 0, 1)] == (12 if sgnum in (162, 149) else 6)
 
 
 class TestExclusions:

@@ -291,13 +291,13 @@ class Detector:
                 (roi[1], roi[1] + self._cols),
             )
 
-        self._tvec = np.array(tvec).flatten()
-        self._tilt = np.array(tilt).flatten()
+        self._tvec = np.array(tvec, dtype=float).flatten()
+        self._tilt = np.array(tilt, dtype=float).flatten()
 
-        self._bvec = np.array(bvec).flatten()
+        self._bvec = np.array(bvec, dtype=float).flatten()
         self._xrs_dist = xrs_dist
 
-        self._evec = np.array(evec).flatten()
+        self._evec = np.array(evec, dtype=float).flatten()
 
         self._distortion = distortion
 
@@ -475,7 +475,7 @@ class Detector:
 
     @tvec.setter
     def tvec(self, x):
-        x = np.array(x).flatten()
+        x = np.array(x, dtype=float).flatten()
         if len(x) != 3:
             raise ValueError('tvec must be a 3-element array-like')
         self._tvec = x
@@ -488,7 +488,7 @@ class Detector:
     def tilt(self, x):
         if len(x) != 3:
             raise ValueError('tilt must be a 3-element array-like')
-        self._tilt = np.array(x).squeeze()
+        self._tilt = np.array(x, dtype=float).squeeze()
 
     @property
     def bvec(self):
@@ -496,7 +496,7 @@ class Detector:
 
     @bvec.setter
     def bvec(self, x):
-        x = np.array(x).flatten()
+        x = np.array(x, dtype=float).flatten()
         if len(x) != 3 or sum(x * x) < 1 - ct.sqrt_epsf:
             raise ValueError('bvec must be a 3-element array-like with unit magnitude')
         self._bvec = x
@@ -518,7 +518,7 @@ class Detector:
 
     @evec.setter
     def evec(self, x):
-        x = np.array(x).flatten()
+        x = np.array(x, dtype=float).flatten()
         if len(x) != 3 or sum(x * x) < 1 - ct.sqrt_epsf:
             raise ValueError('evec must be a 3-element array-like with unit magnitude')
         self._evec = x

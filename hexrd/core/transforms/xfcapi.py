@@ -467,7 +467,7 @@ def unit_vector(vec_in: NDArray[np.float64]) -> NDArray[np.float64]:
     ValueError
         If the input vector(s) do not have the correct shape.
     """
-    vec_in = np.ascontiguousarray(vec_in)
+    vec_in = np.ascontiguousarray(vec_in, dtype=np.float64)
     if vec_in.ndim == 1:
         return transforms_c_api.unitRowVector(vec_in)
     elif vec_in.ndim == 2:
@@ -485,7 +485,7 @@ def make_detector_rmat(tilt_angles: NDArray[np.float64]) -> NDArray[np.float64]:
     tilt_angles = [gamma_Xl, gamma_Yl, gamma_Zl] in radians
     Returns the (3, 3) rotation matrix from the detector frame to the lab frame
     """
-    t_angles = np.ascontiguousarray(np.r_[tilt_angles].flatten())
+    t_angles = np.ascontiguousarray(np.r_[tilt_angles].flatten(), dtype=np.float64)
     return transforms_c_api.makeDetectorRotMat(t_angles)
 
 
@@ -495,13 +495,13 @@ def make_detector_rmat(tilt_angles: NDArray[np.float64]) -> NDArray[np.float64]:
 
 def make_oscill_rmat(oscillAngles):
     chi, ome = oscillAngles
-    ome = np.atleast_1d(ome)
+    ome = np.ascontiguousarray(np.atleast_1d(ome), dtype=np.float64)
     result = transforms_c_api.makeOscillRotMat(chi, ome)
     return result.reshape((3, 3))
 
 
 def make_oscill_rmat_array(chi, omeArray):
-    arg = np.ascontiguousarray(omeArray)
+    arg = np.ascontiguousarray(omeArray, dtype=np.float64)
     return transforms_c_api.makeOscillRotMat(chi, arg)
 
 

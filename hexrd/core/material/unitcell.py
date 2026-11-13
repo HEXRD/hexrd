@@ -1026,13 +1026,20 @@ class unitcell:
         return 1e-12 * self.density * Na / M
 
     def calc_absorption_cross_sec(self):
+        # The tabulated values are mass attenuation coefficients (cm^2/g),
+        # so we combine them using the mass fraction of each element
+        masses = (
+            self.numat
+            * self.atom_pos[:, 3]
+            * constants.atom_weights[np.asarray(self.atom_type) - 1]
+        )
+        mass_fractions = masses / np.sum(masses)
+
         abs_cs_total = 0.0
         for i in range(self.atom_ntype):
             Z = self.atom_type[i]
             elem = constants.ptableinverse[Z]
-            abs_cs_total += (
-                self.pe_cs[elem](self.wavelength) * self.numat[i] / np.sum(self.numat)
-            )
+            abs_cs_total += self.pe_cs[elem](self.wavelength) * mass_fractions[i]
         return abs_cs_total
 
     """

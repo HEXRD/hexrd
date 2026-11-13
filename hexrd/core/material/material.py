@@ -32,6 +32,7 @@ Use the Material class directly for new materials.  Known
 materials are defined by name in materialDict.
 """
 import logging
+import re
 
 from configparser import ConfigParser as Parser
 import numpy as np
@@ -65,6 +66,11 @@ logger = logging.getLogger(__name__)
 #
 
 
+# Space groups in Laue class -31m. Their twofolds are normal to the a axes,
+# while the 'd3d' symmetry that PlaneData uses has them along a (-3m1).
+_LAUE_31M_SGNUMS = frozenset((149, 151, 153, 157, 159, 162, 163))
+
+
 def _key(x):
     return x.name
 
@@ -73,6 +79,29 @@ def get_default_sgsetting(sgnum):
     # Origin choice 1 for every group, like the bundled material library
     # and the GUI; a CIF in origin choice 2 must be transformed first.
     return 0
+
+
+def _parse_cif_type_symbol(s: str) -> tuple[str, str]:
+    # Split a CIF type symbol such as 'Na+', 'O2-' or 'Fe3+' into the
+    # element and a charge in the '<n><sign>' form of `chargestate`
+    m = re.fullmatch(r'([A-Z][a-z]?)(\d*)([+-]?)(\d*)', s.strip())
+    if m is None:
+        return s, '0'
+
+    elem, n1, sign, n2 = m.groups()
+    if not sign:
+        return elem, '0'
+
+    n = n1 or n2 or '1'
+    charge = f'{int(n)}{sign}'
+    if charge not in chargestate.get(elem, []):
+        warn(
+            f'charge state {charge} of {elem} is not supported. '
+            'setting it to 0'
+        )
+        charge = '0'
+
+    return elem, charge
 
 
 #
@@ -281,7 +310,7 @@ class Material(object):
             self._unitcell.stiffness = Material.DFLT_STIFFNESS
 
         if pdata := getattr(self, '_pData', None):
-            laue = self.unitcell._laueGroup
+            laue = self._plane_data_laue_group
             reduced_lparms = self.reduced_lattice_parameters
             if pdata.laueGroup != laue or pdata.lparms != reduced_lparms:
                 pdata.set_laue_and_lparms(laue, reduced_lparms)
@@ -326,7 +355,7 @@ class Material(object):
         else:
             # Make the PlaneData object from scratch...
             lprm = self.reduced_lattice_parameters
-            laue = self.unitcell._laueGroup
+            laue = self._plane_data_laue_group
             self._pData = PlaneData(
                 hkls,
                 lprm,
@@ -780,20 +809,7 @@ class Material(object):
         atomtype = []
         charge = []
         for s in satype:
-            if "+" in s:
-                ss = s[:-2]
-                c = s[-2:]
-                if c[0] == '+':
-                    c = c[::-1]
-            elif "-" in s:
-                ss = s[:-2]
-                c = s[-2:]
-                if c[0] == '-':
-                    c = c[::-1]
-            else:
-                ss = s
-                c = "0"
-
+            ss, c = _parse_cif_type_symbol(s)
             atomtype.append(ptable[ss])
             charge.append(c)
 
@@ -1306,6 +1322,13 @@ class Material(object):
         self._lparms = lp
         self._newUnitcell()
         self._hkls_changed()
+
+    @property
+    def _plane_data_laue_group(self) -> str:
+        # PlaneData builds its symmetry operators from this tag
+        if self.sgnum in _LAUE_31M_SGNUMS:
+            return 'd3d_31m'
+        return self.unitcell._laueGroup
 
     @property
     def reduced_lattice_parameters(self):

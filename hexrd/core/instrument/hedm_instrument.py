@@ -775,8 +775,9 @@ class HEDMInstrument(object):
                 self._detectors[det_id] = DetectorClass(**kwargs)
 
             assert instrument_config is not None
-            self._tvec = np.r_[instrument_config['oscillation_stage']['translation']]
-            self._chi = instrument_config['oscillation_stage']['chi']
+            oscill_config = instrument_config['oscillation_stage']
+            self._tvec = np.array(oscill_config['translation'], dtype=float)
+            self._chi = float(oscill_config['chi'])
         else:
             # Default instrument
             if instrument_name is not None:
@@ -859,7 +860,7 @@ class HEDMInstrument(object):
 
     @tvec.setter
     def tvec(self, x):
-        x = np.array(x).flatten()
+        x = np.array(x, dtype=float).flatten()
         assert len(x) == 3, 'input must have length = 3'
         self._tvec = x
 
