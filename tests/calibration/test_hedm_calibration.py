@@ -1,3 +1,5 @@
+from collections.abc import Mapping
+
 import h5py
 import numpy as np
 import yaml
@@ -5,11 +7,39 @@ import yaml
 import pytest
 
 import hexrd.core.constants as cnst
-from hexrd.core.material.material import load_materials_hdf5
+from hexrd.core.material.material import Material, load_materials_hdf5
+from hexrd.core.instrument import calc_beam_vec
 from hexrd.core.instrument.hedm_instrument import HEDMInstrument
 
 from hexrd.core.fitting.calibration import fix_detector_y, InstrumentCalibrator
 from hexrd.hedm.fitting.calibration import GrainCalibrator
+from hexrd.hedm.fitting.grains import gFlag_ref, objFuncFitGrain
+
+
+def test_grain_model_with_tilted_beam(
+    dexelas_instrument: HEDMInstrument,
+    ruby_material: Material,
+    pull_spots_picks: list[dict[str, Mapping[str, np.ndarray]]],
+    grain_params: np.ndarray,
+) -> None:
+    instr = dexelas_instrument
+    period = np.array([0., 2 * np.pi])
+    calibrator = GrainCalibrator(instr, ruby_material, grain_params[0], period)
+    calibrator.data_dict = pull_spots_picks[0]
+    hkls, xyo = calibrator._evaluate()
+    reflections = {key: {'hkls': hkls[key][0].T, 'meas_xyo': xyo[key][0]}
+                   for key in instr.detectors}
+
+    for polar_angle in (90., 90.5):
+        instr.beam_vector = calc_beam_vec(90., polar_angle)
+        params = grain_params[0].copy()
+        expected = objFuncFitGrain(
+            params[gFlag_ref], params, gFlag_ref, instr, reflections,
+            ruby_material.planeData.latVecOps['B'], instr.beam_wavelength,
+            period, simOnly=True)
+        model = calibrator.model()
+        actual = np.vstack([model[key][0] for key in instr.detectors])
+        np.testing.assert_allclose(actual, expected, rtol=0, atol=1e-8)
 
 @pytest.fixture
 def calibration_dir(example_repo_path):

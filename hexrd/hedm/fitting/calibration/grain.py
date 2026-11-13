@@ -171,6 +171,7 @@ def sxcal_obj_func(
                 corrected_wavelength,
                 vInv=vinv_s,
                 beamVec=bvec,
+                etaVec=instr.eta_vector,
                 omePeriod=ome_period,
             )
 
@@ -178,7 +179,8 @@ def sxcal_obj_func(
                 chi, np.ascontiguousarray(calc_omes_tmp)
             )
             calc_xy_tmp = xfcapi.gvec_to_xy(
-                ghat_c.T, rmat_d, rmat_s_arr, rmat_c, tvec_d, tvec_s, tvec_c
+                ghat_c.T, rmat_d, rmat_s_arr, rmat_c, tvec_d, tvec_s, tvec_c,
+                beam_vec=bvec,
             )
             if np.any(np.isnan(calc_xy_tmp)):
                 logger.warning(

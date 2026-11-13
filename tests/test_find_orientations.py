@@ -58,6 +58,30 @@ def multiruby_experiment(example_repo_path, tmp_path, request):
     return experiment
 
 
+def test_scoring_uses_map_omega_period(multiruby_experiment: HedmExperiment) -> None:
+    from hexrd.hedm.find_orientations import _load_eta_omega_maps, score_orientations
+
+    experiment = multiruby_experiment
+    results = Path(experiment.config['working_dir']).parent / 'results'
+    name = 'results_mruby_composite_hexrd06_py27_ruby'
+    plane_data = experiment.get_active_material().plane_data
+    maps = _load_eta_omega_maps(
+        str(results / f'{name}_eta-ome_maps.npz'), plane_data,
+        experiment.active_material.two_theta_width)
+    quats = np.loadtxt(results / f'accepted_orientations_{name}.dat', ndmin=2).T
+    experiment.find_orientations = replace(
+        experiment.find_orientations, omega=replace(
+            experiment.find_orientations.omega, period=np.radians([-180., 180.])))
+
+    # Each half of this nearly 0..360-degree scan must contribute to scoring.
+    original = maps.ring_maps.copy()
+    for half in np.array_split(np.arange(len(maps.omegas)), 2):
+        maps.ring_maps = original.copy()
+        maps.ring_maps[:, half] = 0
+        scores = score_orientations(experiment, plane_data, maps, quats)
+        np.testing.assert_allclose(scores, 0.5, atol=0.01)
+
+
 def test_generate_eta_ome_maps(multiruby_experiment):
     from hexrd.core import imageseries
     from hexrd.core.imageseries.omega import OmegaImageSeries

@@ -166,6 +166,29 @@ def test_fit_grains(
     assert cresult
 
 
+@pytest.mark.parametrize('workers', [1, 2])
+def test_fit_grains_noncontiguous_ids(
+    single_ge_include_path: Path,
+    test_config: HedmExperiment,
+    grains_reference_file_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    workers: int,
+) -> None:
+    monkeypatch.chdir(single_ge_include_path)
+    test_config.max_workers = workers
+    reference = np.loadtxt(grains_reference_file_path, ndmin=2)[0]
+    table = np.vstack([reference, reference])
+    table[:, 0] = [7, 3]
+    table[0, 3:6] = 0  # A decoy orientation distinguishes the two rows.
+
+    for selection in (None, [3]):
+        results = fit_grains(
+            test_config, table.copy(), ids_to_refine=selection,
+            write_spots_files=False)
+        assert [row[0] for row in results] == ([7, 3] if selection is None else [3])
+        assert compare_grain_fits(results[-1][-1], reference[3:15], ctol=2e-3)
+
+
 def test_fit_grains_return_pull_spots_data(
     single_ge_include_path: Path,
     test_config: HedmExperiment,
