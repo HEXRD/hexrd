@@ -75,6 +75,13 @@ class TestFitGrainsConfig(TestConfig):
         self.assertEqual(self.cfgs[0].fit_grains.npdiv, 2)
         self.assertEqual(self.cfgs[1].fit_grains.npdiv, 1)
 
+    def test_output_format(self) -> None:
+        self.assertEqual(self.cfgs[0].fit_grains.output_format, 'text')
+        cfg = self.cfgs[1]
+        for output_format in ('text', 'hdf5', 'both'):
+            cfg.set('fit_grains:output_format', output_format)
+            self.assertEqual(cfg.fit_grains.output_format, output_format)
+
     def test_threshold(self):
         self.assertRaises(
             RuntimeError, getattr, self.cfgs[0].fit_grains, 'threshold'
