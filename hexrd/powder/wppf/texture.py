@@ -1986,6 +1986,36 @@ class PhaseTransitionTextureModel:
             self.daughter_kernel,
         )
 
+    def calc_pf_rings(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(0.1),
+        calc_type='texture_factor',
+    ):
+        '''this function computes the intensity variation
+        along the debye-scherrer rings for each hkl in the material.
+        the intensity variation around the ring is computed between
+        eta_min and eta_max. Default values are (-pi,pi) which gives
+        the full ring. eta_step is the angular step size in azimuth.
+        Default value is 0.1 degrees for eta_step
+        '''
+
+        nspec = int((eta_max - eta_min) / eta_step) - 1
+        eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
+
+        if not calc_type in ['texture_factor', 'spectrum_2d']:
+            msg = 'unknown type of grid for precomputingspherical harmonics'
+            raise ValueError(msg)
+
+        if calc_type == 'texture_factor':
+            gtype = 'rings'
+            self.intensities_rings = {}
+        elif calc_type == 'spectrum_2d':
+            gtype = 'rings_spectrum_2d'
+            self.intensities_rings_2d = {}
+
 
 class InversePoleFigures:
     """
