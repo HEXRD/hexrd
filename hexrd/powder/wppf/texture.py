@@ -23,6 +23,7 @@ from hexrd.phase_transition.texture import (
     unimodal_odf,
 )
 from hexrd.powder.wppf.phase import Material_Rietveld
+from hexrd.rotations import rotMatOfExpMap
 
 """
 ===============================================================================
@@ -1954,11 +1955,173 @@ class PhaseTransitionTextureModel:
         self.eta_vector = evec
         self.sample_symmetry = sample_symmetry
 
-        self.parent_kernel_width = params[f"{OR.material_parent.name}_kernel_width"]
-        self.daughter_kernel_width = params[f"{OR.material_parent.name}_kernel_width"]
+        self.parent_kernel_width = float(
+            params[f"{OR.material_parent.name}_kernel_width"].value
+        )
+        self.daughter_kernel_width = float(
+            params[f"{OR.material_daughter.name}_kernel_width"].value
+        )
+        # small misorientation of the parent from the assumed orientation
+        # (zero if the parameters are not given)
+        self.parent_misorientation = np.zeros(3)
+        self.parent_misorientation = self.get_misorientation_angles_from_parameters(
+            params
+        )
 
         self.init_kernels()
         self.compute_odfs()
+
+        # one view per phase. each view exposes the HarmonicModel
+        # interface for a single phase so the views can be passed to
+        # the Rietveld class as its texture_model dictionary
+        self._views = {
+            'parent': PhaseTransitionTextureView(self, 'parent'),
+            'daughter': PhaseTransitionTextureView(self, 'daughter'),
+        }
+
+    # the parent misorientation is a rotation vector (exponential map)
+    # in the sample frame, in degrees: rotation by |v| about v/|v|. unlike
+    # Euler angles, it is regular at the identity, so all three components
+    # can be refined starting from zero misorientation (with zxz Euler
+    # angles at zero the first and last angle are the same rotation and
+    # there is no rotation about y, which makes the fit singular).
+    MISORIENTATION_ROOT = "parent_misorientation_"
+    MISORIENTATION_COMPONENTS = ('x', 'y', 'z')
+
+    @property
+    def misorientation_parameter_names(self) -> list:
+        '''names of the three parent misorientation parameters'''
+        root = self.MISORIENTATION_ROOT
+        return [f"{root}{d}" for d in self.MISORIENTATION_COMPONENTS]
+
+    def get_misorientation_angles_from_parameters(self, params):
+        '''rotation vector (degrees, sample frame) of the parent
+        misorientation from params. components missing from params keep
+        their current value (zero when the model is created)
+        '''
+        current = self.parent_misorientation
+        return np.array(
+            [
+                float(params[name].value) if name in params else current[ii]
+                for ii, name in enumerate(self.misorientation_parameter_names)
+            ]
+        )
+
+    @property
+    def parent_misorientation(self) -> np.ndarray:
+        '''rotation vector of the parent misorientation in degrees'''
+        return self._parent_misorientation
+
+    @parent_misorientation.setter
+    def parent_misorientation(self, val):
+        val = np.array(val, dtype=float)
+        if val.shape != (3,):
+            msg = 'parent_misorientation must have 3 components'
+            raise ValueError(msg)
+        self._parent_misorientation = val
+
+    @property
+    def parent_misorientation_rmat(self) -> np.ndarray:
+        '''rotation matrix of the parent misorientation. it multiplies the
+        parent and the daughter orientations from the left, i.e. it is a
+        rotation in the sample frame'''
+        return rotMatOfExpMap(np.radians(self.parent_misorientation))
+
+    @property
+    def texture_models(self) -> dict:
+        '''per-phase models with the same interface as HarmonicModel,
+        keyed by material name. intended to be passed directly to the
+        Rietveld class, i.e.
+
+            Rietveld(..., texture_model=model.texture_models)
+
+        the views share the kernels and the ODFs of this model, so a
+        kernel width updated through one of them is seen by all.
+        '''
+        return {view.material.name: view for view in self._views.values()}
+
+    @property
+    def parameter_names(self) -> list:
+        '''names of the refinable parameters of both phases'''
+        names = []
+        for view in self._views.values():
+            names.extend(view.parameter_names)
+        return names
+
+    def get_parameters(self, params=None, vary=True):
+        '''add the refinable parameters of both phases to params
+        (a new lmfit.Parameters if None) and return it
+        '''
+        if params is None:
+            params = Parameters()
+
+        for view in self._views.values():
+            view.get_parameters(params, vary=vary)
+
+        return params
+
+    def _material(self, key):
+        '''parent or daughter material'''
+        if key == 'parent':
+            return self.OR.material_parent
+        elif key == 'daughter':
+            return self.OR.material_daughter
+
+        msg = f'unknown phase "{key}", must be "parent" or "daughter"'
+        raise ValueError(msg)
+
+    def _phase_ring_pole_densities(self, key, eta_grid):
+        '''pole density (m.r.d.) of every hkl of one phase ("parent" or
+        "daughter") on its debye-scherrer ring sampled at eta_grid.
+        same computation as the inner loop of calc_pf_rings, but for a
+        single phase and without touching the kernel widths.
+
+        Returns
+        -------
+        intensities: dict
+            {tuple(hkl): array over eta_grid}, NaN for hkls that are not
+            accessible at the wavelength
+        gvecs: dict
+            {tuple(hkl): (n_eta, 3) unit scattering vectors}
+        '''
+        mat = self._material(key)
+        odf = self.odfs[key]
+
+        intensities = {}
+        gvecs = {}
+
+        tth = np.radians(mat.getTTh(mat.wavelength))
+        for t, h in zip(tth, mat.hkls):
+            hkey = tuple(h)
+
+            if np.isnan(t):
+                # reflection not accessible at this wavelength
+                intensities[hkey] = np.full(eta_grid.shape, np.nan)
+                gvecs[hkey] = np.full((eta_grid.shape[0], 3), np.nan)
+                continue
+
+            angs = np.vstack(
+                (
+                    np.full(eta_grid.shape, t),
+                    eta_grid,
+                    np.zeros_like(eta_grid),
+                )
+            ).T
+
+            # unit scattering vectors on the ring in the sample frame
+            pfgrid = angles_to_gvec(
+                angs,
+                beam_vec=self.beam_vector,
+                eta_vec=self.eta_vector,
+            )
+
+            hc = mat.TransSpace(h, 'r', 'c')
+            intensities[hkey] = np.atleast_1d(
+                odf.pole_density(hc, pfgrid, antipodal=True)
+            )
+            gvecs[hkey] = pfgrid
+
+        return intensities, gvecs
 
     def init_kernels(self):
         self.parent_kernel = kernels.DeLaValleePoussinKernel(
@@ -1975,14 +2138,16 @@ class PhaseTransitionTextureModel:
 
     def compute_odfs(self):
         self.odfs = dict.fromkeys(["parent", "daughter"])
-
+        prmat = self.parent_misorientation_rmat
+        rmat_parent = [prmat @ r for r in self.OR.rmat_parent]
         self.odfs["parent"] = unimodal_odf.UnimodalODF(
-            self.OR.rmat_parent,
+            rmat_parent,
             self.parent_kernel,
         )
 
+        rmat_variants = [prmat @ r for r in self.OR.rmat_variants_rotated]
         self.odfs["daughter"] = unimodal_odf.UnimodalODF(
-            self.OR.rmat_variants,
+            rmat_variants,
             self.daughter_kernel,
         )
 
@@ -2000,21 +2165,723 @@ class PhaseTransitionTextureModel:
         eta_min and eta_max. Default values are (-pi,pi) which gives
         the full ring. eta_step is the angular step size in azimuth.
         Default value is 0.1 degrees for eta_step
+
+        the interface is the same as HarmonicModel.calc_pf_rings. the
+        difference is in how the pole density is evaluated: instead of
+        summing a truncated spherical harmonic series, the pole figure
+        of each (kernel based) ODF is evaluated in closed form through
+        the radon transform of the kernel at the scattering vectors
+        on the ring.
+
+        since this model describes both the parent and the daughter
+        phase, the results are stored as nested dictionaries keyed
+        first by the material name and then by the hkl tuple, i.e.
+
+            self.intensities_rings[material.name][tuple(hkl)]
+
+        for calc_type='texture_factor' and self.intensities_rings_2d
+        with the same layout for calc_type='spectrum_2d'. values are
+        in m.r.d. (multiples of random distribution). the unit
+        scattering vectors on each ring (sample frame, which coincides
+        with the lab frame here) are stored in self.gvecs_rings or
+        self.gvecs_rings_2d with the same layout.
+
+        the kernel widths are read from params using the keys
+        "{material.name}_kernel_width" (in degrees) for the parent
+        and daughter phases. if a value differs from the one used to
+        build the current ODFs, the kernels and the ODFs are rebuilt
+        so the pole figures always reflect params. if a key is not
+        present in params, the current kernel width is retained.
         '''
 
         nspec = int((eta_max - eta_min) / eta_step) - 1
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
+        self.eta_grid = eta_grid
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
-            msg = 'unknown type of grid for precomputingspherical harmonics'
+            msg = 'unknown type of grid for computing pole figures on rings'
             raise ValueError(msg)
 
         if calc_type == 'texture_factor':
-            gtype = 'rings'
             self.intensities_rings = {}
+            self.gvecs_rings = {}
+            intensities = self.intensities_rings
+            gvecs = self.gvecs_rings
         elif calc_type == 'spectrum_2d':
-            gtype = 'rings_spectrum_2d'
             self.intensities_rings_2d = {}
+            self.gvecs_rings_2d = {}
+            intensities = self.intensities_rings_2d
+            gvecs = self.gvecs_rings_2d
+
+        phases = {
+            'parent': self.OR.material_parent,
+            'daughter': self.OR.material_daughter,
+        }
+
+        '''make sure the ODFs are consistent with the kernel widths and
+        the parent misorientation in params. only rebuilds if something
+        changed since building the kernels is not free
+        '''
+        self._sync_kernel_widths(params)
+
+        '''loop over both the phases and compute the pole
+        density of every hkl on its debye-scherrer ring
+        '''
+        for key, mat in phases.items():
+            odf = self.odfs[key]
+            intensities[mat.name] = {}
+            gvecs[mat.name] = {}
+
+            hkls = mat.hkls
+            tth = np.radians(mat.getTTh(mat.wavelength))
+
+            for t, h in zip(tth, hkls):
+                hkey = tuple(h)
+
+                if np.isnan(t):
+                    # reflection not accessible at this wavelength
+                    intensities[mat.name][hkey] = np.full(eta_grid.shape, np.nan)
+                    gvecs[mat.name][hkey] = np.full((eta_grid.shape[0], 3), np.nan)
+                    continue
+
+                angs = np.vstack(
+                    (
+                        np.full(eta_grid.shape, t),
+                        eta_grid,
+                        np.zeros_like(eta_grid),
+                    )
+                ).T
+
+                # unit scattering vectors on the ring in the
+                # sample frame (omega = chi = 0)
+                pfgrid = angles_to_gvec(
+                    angs,
+                    beam_vec=self.beam_vector,
+                    eta_vec=self.eta_vector,
+                )
+
+                # pole in the cartesian crystal frame. the
+                # normalization is done inside pole_density
+                hc = mat.TransSpace(h, 'r', 'c')
+
+                intensities[mat.name][hkey] = np.atleast_1d(
+                    odf.pole_density(hc, pfgrid, antipodal=True)
+                )
+                gvecs[mat.name][hkey] = pfgrid
+
+    def calc_texture_factor(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(1),
+        eta_mask=None,
+    ):
+        '''compute the texture factor of every hkl of the parent and the
+        daughter phase. same interface as HarmonicModel.calc_texture_factor:
+        the texture factor of a reflection is the mean of the pole density
+        (in m.r.d.) around its debye-scherrer ring between eta_min and
+        eta_max, optionally excluding the masked azimuths.
+
+        since this model describes two phases, the return value and the
+        mask are keyed by material name
+
+        Parameters
+        ----------
+        params: lmfit.Parameters
+            parameters holding "{material.name}_kernel_width" (degrees)
+            for the parent and daughter phases
+        eta_min, eta_max, eta_step: float
+            azimuthal range and step in radians
+        eta_mask: dict, optional
+            nested dictionary eta_mask[material.name][tuple(hkl)] of
+            boolean arrays the size of the azimuthal grid. True means the
+            azimuth is excluded from the average. missing phases or hkls
+            are not masked, and a fully masked ring falls back to the full
+            ring (same as HarmonicModel) rather than returning NaN
+
+        Returns
+        -------
+        dict
+            texture factors keyed by material name. each value is an array
+            with one entry per hkl, in the order of material.hkls. hkls
+            not accessible at the wavelength give NaN
+        '''
+        self.calc_pf_rings(
+            params,
+            eta_min=eta_min,
+            eta_max=eta_max,
+            eta_step=eta_step,
+            calc_type='texture_factor',
+        )
+
+        tf = {}
+        for name, rings in self.intensities_rings.items():
+            phase_mask = None
+            if eta_mask is not None:
+                phase_mask = eta_mask.get(name)
+
+            tf[name] = np.zeros(
+                [
+                    len(rings),
+                ]
+            )
+            for ii, (k, v) in enumerate(rings.items()):
+                if phase_mask is None:
+                    tf[name][ii] = np.mean(v)
+                else:
+                    if k in phase_mask:
+                        mask = phase_mask[k]
+                    else:
+                        mask = np.zeros_like(v, dtype=bool)
+
+                    if np.all(mask):
+                        # The ring is not observed at all. Use the full ring,
+                        # rather than a NaN that would poison the spectrum.
+                        mask = np.zeros_like(v, dtype=bool)
+
+                    tf[name][ii] = np.mean(v[~mask])
+        return tf
+
+    def J(self, params):
+        '''this is the texture index J = <f^2> of the parent and the
+        daughter ODFs, the same quantity HarmonicModel.J returns. A value
+        of 1 is a random texture and any value > 1 is preferred
+        orientation.
+
+        the ODFs are weighted sums of symmetrized de la Vallee Poussin
+        kernels, f(g) = sum_i w_i K_sym(g, g_i), with K_sym the average of
+        K over the symmetry images s g_i c. J is therefore a double sum of
+        overlap integrals of two kernels,
+
+            J = 1/(|S||C|) sum_ij w_i w_j sum_(s,c) P(w(g_i, s g_j c)),
+
+        where P(w) = <K(g, a) K(g, b)> only depends on the misorientation
+        angle w between a and b. P is reduced to a 1d periodic integral
+        (see _kernel_overlap) and evaluated by quadrature, so J is exact
+        to floating point and deterministic (no Monte Carlo noise, which
+        matters when J is used during a refinement).
+
+        Parameters
+        ----------
+        params: lmfit.Parameters
+            parameters holding "{material.name}_kernel_width" (degrees).
+            the kernels and ODFs are rebuilt if the widths changed
+
+        Returns
+        -------
+        dict
+            texture index keyed by material name
+        '''
+        self._sync_kernel_widths(params)
+
+        phases = {
+            'parent': self.OR.material_parent,
+            'daughter': self.OR.material_daughter,
+        }
+        return {
+            mat.name: self._odf_texture_index(self.odfs[key])
+            for key, mat in phases.items()
+        }
+
+    def texture_index(self, params: Parameters) -> dict:
+        """Return the texture index, matching the HarmonicModel interface."""
+        return self.J(params)
+
+    def _sync_kernel_widths(self, params):
+        '''update the kernel widths and the parent misorientation from
+        params and rebuild the kernels and ODFs if anything changed. keys
+        that are not in params leave the current value untouched. used
+        by calc_pf_rings, J and the per-phase views
+        '''
+        phases = {
+            'parent': self.OR.material_parent,
+            'daughter': self.OR.material_daughter,
+        }
+        rebuild_kernels = False
+        for key, mat in phases.items():
+            pname = f'{mat.name}_kernel_width'
+            attr = f'{key}_kernel_width'
+            current = float(getattr(self, attr))
+            if pname in params:
+                width = float(params[pname].value)
+            else:
+                width = current
+            # exact comparison: the finite difference steps of a fit are
+            # ~1e-6 relative, which np.isclose would treat as unchanged
+            if width != current:
+                rebuild_kernels = True
+            setattr(self, attr, width)
+
+        mis = self.get_misorientation_angles_from_parameters(params)
+        rebuild_odfs = not np.array_equal(mis, self.parent_misorientation)
+        self.parent_misorientation = mis
+
+        if rebuild_kernels:
+            self.init_kernels()
+        if rebuild_kernels or rebuild_odfs:
+            self.compute_odfs()
+
+    @staticmethod
+    def _odf_texture_index(odf):
+        '''exact texture index of a UnimodalODF built on a de la Vallee
+        Poussin kernel (see J for the formula)
+        '''
+        kernel = odf.kernel
+        crystal_ops = kernel.crystal_symmetry_operations
+        sample_ops = kernel.sample_symmetry_operations
+        g = odf.modal_orientations
+        w = odf.weights
+
+        # the J formula needs proper rotations. an improper modal
+        # orientation (det = -1, e.g. from the variant calculation) is
+        # replaced by -g, which is equivalent for a centrosymmetric (Laue)
+        # crystal symmetry and gives identical pole figures
+        g = g * np.sign(np.linalg.det(g))[:, None, None]
+        # symmetry images s g_j c, shape (n_sample, n_modes, n_crystal, 3, 3)
+        images = np.einsum('sab,nbc,kcd->snkad', sample_ops, g, crystal_ops)
+
+        # trace(g_i^T s g_j c) -> cos(w/2) = sqrt((1 + trace) / 4)
+        trace = np.einsum('iba,snkba->isnk', g, images)
+        cos_half = np.sqrt(np.clip(0.25 * (1.0 + trace), 0.0, 1.0))
+
+        overlap = PhaseTransitionTextureModel._kernel_overlap(
+            kernel, cos_half.ravel()
+        ).reshape(cos_half.shape)
+
+        J = np.einsum('i,j,isjk->', w, w, overlap)
+        return float(J / (sample_ops.shape[0] * crystal_ops.shape[0]))
+
+    @staticmethod
+    def _kernel_overlap(kernel, cos_half):
+        '''overlap integral P = <K(g, a) K(g, b)> over SO(3) (normalized
+        Haar measure) of two de la Vallee Poussin kernels with the same
+        shape parameter kappa, centered at a and b. cos_half is
+        cos(w/2) = |q_a . q_b| for the misorientation angle w between a
+        and b.
+
+        with K(g, a) = C |q . q_a|^(2 kappa) and q uniform on S^3, the
+        projection (q . e1, q . e2) is uniformly distributed on the unit
+        disk. doing the radial integral analytically leaves
+
+            P = C^2 / (pi (4 kappa + 2))
+                * int_0^2pi |(cos(w/2) + cos(psi)) / 2|^(2 kappa) dpsi
+
+        the integrand is smooth and periodic, so the trapezoidal rule
+        converges very fast. the grid resolves the peak at psi = 0, whose
+        width is ~ 1/sqrt(2 kappa). for w = 0 this reduces to the
+        analytic single mode texture index of UnimodalODF.
+        '''
+        kappa = kernel.kappa
+        norm_c = kernel.norm_constant
+
+        width = 1.0 / np.sqrt(2.0 * kappa)
+        npts = int(max(2048, np.ceil(16 * 2 * np.pi / width)))
+        cos_psi = np.cos(np.linspace(0.0, 2 * np.pi, npts, endpoint=False))
+
+        cos_half = np.atleast_1d(np.asarray(cos_half, dtype=float))
+        integral = np.empty(cos_half.shape)
+
+        # chunk to keep the (n_values, npts) work array small
+        chunk = max(1, int(2e6 // npts))
+        for start in range(0, cos_half.size, chunk):
+            cb = cos_half[start : start + chunk, None]
+            x = 0.5 * np.abs(cb + cos_psi[None, :])
+            with np.errstate(divide='ignore'):
+                vals = np.exp(2.0 * kappa * np.log(x))
+            integral[start : start + chunk] = 2 * np.pi * vals.mean(axis=1)
+
+        return norm_c**2 / (np.pi * (4.0 * kappa + 2.0)) * integral
+
+
+class PhaseTransitionTextureView:
+    """
+    single phase view of a PhaseTransitionTextureModel with the same
+    interface as HarmonicModel, so it can be used as a drop-in
+    replacement in the Rietveld class.
+
+    the Rietveld class expects one texture model per phase, while a
+    PhaseTransitionTextureModel describes both the parent and the
+    daughter phase. a view selects one of the two. it does not hold any
+    texture state of its own: the kernels, the ODFs and the kernel widths
+    live on the parent model and are shared by both views. the only
+    per-view state is the pole figure data (pfdata) used by
+    calculate_harmonic_coefficients and the ring intensities from the
+    last call to calc_pf_rings.
+
+    the views are created by the PhaseTransitionTextureModel and are
+    normally obtained through PhaseTransitionTextureModel.texture_models
+
+        rietveld = Rietveld(..., texture_model=model.texture_models)
+
+    the refinable parameter of a phase is its kernel half width,
+    "{material.name}_kernel_width", in degrees. the parent view also owns
+    the parent misorientation, "parent_misorientation_x/y/z" (rotation
+    vector in degrees, sample frame), which rotates both phases.
+
+    Parameters
+    ----------
+    model: PhaseTransitionTextureModel
+        model holding the kernels and the ODFs
+    phase: str
+        "parent" or "daughter"
+    pfdata: dict, optional
+        pole figure data, see the pfdata property
+    """
+
+    def __init__(self, model, phase, pfdata=None):
+        if phase not in ('parent', 'daughter'):
+            msg = f'unknown phase "{phase}", must be "parent" or "daughter"'
+            raise ValueError(msg)
+
+        self._model = model
+        self._phase = phase
+        self.pfdata = pfdata
+
+    def __repr__(self):
+        return (
+            f'{type(self).__name__}(phase={self.phase!r}, '
+            f'material={self.material.name!r}, '
+            f'kernel_width={self.kernel_width})'
+        )
+
+    @property
+    def model(self):
+        '''the PhaseTransitionTextureModel this view belongs to'''
+        return self._model
+
+    @property
+    def phase(self):
+        '''"parent" or "daughter" (read only)'''
+        return self._phase
+
+    @property
+    def material(self):
+        '''Material_Rietveld of this phase (read only)'''
+        return self._model._material(self._phase)
+
+    @property
+    def odf(self):
+        '''ODF of this phase (read only)'''
+        return self._model.odfs[self._phase]
+
+    @property
+    def kernel_width(self):
+        '''current kernel half width in degrees (read only, set through
+        params)'''
+        return float(getattr(self._model, f'{self._phase}_kernel_width'))
+
+    @property
+    def parameter_name(self):
+        '''name of the kernel width parameter of this phase'''
+        return f'{self.material.name}_kernel_width'
+
+    @property
+    def parameter_names(self):
+        '''refinable parameters of this view: the kernel width and, for
+        the parent view, the three components of the parent
+        misorientation. the misorientation also rotates the daughter
+        orientations, but it is owned (added to params and refined) by
+        the parent view only, so it is not refined twice by
+        Rietveld.RefineTexture'''
+        names = [self.parameter_name]
+        if self._phase == 'parent':
+            names.extend(self._model.misorientation_parameter_names)
+        return names
+
+    def get_parameters(self, params=None, vary=True):
+        '''
+        make lmfit parameter class for refinement. the kernel half width
+        is in degrees and starts at the current value of the model. the
+        parent view also adds the parent misorientation (rotation vector
+        in degrees, sample frame), starting at the current value
+        '''
+        if params is None:
+            params = Parameters()
+
+        params.add(
+            self.parameter_name,
+            value=self.kernel_width,
+            min=0.1,
+            max=90.0,
+            vary=vary,
+        )
+
+        if self._phase == 'parent':
+            names = self._model.misorientation_parameter_names
+            values = self._model.parent_misorientation
+            for name, value in zip(names, values):
+                params.add(name, value=float(value), vary=vary)
+
+        return params
+
+    def calc_pf_rings(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(0.1),
+        calc_type='texture_factor',
+    ):
+        '''this function computes the intensity variation
+        along the debye-scherrer rings for each hkl in the material.
+        the intensity variation around the ring is computed between
+        eta_min and eta_max. Default values are (-pi,pi) which gives
+        the full ring. eta_step is the angular step size in azimuth.
+        Default value is 0.1 degrees for eta_step
+
+        same interface and output layout as HarmonicModel.calc_pf_rings:
+        the results are stored in self.intensities_rings[tuple(hkl)] for
+        calc_type='texture_factor' and self.intensities_rings_2d for
+        calc_type='spectrum_2d', in m.r.d. hkls that are not accessible at
+        the wavelength give NaN. the kernel widths are updated from params
+        first (see PhaseTransitionTextureModel.calc_pf_rings).
+        '''
+        if not calc_type in ['texture_factor', 'spectrum_2d']:
+            msg = 'unknown type of grid for computing pole figures on rings'
+            raise ValueError(msg)
+
+        nspec = int((eta_max - eta_min) / eta_step) - 1
+        eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
+        self.eta_grid = eta_grid
+
+        self._model._sync_kernel_widths(params)
+        intensities, gvecs = self._model._phase_ring_pole_densities(
+            self._phase, eta_grid
+        )
+
+        if calc_type == 'texture_factor':
+            self.intensities_rings = intensities
+            self.gvecs_rings = gvecs
+        elif calc_type == 'spectrum_2d':
+            self.intensities_rings_2d = intensities
+            self.gvecs_rings_2d = gvecs
+
+    def calc_texture_factor(
+        self,
+        params,
+        eta_min=-np.pi,
+        eta_max=np.pi,
+        eta_step=np.radians(1),
+        eta_mask=None,
+    ):
+        '''texture factor of every hkl of this phase, i.e. the mean pole
+        density around its debye-scherrer ring. same interface and return
+        value as HarmonicModel.calc_texture_factor: an array in the order
+        of material.hkls. eta_mask is a dictionary {tuple(hkl): boolean
+        array} where True excludes the azimuth from the average.
+        '''
+        self.calc_pf_rings(
+            params,
+            eta_min=eta_min,
+            eta_max=eta_max,
+            eta_step=eta_step,
+            calc_type='texture_factor',
+        )
+        tf = np.zeros(
+            [
+                len(self.intensities_rings),
+            ]
+        )
+        for ii, (k, v) in enumerate(self.intensities_rings.items()):
+            if eta_mask is None:
+                tf[ii] = np.mean(v)
+            else:
+                if k in eta_mask:
+                    mask = eta_mask[k]
+                else:
+                    mask = np.zeros_like(v, dtype=bool)
+
+                if np.all(mask):
+                    # The ring is not observed at all. Use the full ring,
+                    # rather than a NaN that would poison the spectrum.
+                    mask = np.zeros_like(v, dtype=bool)
+
+                tf[ii] = np.mean(v[~mask])
+        return tf
+
+    def J(self, params):
+        '''texture index J = <f^2> of the ODF of this phase. A value of 1
+        is a random texture and any value > 1 is preferred orientation.
+        see PhaseTransitionTextureModel.J for the method
+        '''
+        self._model._sync_kernel_widths(params)
+        return self._model._odf_texture_index(self.odf)
+
+    def texture_index(self, params: Parameters) -> float:
+        """Return the texture index, matching the HarmonicModel interface."""
+        return self.J(params)
+
+    def calc_residual(self, params):
+        '''weighted difference between the measured pole figure
+        intensities (pfdata) and the pole densities of the ODF, with the
+        kernel width taken from params. same weighting as
+        HarmonicModel.calc_residual
+        '''
+        self._model._sync_kernel_widths(params)
+
+        hkls = getattr(self, '_fit_hkls', None)
+        if hkls is None:
+            hkls = list(self.intensities)
+
+        measured = np.empty(0)
+        calculated = np.empty(0)
+        weights = np.empty(0)
+        for h in hkls:
+            v = self.intensities[h]
+            hc = self.material.TransSpace(np.asarray(h, dtype=float), 'r', 'c')
+            term = np.atleast_1d(
+                self.odf.pole_density(hc, self.gvecs[h], antipodal=True)
+            )
+            measured = np.concatenate((measured, v))
+            calculated = np.concatenate((calculated, term))
+            weights = np.concatenate((weights, self._weights_by_hkl[h]))
+
+        residual = np.sqrt(weights * (measured - calculated) ** 2)
+        if np.all(np.isnan(residual)):
+            return 1e10
+        return residual[~np.isnan(residual)]
+
+    def recalculated_pf(self, params):
+        '''pole densities of the ODF at the pfdata points, stored in
+        self.intensities_recalc[tuple(hkl)]
+        '''
+        self._model._sync_kernel_widths(params)
+        self.intensities_recalc = {}
+        for h, g in self.gvecs.items():
+            hc = self.material.TransSpace(np.asarray(h, dtype=float), 'r', 'c')
+            self.intensities_recalc[h] = np.atleast_1d(
+                self.odf.pole_density(hc, g, antipodal=True)
+            )
+
+    def calculate_harmonic_coefficients(self, params, hkls=None):
+        '''fit the texture parameters of this view to the pole figure data
+        (pfdata). the name and interface are the same as
+        HarmonicModel.calculate_harmonic_coefficients so the Rietveld
+        class can refine this model through RefineTexture.
+
+        the parameters are those in parameter_names that are present in
+        params: the kernel width of this phase and, for the parent view,
+        the parent misorientation. only the ones marked as vary are
+        refined, against the pfdata of this view. the refined values and
+        their standard errors are written back to params. returns the
+        lmfit result, or None if no parameter is marked as vary.
+        '''
+        if hkls is None:
+            # If no hkls are specified, use all of them
+            hkls = list(self.pfdata)
+
+        fit_params = Parameters()
+        for name in self.parameter_names:
+            if name in params:
+                fit_params[name] = copy.deepcopy(params[name])
+
+        if not any(param.vary for param in fit_params.values()):
+            # No parameters are marked as vary. Return early.
+            return None
+
+        self._fit_hkls = [tuple(h) for h in hkls]
+
+        fdict = {
+            'ftol': 1e-6,
+            'xtol': 1e-6,
+            'gtol': 1e-6,
+            'verbose': 0,
+            'max_nfev': 20000,
+            'method': 'trf',
+            'jac': '3-point',
+        }
+
+        try:
+            fitter = Minimizer(self.calc_residual, fit_params)
+            results = fitter.least_squares(**fdict)
+
+            # Update parameters with the new values
+            for param_name, param in results.params.items():
+                if not param.vary:
+                    continue
+
+                params[param_name].value = param.value
+                params[param_name].stderr = param.stderr
+        finally:
+            # the fit changes the kernel widths of the shared model. leave
+            # it consistent with params (refined values on success, the
+            # starting values otherwise)
+            self._fit_hkls = None
+            self._model._sync_kernel_widths(params)
+
+        return results
+
+    @property
+    def num_pfs(self):
+        """number of pole figures (read only)"""
+        return len(self.pfdata)
+
+    """
+    the pfdata property returns the pole figure data in the form of a
+    dictionary with keys as the hkl tuples and the value as an (n, 4)
+    array of (x, y, z, intensity), where (x, y, z) is the scattering
+    vector in the lab frame (same as HarmonicModel). this is what
+    Rietveld.compute_texture_data sets.
+    """
+
+    @property
+    def pfdata(self):
+        return self._pfdata
+
+    @pfdata.setter
+    def pfdata(self, val):
+        self._pfdata = {}
+        self._intensities = {}
+        self._weights = np.empty(0)
+        self._weights_by_hkl = {}
+        self._gvecs = {}
+        self._angs = {}
+        if not val:
+            return
+
+        for k, v in val.items():
+            k = tuple(k)
+            v = np.array(v, dtype=float)
+            norm = np.linalg.norm(v[:, 0:3], axis=1)
+            v[:, 0:3] = v[:, 0:3] / np.tile(norm, [3, 1]).T
+
+            # sanitize v[:, 2] for arccos operation
+            mask = np.abs(v[:, 2]) > 1.0
+            v[mask, 2] = np.sign(v[mask, 2])
+
+            t = np.arccos(v[:, 2])
+            rho = np.arctan2(v[:, 1], v[:, 0])
+
+            # same weights as HarmonicModel: 1/intensity, with
+            # non-finite and very large weights set to zero
+            with np.errstate(divide='ignore', invalid='ignore'):
+                w = 1 / v[:, 3]
+            w = np.nan_to_num(w)
+            w[np.abs(w) > 1e2] = 0.0
+
+            self._gvecs[k] = v[:, 0:3]
+            self._pfdata[k] = v
+            self._intensities[k] = v[:, 3]
+            self._weights_by_hkl[k] = w
+            self._weights = np.concatenate((self._weights, w))
+            self._angs[k] = np.vstack((t, rho)).T
+
+    @property
+    def gvecs(self):
+        return self._gvecs
+
+    @property
+    def angs(self):
+        return self._angs
+
+    @property
+    def intensities(self):
+        return self._intensities
+
+    @property
+    def weights(self):
+        return self._weights
 
 
 class InversePoleFigures:
