@@ -2669,6 +2669,7 @@ class Rietveld(AbstractWPPF):
         bvec: np.ndarray | None = None,
         evec: np.ndarray | None = None,
         azimuthal_interval: float = 5,
+        min_relative_intensity: float = 1e-3,
     ):
         """Compute texture data to use in texture refinement
 
@@ -2677,6 +2678,10 @@ class Rietveld(AbstractWPPF):
         compute a dictionary of texture contributions. These texture
         contributions are automatically set on the `pfdata` of the texture
         models.
+
+        Reflections whose computed (untextured) intensity is below
+        `min_relative_intensity` times the strongest reflection are left out
+        of `pfdata`, since their extracted intensities are in the noise.
 
         A simulated spectrum is returned.
         """
@@ -2747,6 +2752,12 @@ class Rietveld(AbstractWPPF):
 
         # we have to divide by the computed instensites
         # to get the texture contribution
+        # reflections weaker than this (over all phases and wavelengths)
+        # are in the noise
+        min_intensity = min_relative_intensity * max(
+            (v.max() for d in ints_computed.values() for v in d.values() if v.size),
+            default=0.0,
+        )
         for mat_key, model in self.texture_model.items():
             if model is None:
                 continue
@@ -2756,12 +2767,14 @@ class Rietveld(AbstractWPPF):
 
             # Each eta row may have a different set of hkls in range, so
             # we must match the computed intensities by hkl, not by index
-            ints_comp = dict(
-                zip(
+            ints_comp = {
+                h: I
+                for h, I in zip(
                     map(tuple, self.hkls[mat_key][lambda_key]),
                     ints_computed[mat_key][lambda_key],
                 )
-            )
+                if I >= min_intensity
+            }
 
             pfdata = {}
             for ii, nnz in enumerate(results[3]):

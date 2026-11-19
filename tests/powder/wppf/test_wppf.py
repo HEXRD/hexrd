@@ -593,7 +593,9 @@ def test_texture_data_matches_intensities_by_hkl(
     monkeypatch.setattr(
         'hexrd.powder.wppf.WPPF.extract_intensities', extract_intensities
     )
-    ceo2_rietveld.compute_texture_data(np.tile(expt_spectrum[:, 1], (2, 1)))
+    ceo2_rietveld.compute_texture_data(
+        np.tile(expt_spectrum[:, 1], (2, 1)), min_relative_intensity=0
+    )
 
     # Each point should be I_lebail(hkl) / I_rietveld(hkl), which is 2 here
     for hkl in map(tuple, hkls):
