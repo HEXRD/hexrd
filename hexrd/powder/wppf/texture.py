@@ -1928,8 +1928,17 @@ class PhaseTransitionTextureModel:
         helper class for defining orientation relationship
         between parent and daughter phases. has information
         about the materials
-    params: lmfit.Parameters
-        Parameter class for the refinement
+    parent_kernel_width: float
+        half width of the De la Vallée Poussin kernel of the parent
+        phase in degrees. default value is 4 degrees
+    daughter_kernel_width: float
+        half width of the De la Vallée Poussin kernel of the daughter
+        phase in degrees. default value is 4 degrees
+    parent_misorientation: numpy.ndarray
+        small misorientation of the parent from its assumed orientation,
+        given as a rotation vector (exponential map) in the sample frame
+        in degrees, shape (3,). it rotates both the parent and the
+        daughter orientations. default value is zero (no misorientation)
     bvec: numpy.ndarray
         unit vector of xray beam in the lab frame. default value
         is -Z direction
@@ -1947,7 +1956,9 @@ class PhaseTransitionTextureModel:
     def __init__(
         self,
         OR: OrientationRelationship,
-        params: Parameters,
+        parent_kernel_width: float = 4.0,
+        daughter_kernel_width: float = 4.0,
+        parent_misorientation: np.ndarray = np.array([0.0, 0.0, 0.0]),
         bvec: np.ndarray = bvec_ref,
         evec: np.ndarray = eta_ref,
         sample_symmetry: str = "ci",
@@ -1958,18 +1969,11 @@ class PhaseTransitionTextureModel:
         self.eta_vector = evec
         self.sample_symmetry = sample_symmetry
 
-        self.parent_kernel_width = float(
-            params[f"{OR.material_parent.name}_kernel_width"].value
-        )
-        self.daughter_kernel_width = float(
-            params[f"{OR.material_daughter.name}_kernel_width"].value
-        )
+        self.parent_kernel_width = parent_kernel_width
+        self.daughter_kernel_width = daughter_kernel_width
         # small misorientation of the parent from the assumed orientation
         # (zero if the parameters are not given)
-        self.parent_misorientation = np.zeros(3)
-        self.parent_misorientation = self.get_misorientation_angles_from_parameters(
-            params
-        )
+        self.parent_misorientation = parent_misorientation
 
         self.init_kernels()
         self.compute_odfs()
@@ -1981,6 +1985,43 @@ class PhaseTransitionTextureModel:
             'parent': PhaseTransitionTextureView(self, 'parent'),
             'daughter': PhaseTransitionTextureView(self, 'daughter'),
         }
+
+    ATTRIBUTES_TOCHECK = (
+        'OR',
+        '_parent_kernel_width',
+        '_daughter_kernel_width',
+        'parent_kernel',
+        'daughter_kernel',
+        '_parent_misorientation_rmat',
+    )
+
+    @property
+    def parent_kernel_width(self):
+        return self._parent_kernel_width
+
+    @parent_kernel_width.setter
+    def parent_kernel_width(self, val):
+        if not isinstance(val, (float, int)):
+            msg = "kernel width has to be int or flaot"
+            raise TypeError(msg)
+        self._parent_kernel_width = val
+        # if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
+        #     self.init_kernels()
+        #     self.compute_odfs()
+
+    @property
+    def daughter_kernel_width(self):
+        return self._daughter_kernel_width
+
+    @daughter_kernel_width.setter
+    def daughter_kernel_width(self, val):
+        if not isinstance(val, (float, int)):
+            msg = "kernel width has to be int or flaot"
+            raise TypeError(msg)
+        self._daughter_kernel_width = val
+        # if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
+        #     self.init_kernels()
+        #     self.compute_odfs()
 
     # the parent misorientation is a rotation vector (exponential map)
     # in the sample frame, in degrees: rotation by |v| about v/|v|. unlike
@@ -1997,34 +2038,32 @@ class PhaseTransitionTextureModel:
         root = self.MISORIENTATION_ROOT
         return [f"{root}{d}" for d in self.MISORIENTATION_COMPONENTS]
 
-    def get_misorientation_angles_from_parameters(self, params):
-        '''rotation vector (degrees, sample frame) of the parent
-        misorientation from params. components missing from params keep
-        their current value (zero when the model is created)
-        '''
-        current = self.parent_misorientation
-        return np.array(
-            [
-                float(params[name].value) if name in params else current[ii]
-                for ii, name in enumerate(self.misorientation_parameter_names)
-            ]
-        )
-
     @property
     def parent_misorientation(self) -> np.ndarray:
         '''rotation vector of the parent misorientation in degrees'''
         return self._parent_misorientation
 
+    @property
+    def parent_misorientation_rmat(self) -> np.ndarray:
+        '''rotation vector of the parent misorientation in degrees'''
+        return self._parent_misorientation_rmat
+
     @parent_misorientation.setter
     def parent_misorientation(self, val):
+        '''val is the misorientation in rotation vector
+        representation
+        '''
         val = np.array(val, dtype=float)
         if val.shape != (3,):
             msg = 'parent_misorientation must have 3 components'
             raise ValueError(msg)
         self._parent_misorientation = val
+        self._parent_misorientation_rmat = self.parent_misorientation_rotation_matrix()
+        # if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
+        #     self.init_kernels()
+        #     self.compute_odfs()
 
-    @property
-    def parent_misorientation_rmat(self) -> np.ndarray:
+    def parent_misorientation_rotation_matrix(self) -> np.ndarray:
         '''rotation matrix of the parent misorientation. it multiplies the
         parent and the daughter orientations from the left, i.e. it is a
         rotation in the sample frame'''
@@ -2153,6 +2192,11 @@ class PhaseTransitionTextureModel:
             rmat_variants,
             self.daughter_kernel,
         )
+
+    def update_texture_model(self):
+        if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
+            self.init_kernels()
+            self.compute_odfs()
 
     def calc_pf_rings(
         self,
@@ -2416,8 +2460,18 @@ class PhaseTransitionTextureModel:
                 rebuild_kernels = True
             setattr(self, attr, width)
 
-        mis = self.get_misorientation_angles_from_parameters(params)
-        rebuild_odfs = not np.array_equal(mis, self.parent_misorientation)
+        # rotation vector (degrees, sample frame) of the parent
+        # misorientation. components missing from params keep their
+        # current value
+        current = self.parent_misorientation
+        mis = np.array(
+            [
+                float(params[name].value) if name in params else current[ii]
+                for ii, name in enumerate(self.misorientation_parameter_names)
+            ]
+        )
+        rebuild_odfs = not np.array_equal(mis, current)
+        # the setter also updates the rotation matrix used by compute_odfs
         self.parent_misorientation = mis
 
         if rebuild_kernels:
