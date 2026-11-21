@@ -25,6 +25,26 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
+def test_fit_grains_reports_excluded_reflections(
+    single_ge_config_path, grains_reference_file_path, monkeypatch, caplog
+):
+    monkeypatch.chdir(single_ge_config_path.parent)
+    experiment = HedmExperiment(str(single_ge_config_path))
+    grain = np.loadtxt(grains_reference_file_path, ndmin=2)[0]
+    grain[0] = 17
+
+    with caplog.at_level(logging.INFO, logger='hexrd.hedm.fitgrains'):
+        fit_grains(experiment, grain, write_spots_files=False)
+
+    reports = [
+        record.args for record in caplog.records
+        if 'reflections from refit' in record.getMessage()
+    ]
+    [(grain_id, panel, excluded, total)] = reports
+    assert (grain_id, panel) == (17, 'GE')
+    assert 0 < excluded < total
+
+
 @pytest.fixture
 def single_ge_path(example_repo_path):
     return example_repo_path / 'NIST_ruby' / 'single_GE'

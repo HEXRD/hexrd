@@ -185,6 +185,14 @@ def fit_grain_FF_reduced(grain):
             culled_results, xyo_det_fit_dict, instrument, imgser_dict, refit
         )
 
+        for det_key, spots in culled_results.items():
+            total = len(spots)
+            excluded = total - len(culled_results_r.get(det_key, ()))
+            logger.info(
+                "Grain %d, panel %s: excluded %d of %d reflections from refit",
+                grain_id, det_key, excluded, total,
+            )
+
         # only execute fit if left with enough reflections
         if num_refl_valid > 12:
             grain_params = fitGrain(
