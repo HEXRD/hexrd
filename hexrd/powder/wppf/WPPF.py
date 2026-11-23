@@ -2254,6 +2254,18 @@ class Rietveld(AbstractWPPF):
         simulated_2d: np.ndarray
             simulated 2D diffraction pattern
         '''
+        # the pattern is computed from the class attributes (scale, phase
+        # fractions, background, peak shape, lattice, ...), which are only
+        # pushed from self.params by Refine/RefineTexture. push them here
+        # too, so the 2D pattern always reflects self.params, e.g. after
+        # the params are edited by hand. the texture models read
+        # self.params directly
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
+        self._update_shkl(self.params)
+        self._update_bkg(self.params)
+
         x = self.tthfull
         y = np.zeros(x.shape)
 
@@ -2419,7 +2431,55 @@ class Rietveld(AbstractWPPF):
                 f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
+    def update_texture_data_intensities(self):
+        '''recompute the untextured intensities U in the pfdata of the
+        texture models from the current parameters.
+
+        compute_texture_data stores (x, y, z, I_obs / U, U), with U from
+        the parameters at the time of the extraction. the extracted
+        intensities I_obs do not depend on the scale or the phase
+        fractions, but U does, so after these are refined (e.g. by
+        Refine) the stored ratios I_obs / U are stale and a following
+        texture fit would ignore the new scale. this keeps I_obs and
+        replaces U (and the ratio) by the current values. pfdata without
+        the U column (4 columns) is left unchanged.
+        '''
+        self._set_params_vals_to_class(
+            self.params, init=False, skip_phases=False, force=True
+        )
+        lambda_key = next(iter(self.wavelength))
+        ints_computed = self.compute_intensities()
+
+        for mat_key, model in self.texture_model.items():
+            if model is None or not getattr(model, 'pfdata', None):
+                continue
+
+            mat_key = mat_key.replace('-', '_')
+            ints_comp = dict(
+                zip(
+                    map(tuple, self.hkls[mat_key][lambda_key]),
+                    ints_computed[mat_key][lambda_key],
+                )
+            )
+
+            pfdata = {}
+            for hkey, data in model.pfdata.items():
+                data = np.array(data, dtype=float)
+                hkey = tuple(hkey)
+                if data.shape[1] >= 5 and hkey in ints_comp:
+                    I_obs = data[:, 3] * data[:, 4]
+                    U = ints_comp[hkey]
+                    data[:, 3] = I_obs / U
+                    data[:, 4] = U
+                pfdata[hkey] = data
+
+            model.pfdata = pfdata
+
     def RefineTexture(self):
+        # the pfdata ratios depend on the scale and the phase fractions,
+        # which may have been refined since compute_texture_data
+        self.update_texture_data_intensities()
+
         final_result = None
         for name, model in self.texture_model.items():
             if not hasattr(model, 'calculate_harmonic_coefficients'):

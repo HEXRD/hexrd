@@ -1969,6 +1969,15 @@ class PhaseTransitionTextureModel:
         self.eta_vector = evec
         self.sample_symmetry = sample_symmetry
 
+        # the kernels and the ODFs are rebuilt lazily: the setters of the
+        # kernel widths and of the parent misorientation only mark them
+        # as stale, and the parent_kernel, daughter_kernel and odfs
+        # properties rebuild them on the next access. this keeps them
+        # consistent with the attributes however these are changed
+        # (_sync_kernel_widths from params, or set by hand)
+        self._kernels_dirty = True
+        self._odfs_dirty = True
+
         self.parent_kernel_width = parent_kernel_width
         self.daughter_kernel_width = daughter_kernel_width
         # small misorientation of the parent from the assumed orientation
@@ -1986,15 +1995,6 @@ class PhaseTransitionTextureModel:
             'daughter': PhaseTransitionTextureView(self, 'daughter'),
         }
 
-    ATTRIBUTES_TOCHECK = (
-        'OR',
-        '_parent_kernel_width',
-        '_daughter_kernel_width',
-        'parent_kernel',
-        'daughter_kernel',
-        '_parent_misorientation_rmat',
-    )
-
     @property
     def parent_kernel_width(self):
         return self._parent_kernel_width
@@ -2004,6 +2004,10 @@ class PhaseTransitionTextureModel:
         if not isinstance(val, (float, int)):
             msg = "kernel width has to be int or flaot"
             raise TypeError(msg)
+        # exact comparison: the finite difference steps of a fit are
+        # ~1e-6 relative, which np.isclose would treat as unchanged
+        if val != getattr(self, '_parent_kernel_width', None):
+            self._kernels_dirty = True
         self._parent_kernel_width = val
 
     @property
@@ -2015,6 +2019,8 @@ class PhaseTransitionTextureModel:
         if not isinstance(val, (float, int)):
             msg = "kernel width has to be int or flaot"
             raise TypeError(msg)
+        if val != getattr(self, '_daughter_kernel_width', None):
+            self._kernels_dirty = True
         self._daughter_kernel_width = val
 
     # the parent misorientation is a rotation vector (exponential map)
@@ -2051,6 +2057,9 @@ class PhaseTransitionTextureModel:
         if val.shape != (3,):
             msg = 'parent_misorientation must have 3 components'
             raise ValueError(msg)
+        current = getattr(self, '_parent_misorientation', None)
+        if current is None or not np.array_equal(val, current):
+            self._odfs_dirty = True
         self._parent_misorientation = val
         self._parent_misorientation_rmat = self.parent_misorientation_rotation_matrix()
 
@@ -2157,37 +2166,71 @@ class PhaseTransitionTextureModel:
         return intensities, gvecs
 
     def init_kernels(self):
-        self.parent_kernel = kernels.DeLaValleePoussinKernel(
+        '''build the kernels of both phases from the kernel widths. the
+        ODFs use the kernels, so they are marked as stale'''
+        self._parent_kernel = kernels.DeLaValleePoussinKernel(
             np.radians(self.parent_kernel_width),
             crystal_symmetry=self.OR.material_parent.laueGroup,
             sample_symmetry=self.sample_symmetry,
         )
 
-        self.daughter_kernel = kernels.DeLaValleePoussinKernel(
+        self._daughter_kernel = kernels.DeLaValleePoussinKernel(
             np.radians(self.daughter_kernel_width),
             crystal_symmetry=self.OR.material_daughter.laueGroup,
             sample_symmetry=self.sample_symmetry,
         )
+        self._kernels_dirty = False
+        self._odfs_dirty = True
 
     def compute_odfs(self):
-        self.odfs = dict.fromkeys(["parent", "daughter"])
+        '''build the ODFs of both phases from the kernels, the parent
+        orientations, the variants and the parent misorientation'''
+        odfs = dict.fromkeys(["parent", "daughter"])
         prmat = self.parent_misorientation_rmat
         rmat_parent = [prmat @ r for r in self.OR.rmat_parent]
-        self.odfs["parent"] = unimodal_odf.UnimodalODF(
+        odfs["parent"] = unimodal_odf.UnimodalODF(
             rmat_parent,
             self.parent_kernel,
         )
 
         rmat_variants = [prmat @ r for r in self.OR.rmat_variants_rotated]
-        self.odfs["daughter"] = unimodal_odf.UnimodalODF(
+        odfs["daughter"] = unimodal_odf.UnimodalODF(
             rmat_variants,
             self.daughter_kernel,
         )
+        self._odfs = odfs
+        self._odfs_dirty = False
+
+    @property
+    def parent_kernel(self):
+        '''kernel of the parent phase, rebuilt if the kernel widths
+        changed since it was built'''
+        if self._kernels_dirty:
+            self.init_kernels()
+        return self._parent_kernel
+
+    @property
+    def daughter_kernel(self):
+        '''kernel of the daughter phase, rebuilt if the kernel widths
+        changed since it was built'''
+        if self._kernels_dirty:
+            self.init_kernels()
+        return self._daughter_kernel
+
+    @property
+    def odfs(self):
+        '''ODFs of the parent and the daughter phase, {"parent": ODF,
+        "daughter": ODF}. rebuilt on access if the kernel widths or the
+        parent misorientation changed since they were built, so they
+        always match the current attributes'''
+        if self._kernels_dirty or self._odfs_dirty:
+            self.compute_odfs()
+        return self._odfs
 
     def update_texture_model(self):
-        if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
-            self.init_kernels()
-            self.compute_odfs()
+        '''rebuild the kernels and the ODFs now'''
+        self.init_kernels()
+        self.compute_odfs()
 
     def calc_pf_rings(
         self,
@@ -2458,47 +2501,30 @@ class PhaseTransitionTextureModel:
 
     def _sync_kernel_widths(self, params):
         '''update the kernel widths and the parent misorientation from
-        params and rebuild the kernels and ODFs if anything changed. keys
-        that are not in params leave the current value untouched. used
-        by calc_pf_rings, J and the per-phase views
+        params. keys that are not in params leave the current value
+        untouched. the setters mark the kernels and ODFs as stale when a
+        value changes and they are rebuilt on the next access (see the
+        odfs property). used by calc_pf_rings, J and the per-phase views
         '''
         phases = {
             'parent': self.OR.material_parent,
             'daughter': self.OR.material_daughter,
         }
-        rebuild_kernels = False
         for key, mat in phases.items():
             pname = f'{mat.name}_kernel_width'
-            attr = f'{key}_kernel_width'
-            current = float(getattr(self, attr))
             if pname in params:
-                width = float(params[pname].value)
-            else:
-                width = current
-            # exact comparison: the finite difference steps of a fit are
-            # ~1e-6 relative, which np.isclose would treat as unchanged
-            if width != current:
-                rebuild_kernels = True
-            setattr(self, attr, width)
+                setattr(self, f'{key}_kernel_width', float(params[pname].value))
 
         # rotation vector (degrees, sample frame) of the parent
         # misorientation. components missing from params keep their
         # current value
         current = self.parent_misorientation
-        mis = np.array(
+        self.parent_misorientation = np.array(
             [
                 float(params[name].value) if name in params else current[ii]
                 for ii, name in enumerate(self.misorientation_parameter_names)
             ]
         )
-        rebuild_odfs = not np.array_equal(mis, current)
-        # the setter also updates the rotation matrix used by compute_odfs
-        self.parent_misorientation = mis
-
-        if rebuild_kernels:
-            self.init_kernels()
-        if rebuild_kernels or rebuild_odfs:
-            self.compute_odfs()
 
     @staticmethod
     def _odf_texture_index(odf):
