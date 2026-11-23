@@ -2005,9 +2005,6 @@ class PhaseTransitionTextureModel:
             msg = "kernel width has to be int or flaot"
             raise TypeError(msg)
         self._parent_kernel_width = val
-        # if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
-        #     self.init_kernels()
-        #     self.compute_odfs()
 
     @property
     def daughter_kernel_width(self):
@@ -2019,9 +2016,6 @@ class PhaseTransitionTextureModel:
             msg = "kernel width has to be int or flaot"
             raise TypeError(msg)
         self._daughter_kernel_width = val
-        # if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
-        #     self.init_kernels()
-        #     self.compute_odfs()
 
     # the parent misorientation is a rotation vector (exponential map)
     # in the sample frame, in degrees: rotation by |v| about v/|v|. unlike
@@ -2059,9 +2053,6 @@ class PhaseTransitionTextureModel:
             raise ValueError(msg)
         self._parent_misorientation = val
         self._parent_misorientation_rmat = self.parent_misorientation_rotation_matrix()
-        # if all(hasattr(self, a) for a in self.ATTRIBUTES_TOCHECK):
-        #     self.init_kernels()
-        #     self.compute_odfs()
 
     def parent_misorientation_rotation_matrix(self) -> np.ndarray:
         '''rotation matrix of the parent misorientation. it multiplies the
@@ -2435,6 +2426,36 @@ class PhaseTransitionTextureModel:
         """Return the texture index, matching the HarmonicModel interface."""
         return self.J(params)
 
+    def joint_residual(self, params, weighting=None):
+        '''weighted pole figure residual of both phases together, used by
+        the joint fit in PhaseTransitionTextureView.
+        calculate_harmonic_coefficients. the parent misorientation moves
+        the spots of the parent and of the daughter, so it is constrained
+        by the pfdata of both phases.
+
+        the residuals of the views that have pfdata are concatenated.
+        weighting is "intensity" or "ratio" (see
+        PhaseTransitionTextureView._pf_residual) and applies to all views,
+        so both phases are in the same units. by default "intensity" is
+        used if every view with pfdata has the untextured intensities
+        (5th pfdata column), otherwise "ratio". with "intensity" weights a
+        phase that is absent from the data (small untextured intensity)
+        has a negligible effect on the fit, so no phase has to be excluded
+        by hand.
+        '''
+        views = [v for v in self._views.values() if v.pfdata]
+        if weighting is None:
+            if views and all(v.has_untextured_intensities for v in views):
+                weighting = 'intensity'
+            else:
+                weighting = 'ratio'
+
+        self._sync_kernel_widths(params)
+        parts = [v._pf_residual(v._residual_hkls(), weighting) for v in views]
+        if not parts or sum(p.size for p in parts) == 0:
+            return np.array([1e10])
+        return np.concatenate(parts)
+
     def _sync_kernel_widths(self, params):
         '''update the kernel widths and the parent misorientation from
         params and rebuild the kernels and ODFs if anything changed. keys
@@ -2574,7 +2595,10 @@ class PhaseTransitionTextureView:
     the refinable parameter of a phase is its kernel half width,
     "{material.name}_kernel_width", in degrees. the parent view also owns
     the parent misorientation, "parent_misorientation_x/y/z" (rotation
-    vector in degrees, sample frame), which rotates both phases.
+    vector in degrees, sample frame), which rotates both phases. the
+    texture fit (calculate_harmonic_coefficients) is joint: it refines all
+    varied parameters of the shared model against the pfdata of both
+    views.
 
     Parameters
     ----------
@@ -2769,35 +2793,78 @@ class PhaseTransitionTextureView:
         """Return the texture index, matching the HarmonicModel interface."""
         return self.J(params)
 
-    def calc_residual(self, params):
+    def calc_residual(self, params, weighting=None):
         '''weighted difference between the measured pole figure
-        intensities (pfdata) and the pole densities of the ODF, with the
-        kernel width taken from params. same weighting as
-        HarmonicModel.calc_residual
-        '''
-        self._model._sync_kernel_widths(params)
+        intensities (pfdata) and the pole densities of the ODF of this
+        phase, with the texture parameters taken from params.
 
+        weighting is "intensity" or "ratio" (see _pf_residual). by default
+        "intensity" is used if the pfdata holds the untextured intensities
+        (5th column), otherwise "ratio" (same weights as HarmonicModel)
+        '''
+        if weighting is None:
+            weighting = 'intensity' if self.has_untextured_intensities else 'ratio'
+
+        self._model._sync_kernel_widths(params)
+        residual = self._pf_residual(self._residual_hkls(), weighting)
+        if residual.size == 0:
+            return np.array([1e10])
+        return residual
+
+    def _residual_hkls(self):
+        '''hkls used in the residual: the ones selected for the current fit
+        (see calculate_harmonic_coefficients), otherwise all of pfdata'''
         hkls = getattr(self, '_fit_hkls', None)
         if hkls is None:
             hkls = list(self.intensities)
+        return hkls
 
-        measured = np.empty(0)
-        calculated = np.empty(0)
-        weights = np.empty(0)
+    def _pf_residual(self, hkls, weighting):
+        '''weighted residual of the pfdata of the given hkls for the
+        current ODF (the caller syncs the ODF with params first).
+
+        with r = I_obs / U the measured ratio (column 4 of pfdata), U the
+        untextured intensity (column 5) and P the pole density of the ODF:
+
+        "intensity": (I_obs - U P) / sqrt(I_obs) = U (r - P) / sqrt(U r).
+            same 1/I_obs statistics as the Rietveld Rwp. a phase that is
+            weak or absent in the data has a small U, so its (noisy)
+            ratios carry little weight. this is what makes a joint fit of
+            several phases well behaved. points with I_obs <= 0 get zero
+            weight.
+        "ratio": (r - P) / sqrt(r), with the HarmonicModel weights (1/r,
+            weights above 1e2 set to zero). every phase gets the same
+            weight regardless of how strong it is in the data.
+
+        NaN entries are dropped.
+        '''
+        if weighting == 'intensity':
+            weights = self._weights_intensity_by_hkl
+            if weights is None:
+                msg = (
+                    'intensity weighting needs the untextured intensities '
+                    'in the 5th column of pfdata'
+                )
+                raise ValueError(msg)
+        elif weighting == 'ratio':
+            weights = self._weights_by_hkl
+        else:
+            msg = f'unknown weighting "{weighting}", use "intensity" or "ratio"'
+            raise ValueError(msg)
+
+        out = []
         for h in hkls:
-            v = self.intensities[h]
+            h = tuple(h)
             hc = self.material.TransSpace(np.asarray(h, dtype=float), 'r', 'c')
-            term = np.atleast_1d(
+            calc = np.atleast_1d(
                 self.odf.pole_density(hc, self.gvecs[h], antipodal=True)
             )
-            measured = np.concatenate((measured, v))
-            calculated = np.concatenate((calculated, term))
-            weights = np.concatenate((weights, self._weights_by_hkl[h]))
+            out.append(np.sqrt(weights[h]) * (self.intensities[h] - calc))
 
-        residual = np.sqrt(weights * (measured - calculated) ** 2)
-        if np.all(np.isnan(residual)):
-            return 1e10
-        return residual[~np.isnan(residual)]
+        if not out:
+            return np.empty(0)
+        residual = np.concatenate(out)
+        return residual[np.isfinite(residual)]
 
     def recalculated_pf(self, params):
         '''pole densities of the ODF at the pfdata points, stored in
@@ -2812,24 +2879,34 @@ class PhaseTransitionTextureView:
             )
 
     def calculate_harmonic_coefficients(self, params, hkls=None):
-        '''fit the texture parameters of this view to the pole figure data
-        (pfdata). the name and interface are the same as
+        '''fit the texture parameters to the pole figure data (pfdata).
+        the name and interface are the same as
         HarmonicModel.calculate_harmonic_coefficients so the Rietveld
         class can refine this model through RefineTexture.
 
-        the parameters are those in parameter_names that are present in
-        params: the kernel width of this phase and, for the parent view,
-        the parent misorientation. only the ones marked as vary are
-        refined, against the pfdata of this view. the refined values and
-        their standard errors are written back to params. returns the
-        lmfit result, or None if no parameter is marked as vary.
+        the parent and the daughter views share one model, and the parent
+        misorientation moves the spots of both phases. a fit of one view
+        alone would refine the misorientation against one phase only, and
+        with the kernel width of the other phase frozen. instead, this is
+        a joint fit: all parameters of the shared model that are in params
+        and marked as vary (both kernel widths and the misorientation) are
+        refined together against the pfdata of both views (see
+        PhaseTransitionTextureModel.joint_residual). hkls restricts the
+        pfdata of this view only; the other view uses all of its pfdata.
+
+        Rietveld.RefineTexture calls this once per view. the second call
+        starts at the optimum of the first, so it only re-confirms it.
+
+        the refined values and their standard errors are written back to
+        params. returns the lmfit result, or None if no parameter is
+        marked as vary.
         '''
         if hkls is None:
             # If no hkls are specified, use all of them
             hkls = list(self.pfdata)
 
         fit_params = Parameters()
-        for name in self.parameter_names:
+        for name in self._model.parameter_names:
             if name in params:
                 fit_params[name] = copy.deepcopy(params[name])
 
@@ -2850,7 +2927,7 @@ class PhaseTransitionTextureView:
         }
 
         try:
-            fitter = Minimizer(self.calc_residual, fit_params)
+            fitter = Minimizer(self._model.joint_residual, fit_params)
             results = fitter.least_squares(**fdict)
 
             # Update parameters with the new values
@@ -2876,10 +2953,13 @@ class PhaseTransitionTextureView:
 
     """
     the pfdata property returns the pole figure data in the form of a
-    dictionary with keys as the hkl tuples and the value as an (n, 4)
-    array of (x, y, z, intensity), where (x, y, z) is the scattering
-    vector in the lab frame (same as HarmonicModel). this is what
-    Rietveld.compute_texture_data sets.
+    dictionary with keys as the hkl tuples and the value as an (n, 4) or
+    (n, 5) array of (x, y, z, ratio[, U]), where (x, y, z) is the
+    scattering vector in the lab frame, ratio = I_obs / U is the measured
+    pole density and U the untextured (Rietveld) intensity of the
+    reflection. the U column is optional: with it the fit uses intensity
+    weights, without it the HarmonicModel ratio weights (see
+    _pf_residual). Rietveld.compute_texture_data writes all five columns.
     """
 
     @property
@@ -2890,12 +2970,17 @@ class PhaseTransitionTextureView:
     def pfdata(self, val):
         self._pfdata = {}
         self._intensities = {}
+        self._untextured = {}
         self._weights = np.empty(0)
         self._weights_by_hkl = {}
+        self._weights_intensity_by_hkl = {}
         self._gvecs = {}
         self._angs = {}
         if not val:
+            self._weights_intensity_by_hkl = None
             return
+
+        has_untextured = all(np.shape(v)[1] >= 5 for v in val.values())
 
         for k, v in val.items():
             k = tuple(k)
@@ -2917,12 +3002,38 @@ class PhaseTransitionTextureView:
             w = np.nan_to_num(w)
             w[np.abs(w) > 1e2] = 0.0
 
+            if has_untextured:
+                # intensity weights U^2 / I_obs = U / ratio on the ratio
+                # residual, zero where I_obs is not positive and finite
+                U = v[:, 4]
+                I_obs = U * v[:, 3]
+                ok = np.isfinite(I_obs) & (I_obs > 0)
+                wi = np.zeros_like(I_obs)
+                wi[ok] = U[ok] ** 2 / I_obs[ok]
+                self._untextured[k] = U
+                self._weights_intensity_by_hkl[k] = wi
+
             self._gvecs[k] = v[:, 0:3]
             self._pfdata[k] = v
             self._intensities[k] = v[:, 3]
             self._weights_by_hkl[k] = w
             self._weights = np.concatenate((self._weights, w))
             self._angs[k] = np.vstack((t, rho)).T
+
+        if not has_untextured:
+            self._weights_intensity_by_hkl = None
+
+    @property
+    def has_untextured_intensities(self):
+        '''True if the pfdata holds the untextured intensities (5th
+        column), which the intensity weighting needs'''
+        return self._weights_intensity_by_hkl is not None
+
+    @property
+    def untextured_intensities(self):
+        '''untextured intensity U of every pfdata point, by hkl (empty if
+        the pfdata has no 5th column)'''
+        return self._untextured
 
     @property
     def gvecs(self):

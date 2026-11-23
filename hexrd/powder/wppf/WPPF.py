@@ -2831,10 +2831,15 @@ class Rietveld(AbstractWPPF):
 
                     angs = np.atleast_2d([np.radians(t[jj]), eta, 0])
                     v = angles_to_gvec(angs, beam_vec=bvec, eta_vec=evec)
+                    # columns: (x, y, z, I_obs / U, U). the untextured
+                    # intensity U lets texture models weight the data in
+                    # intensity space (models that only read the first
+                    # four columns are unaffected)
                     data = np.hstack(
                         (
                             v,
                             np.atleast_2d(ints[jj] / ints_comp[hkey]),
+                            np.atleast_2d(ints_comp[hkey]),
                         )
                     )
 
