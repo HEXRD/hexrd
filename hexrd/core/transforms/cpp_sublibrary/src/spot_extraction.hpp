@@ -436,14 +436,32 @@ static py::tuple patchGrid(CArray<double> angles, CArray<int64_t> shapes,
 
 struct Frame {
   py::array offsets, columns, values;
-  bool wide_offsets, wide_columns;
+  bool wide_offsets, wide_columns, short_columns, single_values;
   Index offset(Index row) const {
     return wide_offsets ? static_cast<const int64_t *>(offsets.data())[row]
                         : static_cast<const int32_t *>(offsets.data())[row];
   }
   Index column(Index pos) const {
-    return wide_columns ? static_cast<const int64_t *>(columns.data())[pos]
-                        : static_cast<const int32_t *>(columns.data())[pos];
+    return wide_columns
+               ? static_cast<const int64_t *>(columns.data())[pos]
+               : (short_columns
+                      ? static_cast<const uint16_t *>(columns.data())[pos]
+                      : static_cast<const int32_t *>(columns.data())[pos]);
+  }
+  template <typename Column>
+  Index lowerBoundTyped(Index first, Index last, Index key) const {
+    const auto *data = static_cast<const Column *>(columns.data());
+    return std::lower_bound(data + first, data + last, key) - data;
+  }
+  Index lowerBound(Index first, Index last, Index key) const {
+    if (wide_columns)
+      return lowerBoundTyped<int64_t>(first, last, key);
+    return short_columns ? lowerBoundTyped<uint16_t>(first, last, key)
+                         : lowerBoundTyped<int32_t>(first, last, key);
+  }
+  template <typename T> T value(Index pos) const {
+    return single_values ? T(static_cast<const float *>(values.data())[pos])
+                         : static_cast<const T *>(values.data())[pos];
   }
 };
 
@@ -991,26 +1009,18 @@ class SparseFrames {
         }
         for (Index k = 0; k < depth; ++k) {
           const Frame &frame = (*frames)[frame_ids.data()[patch * depth + k]];
-          const T *values = static_cast<const T *>(frame.values.data());
           if (use_rectangle) {
             // Polar subpixels repeatedly sample the same detector pixels.
             // Read a small bounding rectangle once, rather than performing a
             // sparse binary search for every subpixel in every omega frame.
             std::fill(rectangle.begin(), rectangle.end(), T(0));
             for (Index row = min_row; row <= max_row; ++row) {
-              Index lo = frame.offset(row), end = frame.offset(row + 1),
-                    hi = end;
-              while (lo < hi) {
-                Index mid = (lo + hi) / 2;
-                if (frame.column(mid) < min_col)
-                  lo = mid + 1;
-                else
-                  hi = mid;
-              }
+              Index end = frame.offset(row + 1);
+              Index lo = frame.lowerBound(frame.offset(row), end, min_col);
               while (lo < end && frame.column(lo) <= max_col) {
                 Index position = (row - min_row) * rectangle_width +
                                  frame.column(lo) - min_col;
-                rectangle[position] = addValue(rectangle[position], values[lo]);
+                rectangle[position] = addValue(rectangle[position], frame.value<T>(lo));
                 ++lo;
               }
             }
@@ -1025,17 +1035,11 @@ class SparseFrames {
             Index col =
                 std::max(Index(0), std::min(width - 1, Index(cols.data()[p]))) +
                 col_offset;
-            Index lo = frame.offset(row), end = frame.offset(row + 1), hi = end;
-            while (lo < hi) {
-              Index mid = (lo + hi) / 2;
-              if (frame.column(mid) < col)
-                lo = mid + 1;
-              else
-                hi = mid;
-            }
+            Index end = frame.offset(row + 1);
+              Index lo = frame.lowerBound(frame.offset(row), end, col);
             T value = 0;
             while (lo < end && frame.column(lo) == col) {
-              value = addValue(value, values[lo]);
+              value = addValue(value, frame.value<T>(lo));
               ++lo;
             }
             *out++ = value;
@@ -1047,7 +1051,7 @@ class SparseFrames {
   }
 
 public:
-  SparseFrames(py::list input)
+  SparseFrames(py::list input, py::object wanted = py::none())
       : frames(std::make_shared<std::vector<Frame>>()) {
     for (auto item : input) {
       auto object = py::reinterpret_borrow<py::object>(item);
@@ -1061,10 +1065,12 @@ public:
       if (frames->empty()) {
         height = shape.first;
         width = shape.second;
-        dtype = data.dtype();
+        dtype = wanted.is_none() ? data.dtype() : py::dtype::from_args(wanted);
       }
       if (shape != std::make_pair(height, width) ||
-          !sameDtype(data.dtype(), dtype))
+          (!sameDtype(data.dtype(), dtype) &&
+           !(!wanted.is_none() && sameDtype(dtype, py::dtype::of<double>()) &&
+             sameDtype(data.dtype(), py::dtype::of<float>()))))
         throw py::value_error("frame shapes and dtypes must agree");
       if (!(data.flags() & py::array::c_style) ||
           !(offsets.flags() & py::array::c_style) ||
@@ -1075,7 +1081,8 @@ public:
           !(sameDtype(offsets.dtype(), py::dtype::of<int32_t>()) ||
             sameDtype(offsets.dtype(), py::dtype::of<int64_t>())) ||
           !(sameDtype(columns.dtype(), py::dtype::of<int32_t>()) ||
-            sameDtype(columns.dtype(), py::dtype::of<int64_t>())))
+            sameDtype(columns.dtype(), py::dtype::of<int64_t>()) ||
+            sameDtype(columns.dtype(), py::dtype::of<uint16_t>())))
         throw py::value_error(
             "expected contiguous CSR buffers with integer indices");
       if (height <= 0 || width <= 0 || height == PY_SSIZE_T_MAX)
@@ -1084,7 +1091,8 @@ public:
       checkShape(offsets, {height + 1});
       checkShape(columns, {data.size()});
       frames->push_back({offsets, columns, data, offsets.itemsize() == 8,
-                         columns.itemsize() == 8});
+                         columns.itemsize() == 8, columns.itemsize() == 2,
+                         !sameDtype(data.dtype(), dtype)});
       const auto &frame = frames->back();
       if (frame.offset(0) != 0 || frame.offset(height) != data.size())
         throw py::value_error("invalid CSR row offsets");
@@ -1313,6 +1321,22 @@ static bool finishIntegerRuns(IntegerRunScratch<T> &scratch, Index a, Index b,
   return true;
 }
 
+static bool exactHalfCount(double value, double threshold, double bound,
+                           int64_t &total) {
+  if (!std::isfinite(value) || std::signbit(value))
+    return false;
+  if (value > threshold) {
+    const double weighted = value * 2.;
+    if (weighted > bound - double(total))
+      return false;
+    const int64_t integral = int64_t(weighted);
+    if (double(integral) != weighted)
+      return false;
+    total += integral;
+  }
+  return true;
+}
+
 // Integer-valued patches have exactly representable zeroth/first moments in
 // the guarded range. Label foreground runs instead of checking 13 neighbors
 // for every repeated polar subpixel. Root order is first C-order occurrence.
@@ -1340,20 +1364,9 @@ static bool integerRunStats(const T *data, Index a, Index b, Index c,
     const double mass_bound = std::min(
         sum_bound, 4503599627370496. / double(std::max(a, std::max(b, c))));
     int64_t total = 0;
-    for (Index p = 0; p < a * b * c; ++p) {
-      const double value = double(data[p]);
-      if (!std::isfinite(value) || std::signbit(value))
+    for (Index p = 0; p < a * b * c; ++p)
+      if (!exactHalfCount(double(data[p]), threshold, mass_bound, total))
         return false;
-      if (value > threshold) {
-        const double weighted = value * 2.;
-        if (weighted > mass_bound - double(total))
-          return false;
-        const int64_t integral = int64_t(weighted);
-        if (double(integral) != weighted)
-          return false;
-        total += integral;
-      }
-    }
   }
   auto &runs = scratch.runs;
   auto &lines = scratch.lines;
@@ -1417,8 +1430,6 @@ static py::tuple spotStatsTyped(CArray<T> pixels, CArray<int64_t> offsets,
   std::vector<int32_t> labels;
   std::vector<int32_t> parents, remap;
   std::vector<std::array<Index, 6>> bounds;
-  std::vector<std::array<int64_t, 4>> integer_moments;
-  std::vector<T> integer_maxima;
   IntegerRunScratch<T> run_scratch;
   for (Index patch = 0; patch < count; ++patch) {
     Index a = shapes.data()[3 * patch], b = shapes.data()[3 * patch + 1],
@@ -1440,25 +1451,8 @@ static py::tuple spotStatsTyped(CArray<T> pixels, CArray<int64_t> offsets,
       continue;
     labels.assign(size, 0);
     bounds.clear();
-    integer_moments.clear();
-    integer_maxima.clear();
     {
       py::gil_scoped_release release;
-      bool exact_integer = false;
-      if (std::is_integral<T>::value && threshold >= 0.) {
-        double largest = double(std::numeric_limits<T>::max());
-        double scale = double(size) * double(std::max(a, std::max(b, c)));
-        if (largest * scale > 4503599627370496.) {
-          largest = 0.;
-          for (Index p = 0; p < size; ++p)
-            largest = std::max(largest, std::abs(double(data[p])));
-        }
-        // Every required partial sum and weighted moment is an integer
-        // representable exactly in float64. Integer accumulation therefore
-        // gives the same moments as the reference BLAS contractions. Keep a
-        // factor-of-two safety margin and use NumPy for other intensities.
-        exact_integer = largest * scale <= 4503599627370496.;
-      }
       // Two raster passes with 13 preceding neighbors give full 26-neighbor
       // connectivity. Unlike a flood-fill, these passes avoid coordinate
       // divisions, a voxel queue, and repeated tests of background voxels.
@@ -1515,10 +1509,6 @@ static py::tuple spotStatsTyped(CArray<T> pixels, CArray<int64_t> offsets,
               if (!label) {
                 label = remap[root] = int32_t(bounds.size()) + 1;
                 bounds.push_back({{a, b, c, 0, 0, 0}});
-                if (exact_integer) {
-                  integer_moments.push_back({{0, 0, 0, 0}});
-                  integer_maxima.push_back(data[pos]);
-                }
               }
               labels[pos] = label;
               auto &box = bounds[label - 1];
@@ -1528,52 +1518,9 @@ static py::tuple spotStatsTyped(CArray<T> pixels, CArray<int64_t> offsets,
               box[3] = std::max(box[3], x + 1);
               box[4] = std::max(box[4], y + 1);
               box[5] = std::max(box[5], z + 1);
-              if (exact_integer) {
-                auto &moment = integer_moments[label - 1];
-                int64_t value = int64_t(data[pos]);
-                moment[0] += value;
-                moment[1] += x * value;
-                moment[2] += y * value;
-                moment[3] += z * value;
-                integer_maxima[label - 1] =
-                    std::max(integer_maxima[label - 1], data[pos]);
-              }
             }
-      if (exact_integer && !bounds.empty()) {
-        Index chosen = 0;
-        double best = INFINITY;
-        for (Index component = 0; component < Index(bounds.size());
-             ++component) {
-          auto box = bounds[component];
-          auto moment = integer_moments[component];
-          double centroid[3];
-          volatile double squared[3];
-          for (int axis = 0; axis < 3; ++axis) {
-            // Preserve local-moment division followed by the bounding-box
-            // offset, rather than dividing a global moment (different ULPs).
-            int64_t local = moment[axis + 1] - box[axis] * moment[0];
-            centroid[axis] =
-                double(local) / double(moment[0]) + double(box[axis]);
-            double delta =
-                centroid[axis] - 0.5 * double(shapes.data()[3 * patch + axis]);
-            squared[axis] = delta * delta;
-          }
-          double distance = (squared[0] + squared[1]) + squared[2];
-          if (component == 0 || distance < best) {
-            chosen = component;
-            best = distance;
-            std::copy(centroid, centroid + 3,
-                      centers.mutable_data() + 3 * patch);
-          }
-        }
-        sums.mutable_data()[patch] = Sum(integer_moments[chosen][0]);
-        maxima.mutable_data()[patch] = integer_maxima[chosen];
-        valid.mutable_data()[patch] = true;
-      }
     }
     if (bounds.empty())
-      continue;
-    if (!integer_moments.empty())
       continue;
     Index chosen = 0;
     double best = INFINITY;
@@ -1658,52 +1605,20 @@ static py::tuple spotStats(py::array pixels, CArray<int64_t> offsets,
 // Invert the spatial sampling map once, then visit only source pixels above
 // threshold in each omega frame. The sorted samples retain their exact polar
 // voxel coordinates, so connectivity and centroid selection are unchanged.
-
-#if defined(HEXRD_AVX2)
-HEXRD_AVX2 static void pixelBoundsAvx2(const int64_t *rows, const int64_t *cols,
-                                       Index n, int64_t *bounds) {
-  __m256i rmin = _mm256_set1_epi64x(INT64_MAX),
-          rmax = _mm256_set1_epi64x(INT64_MIN);
-  __m256i cmin = rmin, cmax = rmax;
-  Index i = 0;
-  for (; i + 4 <= n; i += 4) {
-    __m256i r = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(rows + i));
-    __m256i c = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(cols + i));
-    rmin = _mm256_blendv_epi8(rmin, r, _mm256_cmpgt_epi64(rmin, r));
-    rmax = _mm256_blendv_epi8(rmax, r, _mm256_cmpgt_epi64(r, rmax));
-    cmin = _mm256_blendv_epi8(cmin, c, _mm256_cmpgt_epi64(cmin, c));
-    cmax = _mm256_blendv_epi8(cmax, c, _mm256_cmpgt_epi64(c, cmax));
-  }
-  int64_t a[4], b[4], c[4], d[4];
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(a), rmin);
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(b), rmax);
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(c), cmin);
-  _mm256_storeu_si256(reinterpret_cast<__m256i *>(d), cmax);
-  bounds[0] = bounds[2] = INT64_MAX;
-  bounds[1] = bounds[3] = INT64_MIN;
-  for (int j = 0; j < 4; ++j) {
-    bounds[0] = std::min(bounds[0], a[j]);
-    bounds[1] = std::max(bounds[1], b[j]);
-    bounds[2] = std::min(bounds[2], c[j]);
-    bounds[3] = std::max(bounds[3], d[j]);
-  }
-  for (; i < n; ++i) {
-    bounds[0] = std::min(bounds[0], rows[i]);
-    bounds[1] = std::max(bounds[1], rows[i]);
-    bounds[2] = std::min(bounds[2], cols[i]);
-    bounds[3] = std::max(bounds[3], cols[i]);
-  }
-}
-#endif
+// Reuse one sampled omega slice; the bitmap visits foreground in C order
+// without sorting voxels or allocating their full three-dimensional volume.
 
 template <typename T>
-static py::object sparseIntegerStats(const SparseFrames &source,
+static py::object sparseRunStats(const SparseFrames &source,
                                      CArray<int64_t> ids,
                                      CArray<int64_t> offsets,
                                      CArray<int64_t> rows, CArray<int64_t> cols,
-                                     CArray<int64_t> shapes, double threshold) {
-  using Sum = typename std::conditional<std::is_unsigned<T>::value, uint64_t,
-                                        int64_t>::type;
+                                     CArray<int64_t> shapes, double threshold,
+                                     const bool *valid_pixels) {
+  using Sum = typename std::conditional<std::is_integral<T>::value,
+      typename std::conditional<std::is_unsigned<T>::value, uint64_t,
+                                int64_t>::type, T>::type;
+  const int mass_scale = std::is_integral<T>::value ? 1 : 2;
   Index count = ids.shape(0), depth = ids.shape(1);
   const auto &frames = source.getFrames();
   for (Index p = 0; p < count; ++p) {
@@ -1714,7 +1629,8 @@ static py::object sparseIntegerStats(const SparseFrames &source,
         a <= 0 || n > INT32_MAX / a)
       return py::none();
     double scale = double(n * depth) * double(std::max(a, std::max(b, c)));
-    if (double(std::numeric_limits<T>::max()) * scale > 4611686018427387904.)
+    if (std::is_integral<T>::value &&
+        double(std::numeric_limits<T>::max()) * scale > 4611686018427387904.)
       return py::none();
   }
   py::array_t<double> centers({count, Index(3)});
@@ -1726,7 +1642,8 @@ static py::object sparseIntegerStats(const SparseFrames &source,
   std::fill(maxima.mutable_data(), maxima.mutable_data() + count, T(0));
   std::fill(valid.mutable_data(), valid.mutable_data() + count, false);
   std::vector<int32_t> heads, next;
-  std::vector<std::pair<Index, T>> foreground;
+  std::vector<uint64_t> foreground;
+  std::vector<T> intensities;
   IntegerRunScratch<T> scratch;
   bool fallback = false;
   {
@@ -1734,20 +1651,13 @@ static py::object sparseIntegerStats(const SparseFrames &source,
     for (Index p = 0; p < count && !fallback; ++p) {
       Index start = offsets.data()[p], stop = offsets.data()[p + 1],
             n = stop - start;
-      int64_t box[4] = {INT64_MAX, INT64_MIN, INT64_MAX, INT64_MIN};
+      const Index a = depth, b = shapes.data()[3 * p + 1], c = shapes.data()[3 * p + 2];
       const int64_t *raw_rows = rows.data() + start,
                     *raw_cols = cols.data() + start;
-#if defined(HEXRD_AVX2)
-      if (__builtin_cpu_supports("avx2"))
-        pixelBoundsAvx2(raw_rows, raw_cols, n, box);
-      else
-#endif
-        for (Index i = 0; i < n; ++i) {
-          box[0] = std::min(box[0], raw_rows[i]);
-          box[1] = std::max(box[1], raw_rows[i]);
-          box[2] = std::min(box[2], raw_cols[i]);
-          box[3] = std::max(box[3], raw_cols[i]);
-        }
+      auto row_bounds = std::minmax_element(raw_rows, raw_rows + n);
+      auto col_bounds = std::minmax_element(raw_cols, raw_cols + n);
+      int64_t box[4] = {*row_bounds.first, *row_bounds.second,
+                        *col_bounds.first, *col_bounds.second};
       auto cliprow = [&](Index r) {
         return std::max(Index(0), std::min(source.rows() - 1, r));
       };
@@ -1769,6 +1679,8 @@ static py::object sparseIntegerStats(const SparseFrames &source,
           box[3] < source.cols()) {
         for (Index i = n; i > 0;) {
           --i;
+          if (valid_pixels && !valid_pixels[start + i])
+            continue;
           Index position =
               (raw_rows[i] - box[0]) * width + raw_cols[i] - box[2];
           next[i] = heads[position];
@@ -1777,94 +1689,117 @@ static py::object sparseIntegerStats(const SparseFrames &source,
       } else
         for (Index i = n; i > 0;) {
           --i;
+          if (valid_pixels && !valid_pixels[start + i])
+            continue;
           Index position =
               (cliprow(raw_rows[i]) + source.rowOffset() - minr) * width +
               clipcol(raw_cols[i]) + source.colOffset() - minc;
           next[i] = heads[position];
           heads[position] = int32_t(i);
         }
-      foreground.clear();
+      foreground.resize((n + 63) / 64);
+      if (Index(intensities.size()) < n)
+        intensities.resize(n);
       double largest = 0.;
-      for (Index k = 0; k < depth; ++k) {
-        const auto &frame = frames[ids.data()[p * depth + k]];
-        const T *values = static_cast<const T *>(frame.values.data());
-        for (Index r = minr; r <= maxr; ++r) {
-          Index lo = frame.offset(r), end = frame.offset(r + 1), hi = end;
-          while (lo < hi) {
-            Index mid = (lo + hi) / 2;
-            if (frame.column(mid) < minc)
-              lo = mid + 1;
-            else
-              hi = mid;
-          }
-          while (lo < end && frame.column(lo) <= maxc) {
-            Index col = frame.column(lo);
-            T value = values[lo++];
-            while (lo < end && frame.column(lo) == col)
-              value = addValue(value, values[lo++]);
-            if (!(value > threshold))
-              continue;
-            int32_t pixel = heads[(r - minr) * width + col - minc];
-            if (pixel >= 0)
-              largest = std::max(largest, double(value));
-            while (pixel >= 0) {
-              foreground.emplace_back(k * n + pixel, value);
-              pixel = next[pixel];
-            }
-          }
-        }
-      }
-      Index a = shapes.data()[3 * p], b = shapes.data()[3 * p + 1],
-            c = shapes.data()[3 * p + 2];
-      double scale = double(n * depth) * double(std::max(a, std::max(b, c)));
-      if (largest * scale > 4503599627370496.) {
-        fallback = true;
-        break;
-      }
-      if (foreground.empty())
-        continue;
-      std::sort(foreground.begin(), foreground.end(),
-                [](const std::pair<Index, T> &l, const std::pair<Index, T> &r) {
-                  return l.first < r.first;
-                });
+      int64_t total = 0;
+      const double mass_bound =
+          std::min(std::min(4503599627370496.,
+                            std::ldexp(1., std::numeric_limits<Sum>::digits)),
+                   4503599627370496. / double(std::max(a, std::max(b, c))));
       auto &runs = scratch.runs;
       auto &lines = scratch.lines;
       runs.clear();
       lines.resize(a * b + 1);
-      Index position = 0;
-      for (Index x = 0; x < a; ++x)
+      Index word = 0;
+      uint64_t bits = 0;
+      auto advance = [&]() -> Index {
+        while (!bits && word < Index(foreground.size()))
+          bits = foreground[word++];
+        if (!bits)
+          return n;
+#if defined(__GNUC__) || defined(__clang__)
+        Index bit = __builtin_ctzll(bits);
+#else
+        Index bit = 0;
+        for (uint64_t value = bits; !(value & 1); value >>= 1) ++bit;
+#endif
+        Index voxel = (word - 1) * 64 + bit;
+        bits &= bits - 1;
+        return voxel;
+      };
+      for (Index k = 0; k < depth && !fallback; ++k) {
+        std::fill(foreground.begin(), foreground.end(), 0);
+        word = 0; bits = 0;
+        const auto &frame = frames[ids.data()[p * depth + k]];
+        for (Index r = minr; r <= maxr && !fallback; ++r) {
+          Index end = frame.offset(r + 1);
+          Index lo = frame.lowerBound(frame.offset(r), end, minc);
+          while (lo < end && frame.column(lo) <= maxc && !fallback) {
+            Index col = frame.column(lo);
+            T value = frame.value<T>(lo++);
+            while (lo < end && frame.column(lo) == col)
+              value = addValue(value, frame.value<T>(lo++));
+            int32_t pixel = heads[(r - minr) * width + col - minc];
+            if (pixel < 0)
+              continue;
+            if (!(value > threshold)) {
+              if (!std::is_integral<T>::value &&
+                  !exactHalfCount(double(value), threshold, mass_bound, total))
+                fallback = true;
+              continue;
+            }
+            largest = std::max(largest, double(value));
+            while (pixel >= 0) {
+              if (!std::is_integral<T>::value &&
+                  !exactHalfCount(double(value), threshold, mass_bound, total)) {
+                fallback = true;
+                break;
+              }
+              Index voxel = pixel;
+              foreground[voxel / 64] |= uint64_t(1) << (voxel % 64);
+              intensities[voxel] = value;
+              pixel = next[pixel];
+            }
+          }
+        }
+        if (fallback) break;
+        Index position = advance();
         for (Index y = 0; y < b; ++y) {
-          Index line = x * b + y, first = runs.size();
+          Index line = k * b + y, first = runs.size();
           lines[line] = first;
-          Index end = (line + 1) * c;
-          while (position < Index(foreground.size()) &&
-                 foreground[position].first < end) {
-            Index lo = foreground[position].first - line * c, z = lo;
+          Index end = (y + 1) * c;
+          while (position < end) {
+            Index lo = position - y * c, z = lo;
             int64_t mass = 0, moment = 0;
-            T peak = foreground[position].second;
+            T peak = intensities[position];
             do {
-              T value = foreground[position].second;
-              mass += int64_t(value);
-              moment += z * int64_t(value);
+              T value = intensities[position];
+              mass += int64_t(double(value) * mass_scale);
+              moment += z * int64_t(double(value) * mass_scale);
               peak = std::max(peak, value);
-              ++position;
+              position = advance();
               ++z;
-            } while (position < Index(foreground.size()) &&
-                     foreground[position].first == line * c + z && z < c);
+            } while (position == y * c + z && z < c);
             runs.push_back(
-                {lo, z, x, y, int32_t(runs.size()), mass, moment, peak});
+                {lo, z, k, y, int32_t(runs.size()), mass, moment, peak});
           }
           lines[line + 1] = runs.size();
           if (y)
             scratch.link(first, line - 1);
-          if (x)
+          if (k)
             for (Index yy = std::max(Index(0), y - 1); yy < std::min(b, y + 2);
                  ++yy)
-              scratch.link(first, (x - 1) * b + yy);
+              scratch.link(first, (k - 1) * b + yy);
         }
+      }
+      double scale = double(n * depth) * double(std::max(a, std::max(b, c)));
+      if (fallback || (std::is_integral<T>::value && largest * scale > 4503599627370496.)) {
+        fallback = true;
+        break;
+      }
       finishIntegerRuns(scratch, a, b, c, centers.mutable_data() + 3 * p,
                         sums.mutable_data() + p, maxima.mutable_data() + p,
-                        valid.mutable_data() + p);
+                        valid.mutable_data() + p, mass_scale);
     }
   }
   if (fallback)
@@ -1875,7 +1810,7 @@ static py::object sparseIntegerStats(const SparseFrames &source,
 static py::object sparseStats(const SparseFrames &frames, CArray<int64_t> ids,
                               CArray<int64_t> offsets, CArray<int64_t> rows,
                               CArray<int64_t> cols, CArray<int64_t> shapes,
-                              double threshold) {
+                              double threshold, const bool *valid_pixels) {
   if (threshold < 0. || !std::isfinite(threshold))
     return py::none();
   checkShape(ids, {-1, -1});
@@ -1894,13 +1829,15 @@ static py::object sparseStats(const SparseFrames &frames, CArray<int64_t> ids,
   auto dtype = frames.getDtype();
 #define SPARSE_STATS_TYPE(T)                                                   \
   if (sameDtype(dtype, py::dtype::of<T>()))                                    \
-  return sparseIntegerStats<T>(frames, ids, offsets, rows, cols, shapes,       \
-                               threshold)
+  return sparseRunStats<T>(frames, ids, offsets, rows, cols, shapes,           \
+                               threshold, valid_pixels)
   SPARSE_STATS_TYPE(uint8_t);
   SPARSE_STATS_TYPE(int16_t);
   SPARSE_STATS_TYPE(uint16_t);
   SPARSE_STATS_TYPE(int32_t);
   SPARSE_STATS_TYPE(uint32_t);
+  SPARSE_STATS_TYPE(float);
+  SPARSE_STATS_TYPE(double);
 #undef SPARSE_STATS_TYPE
   return py::none();
 }
@@ -1972,24 +1909,46 @@ static void bind(py::module_ &m) {
       .def("prefetch_rows", &BloscReader::prefetchRows);
 #endif
   py::class_<SparseFrames>(m, "_SparseFrames")
-      .def(py::init<py::list>())
+      .def(py::init<py::list, py::object>(), py::arg("frames"),
+           py::arg("dtype") = py::none())
       .def_property_readonly("dtype", &SparseFrames::getDtype)
       .def("view", &SparseFrames::view)
       .def("gather", &SparseFrames::gather)
       .def("extract", [](const SparseFrames &frames, CArray<int64_t> ids,
                          CArray<int64_t> offsets, CArray<int64_t> rows,
                          CArray<int64_t> cols, CArray<int64_t> shapes,
-                         double threshold) {
+                         double threshold, py::object valid_pixels) {
+        CArray<bool> mask;
+        if (!valid_pixels.is_none()) {
+          mask = py::cast<CArray<bool>>(valid_pixels);
+          checkShape(mask, {rows.size()});
+        }
+        const bool *valid = valid_pixels.is_none() ? nullptr : mask.data();
         auto sparse =
-            sparseStats(frames, ids, offsets, rows, cols, shapes, threshold);
+            sparseStats(frames, ids, offsets, rows, cols, shapes, threshold,
+                        valid);
         if (!sparse.is_none())
           return py::cast<py::tuple>(sparse);
         auto pixels = frames.gather(ids, offsets, rows, cols);
+        if (valid) {
+          py::gil_scoped_release release;
+          auto data = static_cast<char *>(pixels.mutable_data());
+          for (Index p = 0; p < ids.shape(0); ++p) {
+            const Index first = offsets.data()[p], n = offsets.data()[p + 1] - first;
+            for (Index k = 0; k < ids.shape(1); ++k)
+              for (Index i = 0; i < n; ++i)
+                if (!valid[first + i])
+                  std::memset(data + (first * ids.shape(1) + k * n + i) * pixels.itemsize(),
+                              0, size_t(pixels.itemsize()));
+          }
+        }
         py::array_t<int64_t> values(offsets.size());
         for (Index i = 0; i < offsets.size(); ++i)
           values.mutable_data()[i] = offsets.data()[i] * ids.shape(1);
         return spotStats(pixels, values, shapes, threshold);
-      });
+      }, py::arg("frame_ids"), py::arg("offsets"), py::arg("rows"),
+         py::arg("cols"), py::arg("shapes"), py::arg("threshold"),
+         py::arg("valid_pixels") = py::none());
   m.def("_spotStats", &spotStats);
   m.def("_spotPatchGrid", &patchGrid);
   m.def("_spotGridIndices", &gridIndices);

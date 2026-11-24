@@ -344,91 +344,127 @@ def _tiles(events, items):
         yield pieces
 
 
-def measure_windows(windows, cache, cancel=check_cancelled, frame_ranks=None):
-    """One bounded coordinator for both immediate and staged extraction."""
-    from hexrd.core.extensions import transforms as native
+class FrameMeasurements:
+    """Consume exact planned windows one frame at a time, including live frames.
 
+    The owner supplies a sampler for the arrived frame. No future frame is read;
+    a window is segmented only after every one of its omega slots is present.
+    Storage is the same bounded live-window support used by MeasurementGroup.
+    """
+
+    def __init__(self, items, cancel=check_cancelled):
+        self.items, self.live = items, {}
+        self.remaining = [len(w.frames) for w in items]
+        self.dtype = items[0].view.dtype if items else None
+        self.events = np.empty((sum(self.remaining), 3), dtype='i8')
+        cursor = 0
+        for index, w in enumerate(items):
+            if index % 64 == 0:
+                cancel()
+            stop = cursor + len(w.frames)
+            self.events[cursor:stop, 0] = w.frames
+            self.events[cursor:stop, 1] = index
+            self.events[cursor:stop, 2] = np.arange(len(w.frames))
+            cursor = stop
+        self.events = self.events[np.argsort(self.events[:, 0], kind='stable')]
+        self.edges = np.r_[0, np.flatnonzero(np.diff(self.events[:, 0])) + 1, cursor]
+        self.frames = self.events[self.edges[:-1], 0] if cursor else np.empty(0, dtype='i8')
+        self.received = np.zeros(len(self.frames), dtype=bool)
+        self.pending, self.failed = len(self.frames), False
+
+    def append(self, frame, sample, cancel=check_cancelled):
+        """Return the number of windows completed by this single frame."""
+        from hexrd.core.extensions import transforms as native
+
+        if self.failed:
+            raise RuntimeError('Frame measurements aborted after a failed sample')
+        slot = int(np.searchsorted(self.frames, frame))
+        if slot == len(self.frames) or self.frames[slot] != frame:
+            return 0
+        if self.received[slot]:
+            raise ValueError('Frame measurements received a duplicate frame')
+        self.failed = True
+        cancel()
+        first, last = self.edges[slot:slot + 2]
+        completed = 0
+        for pieces in _tiles(self.events[first:last], self.items):
+            cancel()
+            rows, cols = [
+                np.concatenate(
+                    [getattr(self.items[i], axis)[lo:hi] for i, _, lo, hi in pieces],
+                    dtype='i8',
+                )
+                for axis in ('rows', 'cols')
+            ]
+            values = sample(frame, rows, cols)
+            if values.shape != rows.shape or values.dtype != self.dtype:
+                raise ValueError(
+                    'sampled pixels do not match image shape/dtype'
+                )
+            cursor = 0
+            for index, omega, lo, hi in pieces:
+                w = self.items[index]
+                if index not in self.live:
+                    self.live[index] = np.empty(
+                        (len(w.frames), len(w.rows)), dtype=self.dtype
+                    )
+                block = self.live[index][omega, lo:hi]
+                block[:] = values[cursor : cursor + hi - lo]
+                if not w.view.view.dense and self.dtype.kind == 'f':
+                    block[block == 0] = 0
+                cursor += hi - lo
+                del block
+                if hi == len(w.rows):
+                    self.remaining[index] -= 1
+                    if self.remaining[index] == 0:
+                        cancel()
+                        pixels = self.live.pop(index)
+                        if w.valid_pixels is not None:
+                            pixels[:, ~w.valid_pixels] = 0
+                        if w.inverse is not None:
+                            pixels = np.take(pixels, w.inverse, axis=1)
+                        pixels = pixels.ravel()
+                        stats = native._spotStats(
+                            pixels,
+                            np.array([0, len(pixels)], dtype='i8'),
+                            w.shape,
+                            w.threshold,
+                        )
+                        for dest, value in zip(w.stats, stats):
+                            dest[:] = value
+                        del pixels, stats
+                        completed += 1
+            del rows, cols, values
+        self.received[slot] = True
+        self.pending -= 1
+        self.failed = False
+        return completed
+
+
+def measure_windows(windows, cache, cancel=check_cancelled, frame_ranks=None):
+    """Feed offline frames through the same accumulator used by acquisition."""
     readers, visits = {}, 0
     for window in windows:
         readers.setdefault(window.reader, []).append(window)
     reporter = current_reporter()
     for reader, items in readers.items():
         cancel()
-        events = np.empty((sum(len(w.frames) for w in items), 3), dtype='i8')
-        cursor = 0
-        for index, w in enumerate(items):
-            if index % 64 == 0:
-                cancel()
-            stop = cursor + len(w.frames)
-            events[cursor:stop, 0] = w.frames
-            events[cursor:stop, 1] = index
-            events[cursor:stop, 2] = np.arange(len(w.frames))
-            cursor = stop
+        measurements = FrameMeasurements(items, cancel)
+        frames = measurements.frames
         ranks = (frame_ranks or {}).get(reader)
-        positions = ranks[events[:, 0]] if ranks is not None else events[:, 0]
+        positions = ranks[frames] if ranks is not None else frames
         if frame_ranks is None and hasattr(reader, 'read_positions'):
-            physical = reader.read_positions(events[:, 0], cache)
+            physical = reader.read_positions(frames, cache)
             if physical is not None:
                 positions = physical
-        events = events[np.lexsort((events[:, 0], positions))]
-        edges = np.r_[0, np.flatnonzero(np.diff(events[:, 0])) + 1, len(events)]
+        frames = frames[np.lexsort((frames, positions))]
         if reporter is not None:
-            reporter.batch(len(edges) - 1)
+            reporter.batch(len(frames))
         prefetch = getattr(reader, 'prefetch_frame_indexes', None)
-        live, remaining = {}, [len(w.frames) for w in items]
-        sample, dtype = FrameSampler(reader, cache), items[0].view.dtype
-        with prefetch(events[edges[:-1], 0], cache) if prefetch else nullcontext():
-            for start, stop in zip(edges[:-1], edges[1:]):
-                cancel()
-                completed = False
-                for pieces in _tiles(events[start:stop], items):
-                    cancel()
-                    rows, cols = [
-                        np.concatenate(
-                            [getattr(items[i], axis)[lo:hi] for i, _, lo, hi in pieces],
-                            dtype='i8',
-                        )
-                        for axis in ('rows', 'cols')
-                    ]
-                    values = sample(int(events[start, 0]), rows, cols)
-                    if values.shape != rows.shape or values.dtype != dtype:
-                        raise ValueError(
-                            'sampled pixels do not match image shape/dtype'
-                        )
-                    cursor = 0
-                    for index, omega, lo, hi in pieces:
-                        w = items[index]
-                        if index not in live:
-                            live[index] = np.empty(
-                                (len(w.frames), len(w.rows)), dtype=dtype
-                            )
-                        block = live[index][omega, lo:hi]
-                        block[:] = values[cursor : cursor + hi - lo]
-                        if not w.view.view.dense and dtype.kind == 'f':
-                            block[block == 0] = 0
-                        cursor += hi - lo
-                        del block
-                        if hi == len(w.rows):
-                            remaining[index] -= 1
-                            if remaining[index] == 0:
-                                cancel()
-                                pixels = live.pop(index)
-                                if w.valid_pixels is not None:
-                                    pixels[:, ~w.valid_pixels] = 0
-                                if w.inverse is not None:
-                                    pixels = np.take(pixels, w.inverse, axis=1)
-                                pixels = pixels.ravel()
-                                stats = native._spotStats(
-                                    pixels,
-                                    np.array([0, len(pixels)], dtype='i8'),
-                                    w.shape,
-                                    w.threshold,
-                                )
-                                for dest, value in zip(w.stats, stats):
-                                    dest[:] = value
-                                del pixels, stats
-                                completed = True
-                    del rows, cols, values
+        sample = FrameSampler(reader, cache)
+        with prefetch(frames, cache) if prefetch else nullcontext():
+            for frame in frames:
+                completed = measurements.append(int(frame), sample, cancel)
                 if reporter is not None:
                     if completed:
                         reporter.phase('Segmenting peak windows')

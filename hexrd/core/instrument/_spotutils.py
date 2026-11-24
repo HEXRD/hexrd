@@ -94,20 +94,6 @@ class _SpotData:
         }
 
 
-def _masked_spot_stats(pixels, offsets, shapes, threshold, valid_pixels):
-    """Zero excluded pixels before nonnegative-threshold native statistics."""
-    from hexrd.core.extensions import transforms as native
-
-    first = 0
-    for i, shape in enumerate(shapes):
-        count = int(np.prod(shape[1:]))
-        valid = valid_pixels[first:first + count]
-        data = pixels[offsets[i]:offsets[i + 1]].reshape(shape[0], count)
-        data[:, ~valid] = 0
-        first += count
-    return native._spotStats(pixels, offsets, shapes, threshold)
-
-
 def pull_spots_batched(
     instrument,
     panel,
@@ -164,14 +150,10 @@ def pull_spots_batched(
         shapes = np.column_stack((np.full(len(ids), len(ome_grid)), patch_shapes))
         valid = None if buffer is None else buffer[
             rows.clip(0, panel.rows - 1), cols.clip(0, panel.cols - 1)]
-        if valid is None or valid.all():
-            stats = view.extract(frame_ids[ids], offsets, rows, cols, shapes, threshold)
-        elif hasattr(view, 'gather'):
-            stats = _masked_spot_stats(
-                view.gather(frame_ids[ids], offsets, rows, cols),
-                offsets * frame_ids.shape[1], shapes, threshold, valid)
-        else:
-            stats = view.extract(frame_ids[ids], offsets, rows, cols, shapes, threshold, valid)
+        stats = view.extract(
+            frame_ids[ids], offsets, rows, cols, shapes, threshold,
+            None if valid is None or valid.all() else valid,
+        )
         omega_start = series.omega[frame_ids[ids, 0], 0]
         batches.append((ids, edges, omega_start, stats))
 
@@ -279,10 +261,9 @@ def sparse_frame_view(series):
 
     if series in _frame_views:
         return _frame_views[series]
-    from hexrd.hedm._image_cache import BoundedSeries
-
-    if isinstance(series, BoundedSeries):
-        result = series.native_view()
+    factory = getattr(series, 'native_view', None)
+    if callable(factory):
+        result = factory()
     elif isinstance(series, RoiImageSeries):
         if series._images is not None:
             result = _native_frames(series._images, native)

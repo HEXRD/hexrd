@@ -27,6 +27,145 @@ from hexrd.hedm.find_orientations import (
 LAUE_GROUPS = ('Ci', 'C2h', 'D2h', 'C4h', 'D4h', 'C3i', 'D3d', 'C6h', 'D6h', 'Th', 'Oh')
 
 
+@pytest.mark.parametrize('dims', [3, 4])
+def test_radius_components_match_dbscan(dims):
+    from sklearn.cluster import dbscan
+
+    pts = np.random.default_rng(49).uniform(-.7, .7, (1800, dims))
+    pts[1:4] = pts[0]
+    pts[-4:] = 1.
+    pts[-3:, -1] += [.125, np.nextafter(.25, 1.), .375]
+    labels = native._radiusComponents(pts, .125)
+    assert labels is not None
+    expected = dbscan(pts, eps=.125, min_samples=1, p=2, metric='minkowski')[1]
+    np.testing.assert_array_equal(labels, expected)
+    assert native._radiusComponents(pts, 1e-12) is None
+
+
+def test_sparse_prim_preserves_scipy_tree_with_ties_and_partial_symmetry():
+    from scipy.cluster.hierarchy import linkage
+    from hexrd.core import rotations
+
+    pts = np.random.default_rng(9).normal(size=(576, 4))
+    pts /= np.linalg.norm(pts, axis=1)[:, None]
+    pts[::4] = pts[1]
+    for sym in (rotations.quatOfLaueGroup('Oh').T[3:8], np.eye(4)[:1]):
+        expected = linkage(native._quatDistances(pts, sym), method='single')
+        assert native._QuaternionDistances(pts, sym).linkage().tobytes() == expected.tobytes()
+
+
+@pytest.mark.parametrize('count', [0, 1, 5, 25])
+def test_cluster_averaging_preserves_member_order(count):
+    from hexrd.core import rotations
+    from hexrd.hedm.find_orientations import _average_clusters
+
+    rng = np.random.default_rng(6)
+    quats = rng.normal(size=(4, 127))
+    quats /= np.linalg.norm(quats, axis=0)
+    labels = rng.integers(-1, count + 1, size=127)
+    labels[:count] = np.arange(1, count + 1)
+    qsym = rotations.quatOfLaueGroup('Oh')
+    expected = np.zeros((4, count))
+    for i in range(count):
+        expected[:, i] = rotations.quatAverageCluster(quats[:, labels == i+1], qsym).ravel()
+    assert _average_clusters(quats, labels, qsym, count).tobytes() == expected.tobytes()
+
+
+@pytest.mark.parametrize('group', LAUE_GROUPS)
+def test_mixed_cluster_sizes_match_individual_means(group):
+    from hexrd.core import rotations
+    from hexrd.hedm.find_orientations import _average_clusters
+
+    rng = np.random.default_rng(71)
+    sizes = np.tile([1, 2, 3, 7], 9)
+    labels = rng.permutation(np.repeat(np.arange(1, len(sizes) + 1), sizes))
+    quats = rng.normal(size=(4, len(labels)))
+    sym = rotations.quatOfLaueGroup(group)
+    expected = np.column_stack([
+        rotations.quatAverageCluster(quats[:, labels == i], sym).reshape(4)
+        for i in range(1, len(sizes) + 1)
+    ])
+    assert _average_clusters(quats, labels, sym, len(sizes)).tobytes() == expected.tobytes()
+
+
+@pytest.mark.parametrize('group', LAUE_GROUPS)
+def test_batched_quaternion_distances_and_merges(group):
+    from scipy.cluster.hierarchy import fclusterdata
+    from scipy.spatial.distance import pdist
+    from hexrd.core import rotations
+    from hexrd.core.transforms import xfcapi
+    from hexrd.hedm.find_orientations import _merge_duplicates
+
+    symmetry = rotations.quatOfLaueGroup(group)
+    quats = np.random.default_rng(19).normal(size=(4, 19))
+    quats /= np.linalg.norm(quats, axis=0)
+    quats = np.column_stack((quats, quats[:, :3], -quats[:, :3]))
+    distance = lambda a, b: xfcapi.quat_distance(a, b, symmetry)
+    expected = pdist(quats.T, metric=distance)
+    actual = native._quatDistances(quats.T, symmetry.T)
+    assert actual.tobytes() == expected.tobytes()
+    plan = native._QuaternionDistances(quats.T, symmetry.T)
+    target = np.empty_like(expected)
+    for first in range(0, quats.shape[1], 7):
+        stop = min(first + 7, quats.shape[1])
+        a = first * (2*quats.shape[1] - first - 1) // 2
+        b = stop * (2*quats.shape[1] - stop - 1) // 2
+        output = target[a:b]
+        assert plan.fill(first, stop, output) is output
+    assert target.tobytes() == expected.tobytes()
+    with pytest.raises(ValueError):
+        plan.fill(-1, 1)
+    with pytest.raises(ValueError):
+        plan.fill(0, quats.shape[1], np.empty(expected.size, dtype='f4'))
+    for radius in (.5, 30., 180.):
+        labels = fclusterdata(quats.T, np.radians(radius), criterion='distance',
+                              metric=distance)
+        count = len(np.unique(labels))
+        merged = (quats if count == quats.shape[1] else np.column_stack([
+            rotations.quatAverageCluster(quats[:, labels == i+1], symmetry).ravel()
+            for i in range(count)]))
+        assert _merge_duplicates(quats, symmetry, radius).tobytes() == merged.tobytes()
+    for n in (0, 1):
+        assert native._quatDistances(quats[:, :n].T, symmetry.T).shape == (0,)
+    with pytest.raises(ValueError):
+        native._quatDistances(quats[:3].T, symmetry.T)
+    def cancel():
+        raise InterruptedError('cancelled')
+    with pytest.raises(InterruptedError, match='cancelled'):
+        native._quatDistances(quats.T, symmetry.T, cancel)
+    with pytest.raises(InterruptedError, match='cancelled'):
+        plan.fill(1, 2, check=cancel)
+
+
+def test_parallel_duplicate_merge_exact_and_cancellable(monkeypatch):
+    from contextvars import ContextVar
+    from hexrd.core import rotations
+    from hexrd.hedm import find_orientations as fo
+
+    quats = np.random.default_rng(111).normal(size=(4, 1100))
+    quats /= np.linalg.norm(quats, axis=0)
+    quats[:, -3:] = quats[:, :3]
+    sym = rotations.quatOfLaueGroup('Oh')
+    expected = fo._merge_duplicates(quats, sym, .5)
+    marker = ContextVar('distance_test_marker', default=False)
+    token = marker.set(True)
+    def check():
+        assert marker.get()
+    monkeypatch.setattr(fo, 'check_cancelled', check)
+    try:
+        actual = fo._merge_duplicates(quats, sym, .5, workers=2)
+        assert actual.tobytes() == expected.tobytes()
+        def cancel():
+            raise InterruptedError('cancelled')
+        monkeypatch.setattr(fo, 'check_cancelled', cancel)
+        with pytest.raises(InterruptedError, match='cancelled'):
+            fo._merge_duplicates(quats, sym, .5, workers=2)
+        with pytest.raises(InterruptedError, match='cancelled'):
+            fo._average_clusters(quats, np.ones(quats.shape[1], dtype=int), sym, 1)
+    finally:
+        marker.reset(token)
+
+
 def test_result_validation_preserves_array_storage():
     from dataclasses import replace
     from pydantic import ValidationError
@@ -1352,3 +1491,134 @@ def test_scoring_cache_views_outlive_reader_and_support_unaligned_bins(tmp_path)
     status = np.array([[[1, -1, 0]]], dtype=np.int8)
     np.testing.assert_array_equal(native._scoreOrientationBins(bins, status), [.5])
     np.testing.assert_array_equal(native._scoreOrientationBins(data['bins'], status), [.5])
+
+
+@pytest.mark.parametrize('shape', [(2, 13, 17), (1, 1, 9), (1, 8, 8), (2, 17, 3)])
+@pytest.mark.parametrize('de,dome', [(0, 0), (2, 2), (40, 40)])
+@pytest.mark.parametrize('threshold', [-.5, 0., 1., np.nan])
+def test_incremental_hit_map_preserves_first_event(shape, de, dome, threshold):
+    rng = np.random.default_rng(21931)
+    values = rng.choice([np.nan, -np.inf, 0., .5, 5., np.inf], size=shape)
+    bins = rng.integers(-1, np.prod(shape), size=(31, 2, 11), dtype='i4')
+    current = native._OrientationHits(*shape, de, dome, threshold)
+    encoded = current.encode_bins(bins)
+    assert not current.status.flags.writeable
+    codes = np.zeros(shape, dtype='u1')
+    for count in range(1, shape[1]+1):
+        delta = current.append(np.ascontiguousarray(values[:, count-1]), changes=True)
+        first = max(0, count-1-dome)
+        assert delta.shape == (count-first, shape[0], (shape[2]+7)//8)
+        shifts = 2*(np.arange(shape[2])%8)
+        words = delta[:,:,np.arange(shape[2])//8].transpose(1,0,2)
+        np.testing.assert_array_equal((words >> shifts) & 3, codes[:,first:count])
+        codes[:,first:count] = (words >> (16+shifts)) & 3
+        expected = np.full(shape, -1, dtype='i1')
+        for ring in range(shape[0]):
+            for row in range(count):
+                for col in range(shape[2]):
+                    window = values[ring, max(0,row-dome):min(count,row+dome+1),
+                                    max(0,col-de):min(shape[2],col+de+1)].ravel()
+                    events = np.flatnonzero((window > threshold) | np.isnan(window))
+                    expected[ring,row,col] = (0 if not len(events) else
+                                             1 if window[events[0]] > threshold else -1)
+        np.testing.assert_array_equal(codes, np.choose(expected+1, [0,1,3]))
+        assert current.count == count
+        assert current.status.tobytes() == _pack_hit_status(expected).tobytes()
+        np.testing.assert_array_equal(native.orientationHitStatus(
+            np.ascontiguousarray(values[:,:count]), de, dome, threshold), expected[:,:count])
+        assert current.score(encoded).tobytes() == native._scoreOrientationBins(bins, expected).tobytes()
+    before = current.status.tobytes()
+    with pytest.raises(ValueError):
+        current.append(np.zeros((shape[0], shape[2])))
+    assert current.count == shape[1] and current.status.tobytes() == before
+    held = current.status
+    del current
+    assert held.tobytes() == before
+
+
+@pytest.mark.parametrize('offset', [0., -np.pi, .6])
+@pytest.mark.parametrize('paired', [False, True])
+def test_static_orientation_bins_are_image_independent(offset, paired):
+    args = _scoring_inputs(97, [0., 0., -1.])
+    q = np.random.default_rng(52).normal(size=(97, 4)).T.copy()
+    q /= np.linalg.norm(q, axis=0)
+    q[:,0] = [1.,0,0,0]  # Guard the scalar boundary fallback inside a SIMD batch.
+    args[0] = q
+    if paired:
+        args[1] = np.vstack((args[1], -args[1]))
+        args[11] = np.tile(args[11], 2)
+    args[6] = np.linspace(0., 2*np.pi, args[10].shape[1]+1)
+    args[8] = np.array([offset, offset+2*np.pi])
+    args[9] = offset
+    unknown = np.full(args[10].shape, -1, dtype='i1')
+    expected = np.empty((97, 2, len(args[1])), dtype='i4')
+    native.scoreOrientations(*args, unknown, expected)
+    for values in (np.zeros_like(unknown), np.ones_like(unknown), unknown):
+        actual = np.empty_like(expected)
+        scores = native.scoreOrientations(*args, _pack_hit_status(values), actual, True)
+        assert np.isnan(scores).all()
+        np.testing.assert_array_equal(actual, expected)
+
+
+def test_incremental_hit_bins_validate_bounds_and_unaligned_storage():
+    current = native._OrientationHits(1, 3, 7, 0, 0, 0.)
+    current.append(np.ones((1,7)))
+    raw = np.empty(1+4*32, dtype='u1')
+    bins = np.ndarray((2,2,8), dtype='i4', buffer=raw, offset=1)
+    bins[:] = current.encode_bins(np.zeros_like(bins))
+    np.testing.assert_array_equal(current.score(bins), [1.,1.])
+    bins[:] = np.iinfo('i4').min
+    np.testing.assert_array_equal(current.score(bins), [0.,0.])
+    bins[0,0,0] = current.status.size*4
+    with pytest.raises(ValueError):
+        current.score(bins)
+    with pytest.raises(ValueError):
+        current.encode_bins(np.full((1,2,1),21,dtype='i4'))
+    assert current.score(np.empty((2,2,0),dtype='i4')).tobytes() == np.zeros(2).tobytes()
+
+
+def test_score_arriving_prefix_matches_full_prediction():
+    args = _scoring_inputs(97, [0., 0., -1.])
+    rng = np.random.default_rng(52)
+    q = rng.normal(size=(97, 4)).T
+    q /= np.linalg.norm(q, axis=0)
+    args[0] = q
+    args[1] = np.vstack((args[1], -args[1]))
+    args[11] = np.tile(args[11], 2)
+    maps = args[10]
+    maps[:, :, ::3] = np.nan
+    maps[:, :5, :7] = np.nan  # These eta bins can become visible later.
+    args[6] = np.linspace(0., 2*np.pi, maps.shape[1]+1)
+    hits = native._OrientationHits(*maps.shape, *args[12:15])
+    unseen = hits.status
+    for count in range(1, maps.shape[1]+1):
+        hits.append(np.ascontiguousarray(maps[:,count-1]))
+        expected = np.full(maps.shape, -1, dtype='i1')
+        expected[:,:count] = native.orientationHitStatus(
+            np.ascontiguousarray(maps[:,:count]), *args[12:15])
+        np.testing.assert_array_equal(native.scoreOrientations(*args, hits),
+                                      native.scoreOrientations(*args, expected))
+    assert not unseen.any()
+    with pytest.raises(ValueError, match='shape mismatch'):
+        native.scoreOrientations(*args, native._OrientationHits(1, 1, 1, 0, 0, 0.))
+
+
+@pytest.mark.parametrize('count', [2, 9, 173])
+def test_memory_bounded_single_linkage_preserves_tree_and_ties(count):
+    from hexrd.core import rotations
+    from scipy.cluster.hierarchy import linkage
+
+    rng = np.random.default_rng(263)
+    pts = rng.normal(size=(count, 4))
+    pts /= np.linalg.norm(pts, axis=1)[:, None]
+    pts[1::4] = pts[:len(pts[1::4])]  # Equal distances and zero-length edges.
+    sym = rotations.quatOfLaueGroup('Oh').T
+    ctx = native._QuaternionDistances(pts, sym)
+    expected = linkage(native._quatDistances(pts, sym), method='single')
+    assert ctx.linkage().tobytes() == expected.tobytes()
+
+    def cancel():
+        raise InterruptedError
+
+    with pytest.raises(InterruptedError):
+        ctx.linkage(cancel)

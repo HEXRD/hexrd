@@ -9,6 +9,26 @@ from hexrd.core.transforms import xfcapi
 from hexrd.hedm.fitting.grains import _FitGrainData, objFuncFitGrain
 
 
+def test_fitting_geometry_snapshot_skips_mask_serialization(monkeypatch):
+    from hexrd.hedm.fitting.grains import _detector_transform
+    from hexrd.hedm.xrdutil import extract_detector_transformation
+
+    instrument = HEDMInstrument()
+    instrument.chi, instrument.tvec = 0.17, [0.1, -0.2, 0.3]
+    name, panel = next(iter(instrument.detectors.items()))
+    panel.saturation_level = 65535
+    panel.tilt, panel.tvec = [0.03, -0.02, 0.01], [1.0, -2.0, -1000.0]
+    expected = extract_detector_transformation(instrument.detector_parameters[name])
+    def serialize(*args, **kwargs):
+        raise AssertionError('fitting geometry must not copy the detector mask')
+    monkeypatch.setattr(panel, 'config_dict', serialize)
+    actual = _detector_transform(panel, instrument)
+    panel.tvec += 1
+    instrument.tvec += 2
+    for before, after in zip(expected, actual):
+        np.testing.assert_array_equal(after, before)
+
+
 @pytest.mark.parametrize('count', [1, 3, 40])
 @pytest.mark.parametrize('distorted', [False, True])
 @pytest.mark.parametrize('tilted_beam', [False, True])

@@ -597,7 +597,7 @@ def test_map_cancellation_stops_inside_large_frame(synthetic_config, monkeypatch
     monkeypatch.setattr(series, 'pixel_chunks', lambda *args, **kwargs: iter([chunk]))
     monkeypatch.setattr(fo, '_iter_panel_bins', lambda *args: iter([
         (series, (np.zeros(24, dtype=np.int32), np.ones((1, 24), dtype=np.int64),
-                  np.ones((1, 72), dtype=bool), None))]))
+                  np.ones((1, 72), dtype=bool), None, None))]))
     plane = SimpleNamespace(unexcluded_hkls=np.array([[1, 1, 1]]),
                             two_thetas=np.array([0.01]), exclusions=np.array([False]))
     dashboard = Dashboard()
@@ -649,18 +649,25 @@ def test_parallel_maps_preserve_serial_bytes(synthetic_config, monkeypatch, repe
                             (np.zeros(3, dtype=int), *omega_grid(series)[1:]))
     expected = fo.build_eta_omega_maps(experiment, plane)
     threads, last_started = set(), threading.Event()
-    histogram_prefix = fo.native._histogramPrefix
+    histogram_plan = fo.native._HistogramPlan
 
-    def bin_concurrently(values, *args, **kwargs):
+    def bin_concurrently(values, plan, *args, **kwargs):
         threads.add(threading.get_ident())
         if not repeated_rows:
             if values.max() == 1e16:
                 assert last_started.wait(5), 'completed frames must free worker slots'
             elif values.max() == 2.:
                 last_started.set()
-        return histogram_prefix(values, *args, **kwargs)
+        return plan.accumulate(values, *args, **kwargs)
 
-    monkeypatch.setattr(fo.native, '_histogramPrefix', bin_concurrently)
+    class TracedPlan:
+        def __init__(self, *args):
+            self.plan = histogram_plan(*args)
+        def __getattr__(self, name):
+            return getattr(self.plan, name)
+        def accumulate(self, values, *args):
+            return bin_concurrently(values, self.plan, *args)
+    monkeypatch.setattr(fo.native, '_HistogramPlan', TracedPlan)
     experiment.max_workers = 2
     if style == 'fch5':
         experiment.image_series_list[0]._max_workers = 2

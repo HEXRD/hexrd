@@ -378,7 +378,8 @@ class View:
             if self.dense and sparse.issparse(result):
                 return result.toarray()
             if not self.dense and not sparse.issparse(result):
-                return sparse.csr_array(result)
+                from hexrd.core.experiment import _as_csr
+                return _as_csr(result)
         return result
 
 

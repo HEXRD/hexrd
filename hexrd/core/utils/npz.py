@@ -126,12 +126,18 @@ class _NpzReader:
 logger = logging.getLogger(__name__)
 
 
-def savez_compressed(path, **arrays):
+def savez_compressed(path, *, _check=None, **arrays):
     """Write standard deflated NPZ members using the available zlib backend."""
     with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         for name, array in arrays.items():
             with archive.open(name + '.npy', 'w', force_zip64=True) as member:
                 member._compressor = zlib.compressobj(wbits=-15)
+                if _check is not None:
+                    write = member.write
+                    def checked_write(data):
+                        _check()
+                        return write(data)
+                    member.write = checked_write
                 np.lib.format.write_array(member, np.asanyarray(array), allow_pickle=False)
 
 

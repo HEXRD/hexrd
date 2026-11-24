@@ -7,30 +7,45 @@ from hexrd.core.extensions import transforms as native
 from hexrd.core.instrument._spotutils import _weighted_centroids
 
 
+def _sparse_patch_stats(patch, threshold):
+    source = native._SparseFrames([csr_array(frame) for frame in patch])
+    rows, cols = np.indices(patch.shape[1:]).reshape(2, -1)
+    return source.extract(
+        np.arange(len(patch))[None, :], np.array([0, rows.size]),
+        rows, cols, np.array([patch.shape]), threshold,
+    )
+
+
+def _assert_reference_stats(patches, threshold):
+    shapes = np.array([p.shape for p in patches])
+    offsets = np.r_[0, np.cumsum([p.size for p in patches])]
+    result = native._spotStats(np.concatenate([p.ravel() for p in patches]), offsets, shapes, threshold)
+    centers, sums, maxima, valid = result
+    for i, patch in enumerate(patches):
+        for actual, expected in zip(_sparse_patch_stats(patch, threshold), result):
+            np.testing.assert_array_equal(actual, expected[i:i + 1])
+            assert actual.dtype == expected.dtype
+        labels, count = ndimage.label(patch > np.float64(threshold), np.ones((3, 3, 3)))
+        assert valid[i] == bool(count)
+        if not count:
+            assert np.all(np.isnan(centers[i])) and sums[i] == maxima[i] == 0
+            continue
+        coms = _weighted_centroids(labels, patch, count)
+        chosen = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
+        selected = patch[labels == chosen + 1]
+        np.testing.assert_array_equal(centers[i], coms[chosen])
+        np.testing.assert_equal(sums[i], selected.sum())
+        np.testing.assert_equal(maxima[i], selected.max())
+        assert sums.dtype == selected.sum().dtype and maxima.dtype == selected.dtype
+
+
 @pytest.mark.parametrize('dtype', ['uint16', 'int32', 'float32', 'float64'])
 def test_native_spot_statistics_are_exact(dtype):
     rng = np.random.default_rng(42)
-    shapes = np.array([(1, 9, 13), (5, 13, 19), (8, 20, 20), (3, 7, 5)], dtype=np.int64)
-    patches = [(rng.random(tuple(shape)) * 1000).astype(dtype) for shape in shapes]
+    shapes = [(1, 9, 13), (5, 13, 19), (8, 20, 20), (3, 7, 5)]
+    patches = [(rng.random(shape) * 1000).astype(dtype) for shape in shapes]
     patches[0][:] = 0
-    offsets = np.r_[0, np.cumsum([p.size for p in patches])]
-    centers, sums, maxima, valid = native._spotStats(
-        np.concatenate([p.ravel() for p in patches]), offsets, shapes, 850.0
-    )
-    for i, patch in enumerate(patches):
-        labels, count = ndimage.label(patch > 850, np.ones((3, 3, 3)))
-        assert valid[i] == bool(count)
-        if not count:
-            assert np.all(np.isnan(centers[i]))
-            continue
-        coms = _weighted_centroids(labels, patch, count)
-        closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
-        selected = patch[labels == closest + 1]
-        np.testing.assert_array_equal(centers[i], coms[closest])
-        np.testing.assert_equal(sums[i], selected.sum())
-        np.testing.assert_equal(maxima[i], selected.max())
-        assert sums.dtype == selected.sum().dtype
-        assert maxima.dtype == selected.dtype
+    _assert_reference_stats(patches, 850.)
 
 
 @pytest.mark.parametrize('dtype', ['uint16', 'int32', 'float32', 'float64'])
@@ -92,41 +107,19 @@ def test_measured_xy_keeps_scalar_transform_rounding(beam):
 def test_large_integer_moments_and_nan_masks_keep_numpy_rounding():
     rng = np.random.default_rng(9)
     for patch, threshold in [
-        (rng.integers(2**31, 2**32 - 1, size=(3, 128, 256), dtype=np.uint32), 0.0),
-        (np.array([[[1.0, np.nan], [0.0, 3.0]], [[0.0, 0.0], [0.0, 0.0]]]), 0.0),
-        (np.array([[[-2, 2], [0, 3]], [[0, 0], [0, 0]]], dtype=np.int32), -3.0),
+        (rng.integers(2**31, 2**32 - 1, size=(3, 128, 256), dtype=np.uint32), 0.),
+        (np.array([[[1., np.nan], [0., 3.]], [[0., 0.], [0., 0.]]]), 0.),
+        (np.array([[[-2, 2], [0, 3]], [[0, 0], [0, 0]]], dtype=np.int32), -3.),
     ]:
-        centers, sums, maxima, valid = native._spotStats(
-            patch.ravel(), np.array([0, patch.size]), np.array([patch.shape]), threshold
-        )
-        labels, count = ndimage.label(patch > threshold, np.ones((3, 3, 3)))
-        coms = _weighted_centroids(labels, patch, count)
-        closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
-        np.testing.assert_array_equal(centers[0], coms[closest])
-        selected = patch[labels == closest + 1]
-        np.testing.assert_equal(sums[0], selected.sum())
-        np.testing.assert_equal(maxima[0], selected.max())
+        _assert_reference_stats([patch], threshold)
 
 
 @pytest.mark.parametrize('dtype', ['uint16', 'float32', 'float64'])
 def test_native_components_match_scipy_on_sparse_and_dense_patches(dtype):
     rng = np.random.default_rng(12)
-    for threshold in (100.0, 700.0, 950.0, 1100.0):
-        shapes = np.array([(2, 7, 9), (5, 10, 12), (3, 14, 8)])
-        patches = [(rng.random(tuple(s)) * 1000).astype(dtype) for s in shapes]
-        offsets = np.r_[0, np.cumsum([p.size for p in patches])]
-        centers, sums, maxima, valid = native._spotStats(
-            np.concatenate([p.ravel() for p in patches]), offsets, shapes, threshold
-        )
-        for i, patch in enumerate(patches):
-            labels, count = ndimage.label(patch > threshold, np.ones((3, 3, 3)))
-            assert valid[i] == bool(count)
-            if not count:
-                continue
-            coms = _weighted_centroids(labels, patch, count)
-            closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
-            np.testing.assert_array_equal(centers[i], coms[closest])
-            np.testing.assert_equal(sums[i], patch[labels == closest + 1].sum())
+    for threshold in (100., 700., 950., 1100.):
+        shapes = [(2, 7, 9), (5, 10, 12), (3, 14, 8)]
+        _assert_reference_stats([(rng.random(s) * 1000).astype(dtype) for s in shapes], threshold)
 
 
 @pytest.mark.parametrize('threshold', [74.999999, np.float64(74.999999)])
@@ -139,6 +132,17 @@ def test_float32_threshold_promotion_matches_numpy(threshold):
         patch.ravel(), np.array([0, patch.size]), np.array([patch.shape]), effective
     )
     assert valid[0] == np.any(patch > threshold)
+
+
+@pytest.mark.parametrize('dtype', ['float32', 'float64'])
+def test_general_intensities_keep_native_double_threshold_comparison(dtype):
+    patch = np.full((2, 2, 2), 75.125, dtype=dtype)
+    centers, sums, maxima, valid = native._spotStats(
+        patch.ravel(), np.array([0, patch.size]), np.array([patch.shape]),
+        np.nextafter(75.125, 0.),
+    )
+    assert valid[0] and sums[0] == 601. and maxima[0] == 75.125
+    np.testing.assert_array_equal(centers, [[.5, .5, .5]])
 
 
 def test_native_views_own_buffers_and_preserve_duplicate_sums():
@@ -177,21 +181,8 @@ def test_integer_run_components_merge_across_rows_and_frames(dtype):
     patch[1, 3, 8] = 19
     patch[2, 2, 3:8] = 23
     patch[0, 2, 12] = 29
-    labels, count = ndimage.label(patch > 1, np.ones((3, 3, 3)))
-    assert count == 2
-    centers = _weighted_centroids(labels, patch, count)
-    chosen = np.argmin(np.sum((centers - np.array(patch.shape) / 2) ** 2, axis=1))
-    actual, sums, maxima, valid = native._spotStats(
-        patch.ravel(),
-        np.array([0, patch.size]),
-        np.array([patch.shape]),
-        1.0,
-    )
-    np.testing.assert_array_equal(actual[0], centers[chosen])
-    selected = patch[labels == chosen + 1]
-    np.testing.assert_equal(sums[0], selected.sum())
-    np.testing.assert_equal(maxima[0], selected.max())
-    assert valid[0]
+    assert ndimage.label(patch > 1, np.ones((3, 3, 3)))[1] == 2
+    _assert_reference_stats([patch], 1.)
 
 
 @pytest.mark.parametrize(
@@ -269,41 +260,119 @@ def test_packed_spot_writing_preserves_scalar_field_order_and_missing_values():
 @pytest.mark.parametrize('scale', [0.5, 1.0, 0.1, 2.0**24, 2.0**48])
 def test_float_run_statistics_preserve_reference_moments(dtype, scale):
     rng = np.random.default_rng(932)
-    shapes = np.array([(3, 9, 15), (1, 17, 23), (7, 6, 11)])
-    patches = [(rng.integers(0, 100, tuple(s)) * scale).astype(dtype) for s in shapes]
-    for threshold in [0.0, scale * 55, scale * 95, scale * 101]:
-        offsets = np.r_[0, np.cumsum([p.size for p in patches])]
-        centers, sums, maxima, valid = native._spotStats(
-            np.concatenate([p.ravel() for p in patches]), offsets, shapes, threshold
-        )
-        for i, patch in enumerate(patches):
-            labels, count = ndimage.label(patch > threshold, np.ones((3, 3, 3)))
-            assert valid[i] == bool(count)
-            if not count:
-                continue
-            coms = _weighted_centroids(labels, patch, count)
-            closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
-            selected = patch[labels == closest + 1]
-            np.testing.assert_array_equal(centers[i], coms[closest])
-            np.testing.assert_equal(sums[i], selected.sum())
-            np.testing.assert_equal(maxima[i], selected.max())
+    shapes = [(3, 9, 15), (1, 17, 23), (7, 6, 11)]
+    patches = [(rng.integers(0, 100, s) * scale).astype(dtype) for s in shapes]
+    for threshold in [0., scale * 55, scale * 95, scale * 101]:
+        _assert_reference_stats(patches, threshold)
 
 
 @pytest.mark.parametrize('background', [-0.0, -2.0, np.nan, np.inf, -np.inf, 0.125])
 def test_float_run_statistics_keep_background_semantics(background):
     patch = np.zeros((3, 5, 7), dtype='f8')
     patch[1, 1:4, 2:5] = np.arange(9).reshape(3, 3) + 4.5
-    patch[0, 0, 0] = background
-    threshold = 1.0
+    patch[0, 0, 0] = patch[1, 2, 3] = background
     with np.errstate(invalid='ignore'):
-        centers, sums, maxima, valid = native._spotStats(
-            patch.ravel(), np.array([0, patch.size]), np.array([patch.shape]), threshold
+        _assert_reference_stats([patch], 1.)
+
+
+@pytest.mark.parametrize('dtype', ['float32', 'float64'])
+def test_sparse_half_counts_do_not_inflate_large_empty_windows(dtype):
+    resource = pytest.importorskip('resource')
+    previous = resource.getrlimit(resource.RLIMIT_AS)
+    source = np.zeros((256, 256), dtype=dtype)
+    source[128, 128] = 0.5
+    frames = native._SparseFrames([csr_array(source)])
+    rows, cols = np.indices(source.shape).reshape(2, -1)
+    try:
+        resource.setrlimit(resource.RLIMIT_AS, (min(previous[0], 1024 * 1024**2)
+            if previous[0] != resource.RLIM_INFINITY else 1024 * 1024**2, previous[1]))
+        centers, sums, maxima, valid = frames.extract(
+            np.zeros((1, 5000), dtype='i8'), np.array([0, rows.size]),
+            rows, cols, np.array([[5000, 256, 256]]), 0.0,
         )
-    labels, count = ndimage.label(patch > threshold, np.ones((3, 3, 3)))
+    finally:
+        resource.setrlimit(resource.RLIMIT_AS, previous)
+    np.testing.assert_array_equal(centers, [[2499.5, 128., 128.]])
+    assert sums[0] == 2500 and maxima[0] == 0.5 and valid[0]
+
+
+@pytest.mark.parametrize('dtype', ['uint16', 'int32', 'float32', 'float64'])
+@pytest.mark.parametrize('threshold', [-1., 0., 1.1, np.inf])
+def test_sparse_masks_preserve_legacy_zeroing_and_fallbacks(dtype, threshold):
+    rng = np.random.default_rng(428)
+    dense = (rng.integers(0, 100, (3, 9, 13)) * .5).astype(dtype)
+    if np.dtype(dtype).kind == 'f':
+        dense[1, 3, :5] = [np.nan, np.inf, -2., -.0, 1.125]
+    frames = native._SparseFrames([csr_array(a) for a in dense])
+    rows, cols = np.indices((5, 7)).reshape(2, -1)
+    rows, cols = np.tile(rows, 2), np.tile(cols, 2)
+    offsets = np.array([0, 35, 70])
+    ids, shapes = np.array([[0, 1, 2], [2, 0, 1]]), np.array([[3, 5, 7]] * 2)
+    valid = rng.random(70) > .2
+    pixels = frames.gather(ids, offsets, rows, cols)
+    for i in range(2):
+        pixels[105*i:105*(i+1)].reshape(3, 35)[:, ~valid[35*i:35*(i+1)]] = 0
     with np.errstate(invalid='ignore'):
-        coms = _weighted_centroids(labels, patch, count)
-    closest = np.argmin(np.sum((coms - np.array(patch.shape) / 2) ** 2, axis=1))
-    selected = patch[labels == closest + 1]
-    np.testing.assert_array_equal(centers[0], coms[closest])
-    np.testing.assert_equal(sums[0], selected.sum())
-    np.testing.assert_equal(maxima[0], selected.max())
+        expected = native._spotStats(pixels, offsets * 3, shapes, threshold)
+        actual = frames.extract(ids, offsets, rows, cols, shapes, threshold, valid)
+    for before, after in zip(expected, actual):
+        np.testing.assert_array_equal(after, before)
+        assert after.dtype == before.dtype
+    with pytest.raises(ValueError, match='shape'):
+        frames.extract(ids, offsets, rows, cols, shapes, threshold, valid[:-1])
+
+
+@pytest.mark.parametrize('columns', ['i4', 'i8', 'u2'])
+@pytest.mark.parametrize('storage', ['f4', 'f8', 'mixed'])
+@pytest.mark.parametrize('threshold', [-1., 0., 20.])
+def test_compact_frames_keep_float64_sampling_and_statistics(columns, storage, threshold):
+    from types import SimpleNamespace
+
+    rng = np.random.default_rng(913)
+    packed, reference = [], []
+    for i in range(3):
+        dtype = 'f8' if storage == 'f8' or storage == 'mixed' and i == 1 else 'f4'
+        image = (rng.integers(0, 60, (9, 12)) * .5).astype(dtype)
+        image[image < 10] = 0
+        image[3, 4:7] = [np.nan, -np.inf, np.inf]
+        if dtype == 'f8':
+            image[4, 6] = 20. + 2.**-40
+        raw = csr_array(image)
+        reference.append(csr_array(image.astype('f8')))
+        packed.append(SimpleNamespace(
+            format='csr', has_sorted_indices=True, shape=raw.shape,
+            data=raw.data, indices=raw.indices.astype(columns), indptr=raw.indptr,
+        ))
+    actual = native._SparseFrames(packed, dtype='f8').view(2, 3, 5, 7)
+    original = native._SparseFrames(reference).view(2, 3, 5, 7)
+    rows, cols = np.indices((5, 7)).reshape(2, -1)
+    ids, offsets, shapes = np.array([[0, 1, 2]]), np.array([0, rows.size]), np.array([[3, 5, 7]])
+    gathered = actual.gather(ids, offsets, rows, cols)
+    expected = original.gather(ids, offsets, rows, cols)
+    assert actual.dtype == gathered.dtype == np.dtype('f8')
+    assert gathered.tobytes() == expected.tobytes()
+    mask = rng.random(rows.size) > .2
+    expected = expected.reshape(3, -1)
+    expected[:, ~mask] = 0
+    wanted = native._spotStats(expected.ravel(), np.array([0, expected.size]), shapes, threshold)
+    found = actual.extract(ids, offsets, rows, cols, shapes, threshold, mask)
+    for a, b in zip(found, wanted):
+        assert a.dtype == b.dtype and a.tobytes() == b.tobytes()
+
+
+def test_compact_indices_keep_unsigned_bounds_and_explicit_promotion():
+    from types import SimpleNamespace
+
+    source = SimpleNamespace(
+        format='csr', has_sorted_indices=True, shape=(2, 65536),
+        data=np.array([1.5, 2.5], dtype='f4'),
+        indices=np.array([0, 65535], dtype='u2'), indptr=np.array([0, 1, 2]),
+    )
+    frames = native._SparseFrames([source], dtype='f8')
+    values = frames.gather(np.array([[0]]), np.array([0, 2]), np.array([0, 1]), np.array([0, 65535]))
+    np.testing.assert_array_equal(values, [1.5, 2.5], strict=True)
+    wide = csr_array(np.ones((2, 65536)))
+    with pytest.raises(ValueError, match='dtypes'):
+        native._SparseFrames([wide], dtype='f4')
+    with pytest.raises(ValueError, match='dtypes'):
+        native._SparseFrames([wide, csr_array(np.ones((2, 65536), dtype='f4'))])

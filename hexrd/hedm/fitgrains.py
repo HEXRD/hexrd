@@ -315,9 +315,13 @@ def _fit_grain_steps(grain_id):
         if reporter is not None:
             reporter.phase('Culling reflections', force=True)
 
-        culled_results, num_refl_valid, completeness = determine_valid_reflections(
-            results, instrument, analysis_dirname
-        )
+        if paramMP.get('provisional') and not any(len(spots) for spots in results.values()):
+            # No complete reflection window has arrived for this grain.
+            num_refl_valid, completeness = 0, np.nan
+        else:
+            culled_results, num_refl_valid, completeness = determine_valid_reflections(
+                results, instrument, analysis_dirname
+            )
 
         # ======= DO LEASTSQ FIT =======
 
@@ -597,11 +601,17 @@ def fit_grains(
     write_spots_files=True,
     check_if_canceled_func=None,
     return_pull_spots_data: bool = False,
+    *,
+    provisional: bool = False,
 ):
     """
     Performs optimization of grain parameters.
 
     operates on a single HEDM config block
+
+    For an incomplete acquisition, `provisional=True` retains the initial
+    parameters of grains with no simulated reflection in the observed range.
+    Their completeness is undefined (NaN) and their chi-square is infinite.
 
     The `check_if_canceled_func` has the following signature:
 
@@ -702,6 +712,7 @@ def fit_grains(
                 analysis_dirname=experiment.analysis_dir,
                 spots_filename=spots_filename,
                 return_pull_spots_data=return_pull_spots_data,
+                provisional=provisional,
                 collect_metrics=current_dashboard() is not None,
                 grain_cache=(
                     image_plan.cache if image_plan.grain_workspace and not staged else None

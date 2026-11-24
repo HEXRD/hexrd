@@ -7,7 +7,7 @@ import pytest
 
 from hexrd.core.extensions import transforms as native
 from hexrd.hedm._image_cache import BoundedSeries, FrameCache, StreamingView, View
-from hexrd.hedm._staged_spots import Window, measure_windows
+from hexrd.hedm._staged_spots import FrameMeasurements, Window, measure_windows
 
 
 @pytest.mark.parametrize('dtype', ['O', '>f8', 'f2'])
@@ -127,3 +127,65 @@ def test_repeated_source_pixels_keep_the_original_polar_grid_and_omega_order(dty
     expected = native._spotStats(pixels.ravel(), np.array([0, 24]), shapes, 2)
     for actual, wanted in zip(stats, expected):
         assert actual.dtype == wanted.dtype and actual.tobytes() == wanted.tobytes()
+
+
+@pytest.mark.parametrize('dtype', ['u2', 'f4', 'f8'])
+@pytest.mark.parametrize('masked', [False, True])
+def test_frame_feed_waits_for_omega_support_and_matches_offline(dtype, masked):
+    images = np.arange(18).reshape(3, 3, 2).astype(dtype)
+    if images.dtype.kind == 'f':
+        images *= .5
+    reader = SimpleNamespace(shape=(3, 2), dtype=images.dtype, nframes=3)
+    rows = np.repeat(np.arange(3), 3)
+    cols = np.tile([0, 1, 1], 3)
+    frames = np.array([[0, 1, 2], [2, 0, 2]])
+    shapes = np.array([[3, 3, 3], [3, 3, 3]])
+    mask = np.tile(rows != 1, 2) if masked else None
+    windows, stats, _ = Window.capture(
+        StreamingView(View(reader), FrameCache(0)), frames,
+        np.array([0, 9, 18]), np.tile(rows, 2), np.tile(cols, 2), shapes,
+        2, mask,
+    )
+    assert all(w.inverse is not None for w in windows)
+    measurements = FrameMeasurements(windows)
+    arrived = set()
+
+    def sample(frame, rr, cc):
+        assert frame in arrived  # No callback may read a future image.
+        assert len(rr) <= 65536
+        return images[frame, rr, cc]
+
+    assert measurements.append(99, sample) == 0
+    for frame, completed in [(0, 0), (2, 1), (1, 1)]:
+        arrived.add(frame)
+        assert measurements.append(frame, sample) == completed
+        if frame != 1:
+            assert not stats[-1][0]  # The first window still lacks frame 1.
+    assert measurements.pending == 0 and not measurements.live
+    pixels = images[frames[:, :, None], rows, cols].copy()
+    if masked:
+        pixels[:, :, rows == 1] = 0
+    expected = native._spotStats(pixels.ravel(), np.array([0, 27, 54]), shapes, 2)
+    for actual, wanted in zip(stats, expected):
+        assert actual.dtype == wanted.dtype and actual.tobytes() == wanted.tobytes()
+    with pytest.raises(ValueError, match='duplicate'):
+        measurements.append(0, sample)
+
+
+def test_empty_frame_feed_has_no_reads():
+    measurements = FrameMeasurements([])
+    assert measurements.pending == 0
+    assert measurements.append(0, lambda *args: pytest.fail('unexpected read')) == 0
+
+
+def test_failed_frame_feed_cannot_continue_with_partial_measurements():
+    view = SimpleNamespace(dtype=np.dtype('f8'))
+    window = SimpleNamespace(frames=[0], view=view)
+    measurements = FrameMeasurements([window])
+    def cancel():
+        raise InterruptedError('cancelled')
+    with pytest.raises(InterruptedError):
+        measurements.append(0, None, cancel)
+    assert measurements.pending == 1
+    with pytest.raises(RuntimeError, match='aborted'):
+        measurements.append(0, None)

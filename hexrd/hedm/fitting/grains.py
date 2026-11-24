@@ -11,10 +11,7 @@ from hexrd.core import constants
 from hexrd.core import rotations
 from hexrd.core.instrument._spotutils import _SpotData
 
-from hexrd.hedm.xrdutil import (
-    apply_correction_to_wavelength,
-    extract_detector_transformation,
-)
+from hexrd.hedm.xrdutil import apply_correction_to_wavelength
 
 return_value_flag = None
 
@@ -31,23 +28,23 @@ gFlag_ref = np.ones(12, dtype=bool)
 gScl_ref = np.ones(12, dtype=bool)
 
 
+def _detector_transform(panel, instrument):
+    """Snapshot fitting geometry without serializing/copying detector masks."""
+    return panel.rmat, panel.tvec.copy(), instrument.chi, instrument.tvec.copy()
+
+
 def _fit_data(results):
     """Normalize the supported spot representations at the fitting boundary."""
     if isinstance(results, _SpotData):
         return results.as_fit_data() if len(results) else []
-    if isinstance(results, list) and len(results):
-        return {
-            'hkls': np.atleast_2d(np.vstack([x[2] for x in results])).T,
-            'meas_xyo': np.atleast_2d(
-                np.vstack([np.r_[x[7], x[6][-1]] for x in results])
-            ),
-        }
-    if isinstance(results, np.ndarray) and len(results):
-        return {
-            'hkls': np.atleast_2d(results[:, 2:5]).T,
-            'meas_xyo': np.atleast_2d(results[:, [15, 16, 12]]),
-        }
-    return results
+    if not isinstance(results, (list, np.ndarray)) or not len(results):
+        return results
+    if isinstance(results, list):
+        hkls = np.vstack([x[2] for x in results])
+        measured = np.vstack([np.r_[x[7], x[6][-1]] for x in results])
+    else:
+        hkls, measured = results[:, 2:5], results[:, [15, 16, 12]]
+    return {'hkls': np.atleast_2d(hkls).T, 'meas_xyo': np.atleast_2d(measured)}
 
 
 class _FitGrainData(dict):
@@ -58,16 +55,14 @@ class _FitGrainData(dict):
         self.transforms = {}
         self.reciprocal = {}
         panels = {}
-        parameters = None
         for key, results in reflections.items():
             if not isinstance(results, dict):
                 self[key] = results
                 continue
-            if parameters is None:
-                parameters = instrument.detector_parameters
-            self.transforms[key] = extract_detector_transformation(parameters[key])
+            panel = instrument.detectors[key]
+            self.transforms[key] = _detector_transform(panel, instrument)
             measured = results['meas_xyo']
-            distortion = instrument.detectors[key].distortion
+            distortion = panel.distortion
             if distortion is not None:
                 measured = np.vstack(
                     [distortion.apply(measured[:, :2]).T, measured[:, 2]]
@@ -157,11 +152,8 @@ def fitGrain(
         ftol=ftol,
     )
 
-    gFit_opt = results[0]
-
-    retval = gFull
-    retval[gFlag] = gFit_opt
-    return retval
+    gFull[gFlag] = results[0]
+    return gFull
 
 
 def objFuncFitGrain(
@@ -239,9 +231,7 @@ def objFuncFitGrain(
         rMat_d, tVec_d, chi, tVec_s = (
             reflections_dict.transforms[det_key]
             if prepared
-            else extract_detector_transformation(
-                instrument.detector_parameters[det_key]
-            )
+            else _detector_transform(panel, instrument)
         )
         data = _fit_data(results)
         hkls, meas_xyo = data['hkls'], data['meas_xyo']

@@ -99,16 +99,19 @@ def _validate_planar_detectors(experiment: HedmExperiment) -> None:
                 f'find-orientations supports planar detectors only; {name!r} is {kind!r}')
 
 
-def find_orientations(experiment: HedmExperiment, material: Optional[Material] = None,
-                      clean: bool = False) -> FindOrientationsResult:
+def find_orientations(
+    experiment: HedmExperiment, material: Optional[Material] = None,
+    clean: bool = False, *, maps: EtaOmegaMaps | None = None,
+) -> FindOrientationsResult:
     """Find grain orientations, trials, and scores for planar detectors.
 
     The material defaults to the experiment's active material. ``clean``
-    rebuilds eta-omega maps even when a saved map exists.
+    rebuilds eta-omega maps even when a saved map exists. Supplied ``maps``
+    must be unfiltered and match the experiment's acquired frames and material.
     """
     _validate_planar_detectors(experiment)
     plane_data = load_plane_data(experiment, material)
-    maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean)
+    maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=clean, maps=maps)
     orientations = generate_trial_orientations(experiment, plane_data, maps)
     min_samples = select_min_samples(experiment, plane_data, maps, orientations)
     completeness = score_orientations(experiment, plane_data, maps, orientations)
@@ -211,8 +214,10 @@ def generate_orientation_grid(experiment: HedmExperiment,
 
 
 @stage('Eta/omega maps')
-def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneData,
-                                 clean: bool = False) -> EtaOmegaMaps:
+def load_or_build_eta_omega_maps(
+    experiment: HedmExperiment, plane_data: PlaneData,
+    clean: bool = False, *, maps: EtaOmegaMaps | None = None,
+) -> EtaOmegaMaps:
     """Load or build eta-omega maps, applying configured filters unless clean.
 
     Saved maps retain their crystallography for fiber generation and scoring.
@@ -221,9 +226,20 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
     om = experiment.find_orientations.orientation_maps
     path = experiment.eta_ome_maps_file
     source_cache = os.path.join(_cache_dir(experiment), 'map-source.npz')
-    if clean or not os.path.exists(path):
-        activity('Building from detector frames')
-        maps = build_eta_omega_maps(experiment, plane_data)
+    supplied = maps is not None
+    if supplied:
+        ids, ranges, eta_edges = _map_geometry(experiment, plane_data)
+        _, omegas, edges, period = _omega_grid(experiment.image_series_list[0])
+        if (maps.ring_maps.shape != (len(ids), len(omegas), len(eta_edges) - 1)
+                or not all(np.array_equal(a, b) for a, b in (
+                    (maps.ring_ids, ids), (maps.two_theta_ranges, ranges),
+                    (maps.eta_edges, eta_edges), (maps.omega_edges, edges),
+                    (maps.omegas, omegas), (maps.omega_period, period)))):
+            raise ValueError('supplied maps do not match experiment geometry or omega metadata')
+    if supplied or clean or not os.path.exists(path):
+        activity('Using acquired map snapshot' if supplied else 'Building from detector frames')
+        if not supplied:
+            maps = build_eta_omega_maps(experiment, plane_data)
         os.makedirs(os.path.dirname(path) or '.', exist_ok=True)
         activity('Saving eta/omega maps')
         _save_eta_omega_maps(maps, path, plane_data, np.radians(om.eta_step))
@@ -239,6 +255,9 @@ def load_or_build_eta_omega_maps(experiment: HedmExperiment, plane_data: PlaneDa
             maps = load_or_build_eta_omega_maps(experiment, plane_data, clean=True)
         else:
             report_hkls('Map', plane_data.unexcluded_hkls[maps.ring_ids])
+    if supplied and om.filter_maps:
+        from dataclasses import replace
+        maps = replace(maps, ring_maps=maps.ring_maps.copy())
     _filter_maps(maps, om.filter_maps, om.filter_fwhm)
     return maps
 
@@ -284,13 +303,7 @@ def _temporary_roi_cache(series):
             parent._images = None
 
 
-def build_eta_omega_maps(experiment: HedmExperiment,
-                         plane_data: PlaneData) -> EtaOmegaMaps:
-    """Bin streamed detector frames into per-ring eta-omega intensity maps.
-
-    Accumulate in float64 to avoid integer overflow and preserve NaN gaps
-    outside detector coverage. Map angles are in radians.
-    """
+def _map_geometry(experiment, plane_data):
     _validate_planar_detectors(experiment)
     fo = experiment.find_orientations
 
@@ -301,8 +314,16 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     ring_tths = plane_data.two_thetas[~plane_data.exclusions][ring_ids]
     two_theta_ranges = np.column_stack([ring_tths - half, ring_tths + half])
 
-    eta_step = np.radians(fo.orientation_maps.eta_step)
     eta_edges = _eta_bin_edges(fo.orientation_maps.eta_step)
+    return ring_ids, two_theta_ranges, eta_edges
+
+
+def build_eta_omega_maps(experiment: HedmExperiment,
+                         plane_data: PlaneData) -> EtaOmegaMaps:
+    """Bin detector frames without changing histogram reduction order or NaN gaps."""
+    fo = experiment.find_orientations
+    ring_ids, two_theta_ranges, eta_edges = _map_geometry(experiment, plane_data)
+    eta_step = np.radians(fo.orientation_maps.eta_step)
     n_eta = len(eta_edges) - 1
     row_of_frame, omegas, omega_edges, period = _omega_grid(
         experiment.image_series_list[0])
@@ -330,8 +351,9 @@ def build_eta_omega_maps(experiment: HedmExperiment,
     with (_temporary_roi_cache(active),
           progress_bar(total=sum(map(len, active)), desc='Building eta/omega maps',
                        unit='frames', disable=None) as progress):
-        for ims, (eta_bin, ring_masks, coverage, histograms) in _iter_panel_bins(
-                experiment, active, two_theta_ranges, eta_edges):
+        for ims, (eta_bin, ring_masks, coverage, histograms, dense) in _iter_panel_bins(
+                experiment, active, two_theta_ranges, eta_edges,
+                max(1, np.bincount(row_of_frame).max())):
             activity(f'Binning frames from {ims.panel}')
             processed = 0
             dtype = ims.dtype
@@ -353,6 +375,20 @@ def build_eta_omega_maps(experiment: HedmExperiment,
             if not np.any(coverage):
                 progress.update(len(ims))
                 continue
+
+            def add_histogram(histogram, row):
+                for ring, bins in enumerate(bins_on_detector):
+                    bins = bins[~np.isnan(histogram[ring, bins])]
+                    previous = ring_maps[ring, row, bins]
+                    ring_maps[ring, row, bins] = (
+                        np.where(np.isnan(previous), 0., previous) + histogram[ring, bins])
+
+            if dense is not None:
+                for row, frame in zip(rows, dense):
+                    check_cancelled()
+                    add_histogram(histograms.accumulate(frame, threshold), row)
+                    progress.update(1)
+                continue
             blocks = ([(63 * block, mask) for block, mask in enumerate(ring_masks)
                        if np.any(coverage[63 * block:63 * (block + 1)])]
                       if histograms is None else ())
@@ -366,21 +402,20 @@ def build_eta_omega_maps(experiment: HedmExperiment,
             def bin_chunk(chunk):
                 ids, vals, offsets, chunk_rows = chunk
                 if histograms is not None:
-                    weights = np.zeros(int(np.prod(ims.shape)))
+                    weights = np.zeros(ims.shape) if ring_masks is None else None
                     for row, lo, hi in zip(chunk_rows, offsets[:-1], offsets[1:]):
-                        data = vals[lo:hi]
-                        weights[ids[lo:hi]] = np.where(data < threshold, 0., data)
-                        for ring, (plan, bins) in enumerate(zip(histograms, bins_on_detector)):
-                            cumulative = np.zeros(n_eta + 1)
-                            for pixels, cuts in (plan if hi > lo else ()):
-                                check_cancelled()
-                                cumulative += native._histogramPrefix(weights, pixels, cuts)
-                            histogram = np.diff(cumulative)
-                            bins = bins[~np.isnan(histogram[bins])]
-                            previous = ring_maps[ring, row, bins]
-                            ring_maps[ring, row, bins] = (
-                                np.where(np.isnan(previous), 0., previous) + histogram[bins])
-                        weights[ids[lo:hi]] = 0.
+                        check_cancelled()
+                        if weights is None:
+                            histogram = np.zeros((len(ring_ids), 1, n_eta))
+                            for first, mask in enumerate(ring_masks):
+                                _bin_pixels(np.array([lo, hi]), ids, vals, np.array([0]),
+                                            mask, eta_bin, threshold, histogram[first*63:first*63+63])
+                            histogram = histogram[:, 0]
+                        else:
+                            weights.ravel()[ids[lo:hi]] = vals[lo:hi]
+                            histogram = histograms.accumulate(weights, threshold)
+                            weights.ravel()[ids[lo:hi]] = 0.
+                        add_histogram(histogram, row)
                     progress.update(len(chunk_rows))
                     return
                 for start in range(0, len(ids), 262144):
@@ -420,23 +455,30 @@ def build_eta_omega_maps(experiment: HedmExperiment,
                         two_theta_ranges, ring_ids, eta_step)
 
 
-def _direct_sum_safe(series, panel_count):
+def _direct_sum_safe(series, panel_count, pixel_count=None, frames_per_row=1):
     """Whether all integer count sums fit float64's exact integer range."""
     dtype = series.dtype
     return (dtype.kind in 'biu' and
-            2**(8*dtype.itemsize) * int(np.prod(series.shape)) * panel_count < 2**53)
+            2**(8*dtype.itemsize) * int(np.prod(series.shape) if pixel_count is None
+                                      else pixel_count) * panel_count * int(frames_per_row) < 2**53)
 
 
-def _iter_panel_bins(experiment, active, two_theta_ranges, eta_edges):
+def _iter_panel_bins(experiment, active, two_theta_ranges, eta_edges, frames_per_row=1):
     panels = (experiment.instrument.detectors
-              if any(not _direct_sum_safe(series, len(active)) for series in active) else None)
+              if any(not _direct_sum_safe(series, len(active), frames_per_row=frames_per_row)
+                     for series in active) else None)
 
     def load(series):
-        if panels is None:
+        dense = getattr(series, 'dense_frames', None)
+        if panels is None and dense is None:
             return (*_cached_panel_bin_data(
-                experiment, series.panel, two_theta_ranges, eta_edges), None)
-        plan, coverage = _histogram_plan(panels[series.panel], two_theta_ranges, eta_edges)
-        return None, None, coverage, plan
+                experiment, series.panel, two_theta_ranges, eta_edges), None, None)
+        plan, coverage = _histogram_plan(
+            experiment.instrument.detectors[series.panel], two_theta_ranges, eta_edges)
+        plan = native._HistogramPlan(plan, series.shape, len(eta_edges) - 1)
+        eta, masks = (plan.sparse_bins() if dense is None and
+                      _direct_sum_safe(series, 1, plan.max_pixels) else (None, None))
+        return eta, masks, coverage, plan, dense
 
     if experiment.max_workers == 1:
         for series in active:
@@ -495,6 +537,140 @@ def _histogram_plan(panel, two_theta_ranges, eta_edges):
     return plans, coverage
 
 
+class EtaOmegaMapPlan:
+    """Reusable typed mapping geometry, prepared before image acquisition.
+
+    Inputs are decoded dense frames in their original dtype. Geometry and
+    crystallography must stay fixed for the lifetime of the plan.
+    """
+
+    def __init__(self, experiment, plane_data, panels=None):
+        self.ring_ids, self.two_theta_ranges, self.eta_edges = _map_geometry(
+            experiment, plane_data)
+        step = np.radians(experiment.find_orientations.orientation_maps.eta_step)
+        self.eta_step = float(np.diff(self.eta_edges[:2] + step / 2)[0])
+        self.threshold = experiment.find_orientations.orientation_maps.threshold
+        selected = set(experiment.detectors if panels is None else panels)
+        if not selected or not selected <= experiment.detectors.keys():
+            raise ValueError('provide known mapping panels')
+        self.panels = {}
+        for name in experiment.detectors:
+            if name in selected:
+                panel = experiment.instrument.detectors[name]
+                blocks, coverage = _histogram_plan(
+                    panel, self.two_theta_ranges, self.eta_edges)
+                self.panels[name] = (native._HistogramPlan(
+                    blocks, panel.shape, len(self.eta_edges) - 1), coverage)
+
+    @property
+    def frame_shape(self):
+        return len(self.ring_ids), len(self.eta_edges) - 1
+
+    def histogram(self, panel, frame, *, source_dtype=None, source_scale=1.):
+        """Return one panel's unfiltered map row, including NaN coverage gaps."""
+        check_cancelled()
+        frame = np.asarray(frame)
+        threshold = float(self.threshold)
+        dtype = frame.dtype if source_dtype is None else np.dtype(source_dtype)
+        if dtype.kind == 'f':
+            threshold = dtype.type(threshold).item()
+        plan, coverage = self.panels[panel]
+        histogram = plan.accumulate(frame, threshold, source_scale)
+        histogram[~coverage] = np.nan
+        return histogram
+
+
+class EtaOmegaMapAccumulator:
+    """Append acquired frames once; expose immutable, unfiltered map snapshots.
+
+    Supply all planned panels for each increasing omega interval, in degrees,
+    spanning at most one rotation.
+    Capacity and max_size_mb bound map storage; filename optionally backs it
+    with an NPY file. This budget excludes geometry and caller-owned images.
+    """
+
+    def __init__(self, plan, capacity, *, max_size_mb=1024, filename=None):
+        if isinstance(capacity, bool) or int(capacity) != capacity or capacity < 1:
+            raise ValueError('map capacity must be a positive integer')
+        self.plan, self.count = plan, 0
+        rings, eta = plan.frame_shape
+        shape = rings, int(capacity), eta
+        self._limit = int(max_size_mb * 1024**2)
+        size = rings * int(capacity) * eta * 8 + int(capacity) * 16
+        if size > self._limit:
+            raise MemoryError('map capacity exceeds max_size_mb')
+        if filename is None:
+            self._data = np.empty(shape)
+        else:
+            from pathlib import Path
+            if Path(filename).exists():
+                raise FileExistsError(filename)
+            self._data = np.lib.format.open_memmap(
+                filename, mode='w+', dtype='f8', shape=shape)
+        self._omega = np.empty((int(capacity), 2))
+
+    def __len__(self):
+        return self.count
+
+    @property
+    def metadata(self):
+        return {'omega': self._omega[:self.count].copy()}
+
+    def append(self, frames, omega):
+        if set(frames) != self.plan.panels.keys():
+            raise ValueError('provide every planned panel for each acquired frame')
+        self.append_histograms({panel: self.plan.histogram(panel, frame)
+                                for panel, frame in frames.items()}, omega)
+
+    def append_histograms(self, histograms, omega):
+        """Commit per-panel plan outputs in acquisition order after parallel work."""
+        check_cancelled()
+        if self.count == len(self._omega):
+            raise ValueError('acquisition exceeds map capacity')
+        omega = np.asarray(omega, dtype=float)
+        if (omega.shape != (2,) or not np.isfinite(omega).all() or omega[1] <= omega[0]
+                or omega[1] - omega[0] > 360 + 1e-6
+                or (self.count and (omega[0] < self._omega[self.count - 1, 1] - 1e-6
+                                   or omega[1] - self._omega[0, 0] > 360 + 1e-6))):
+            raise ValueError('expected increasing, non-overlapping omega intervals')
+        if set(histograms) != self.plan.panels.keys():
+            raise ValueError('provide every planned panel for each acquired frame')
+        combined = np.full(self.plan.frame_shape, np.nan)
+        for panel in self.plan.panels:
+            histogram = np.asarray(histograms[panel])
+            if histogram.shape != self.plan.frame_shape:
+                raise ValueError('histogram shape does not match map plan')
+            valid = ~np.isnan(histogram)
+            previous = combined[valid]
+            combined[valid] = np.where(np.isnan(previous), 0., previous) + histogram[valid]
+        self._data[:, self.count] = combined
+        self._omega[self.count] = omega
+        self.count += 1
+
+    def snapshot(self, *, copy=False):
+        """Return only acquired rows; later appends cannot change this snapshot."""
+        check_cancelled()
+        if not self.count:
+            raise ValueError('no acquired map frames')
+        rows, omegas, edges, period = _omega_grid(self)
+        data = self._data[:, :self.count]
+        expand = len(omegas) != self.count or not np.array_equal(rows, np.arange(self.count))
+        if expand or copy:
+            size = len(self.plan.ring_ids) * len(omegas) * self.plan.frame_shape[1] * 8
+            if self._data.nbytes + self._omega.nbytes + size > self._limit:
+                raise MemoryError('map snapshot exceeds max_size_mb')
+            if expand:
+                result = np.full((len(self.plan.ring_ids), len(omegas), self.plan.frame_shape[1]), np.nan)
+                result[:, rows] = data
+                data = result
+            else:
+                data = data.copy()
+        data.flags.writeable = False
+        return EtaOmegaMaps(data, self.plan.eta_edges.copy(), edges, omegas, period,
+                            self.plan.two_theta_ranges.copy(), self.plan.ring_ids.copy(),
+                            self.plan.eta_step)
+
+
 def _omega_grid(image_series):
     """Use the legacy wedge handling and arithmetic to preserve map-axis bytes."""
     from hexrd.core.imageseries.omega import OmegaImageSeries
@@ -509,7 +685,9 @@ def _omega_grid(image_series):
         if mutil.uniqueVectors(np.atleast_2d(widths), tol=1e-6).size != 1:
             raise ValueError('a multi-wedge scan must use one omega step size')
         lo = wedges[0]['ostart']
-        hi = float(rotations.mapAngle(wedges[-1]['ostop'], period_degrees, units='degrees'))
+        hi = rotations.mapAngle(wedges[-1]['ostop'], period_degrees, units='degrees').item()
+        if hi <= lo and wedges[-1]['ostop'] > lo:
+            hi += 360.  # A complete turn's endpoint belongs after the omega gaps.
         edges_degrees = np.linspace(lo, hi, int((hi-lo)/widths[0])+1)
         omega_degrees = np.column_stack((edges_degrees[:-1], edges_degrees[1:]))
         rows = np.flatnonzero([series.omega_to_frame(o)[0] != -1
@@ -1163,6 +1341,11 @@ def _dbscan(points: np.ndarray, eps: float, min_samples: int) -> np.ndarray:
             cluster += 1
         return labels
 
+    if min_samples == 1:
+        labels = native._radiusComponents(points, eps, check_cancelled)
+        if labels is not None:
+            return labels
+
     from sklearn.cluster import dbscan
 
     return dbscan(points, eps=eps, min_samples=min_samples,
@@ -1228,54 +1411,98 @@ def cluster_grains(experiment: HedmExperiment, plane_data: PlaneData,
         labels[noise] = -1
 
     n_grains = len(np.unique(labels)) - (1 if -1 in labels else 0)
-    qbar = np.zeros((4, n_grains))
-    for i in range(n_grains):
-        members = keep[:, labels == i + 1]
-        qbar[:, i] = rotations.quatAverageCluster(members, qsym).flatten()
+    qbar = _average_clusters(keep, labels, qsym, n_grains)
 
     # the euclidean algorithms can split one orientation across clusters;
     # merge any centroids closer than the clustering radius
     if algorithm in (Algo.DBSCAN, Algo.ORT_DBSCAN) and n_grains > 1:
-        qbar = _merge_duplicates(qbar, qsym, quat_distance, radius)
+        qbar = _merge_duplicates(qbar, qsym, radius, experiment.max_workers)
     diagnostic('Grains', f'{qbar.shape[1]:,}')
     return qbar
 
 
-def _merge_duplicates(qbar, qsym, quat_distance, radius) -> np.ndarray:
+def _average_clusters(quats, labels, qsym, count):
+    """Group once, retaining the reference member order within each cluster."""
+    order = np.argsort(labels, kind='stable')
+    edges = np.searchsorted(labels[order], np.arange(1, count + 2))
+    averaged = np.zeros((4, count))
+    sizes = np.diff(edges)
+    singles = np.flatnonzero(sizes == 1)
+    for first in range(0, len(singles), 16384):
+        check_cancelled()
+        ids = singles[first:first+16384]
+        averaged[:, ids] = rotations.unitVector(quats[:, order[edges[ids]]])
+    remaining = sizes != 1
+    if hasattr(np, 'vecdot') and quats.dtype == qsym.dtype == np.float64:
+        for size in np.unique(sizes[(sizes >= 2) & (sizes <= 512)]):
+            ids = np.flatnonzero(sizes == size)
+            if len(ids) < 4:
+                continue
+            step = min(512, 16384 // size)
+            for first in range(0, len(ids), step):
+                check_cancelled()
+                batch = ids[first:first+step]
+                index = order[edges[batch, None] + np.arange(size)]
+                means = rotations._average_cluster_batch(quats[:, index].transpose(1, 2, 0), qsym)
+                if means is not None:
+                    averaged[:, batch] = means
+                    remaining[batch] = False
+    for j, i in enumerate(np.flatnonzero(remaining)):
+        if j % 64 == 0:
+            check_cancelled()
+        ids = order[edges[i]:edges[i+1]]
+        mean = (rotations._large_cluster_mean(quats, qsym, ids, check_cancelled) if len(ids) > 16384
+                else rotations.quatAverageCluster(quats[:, ids], qsym))
+        averaged[:, i] = mean.ravel()
+    return averaged
+
+
+def _merge_duplicates(qbar, qsym, radius, workers=1) -> np.ndarray:
     """Merge symmetry-equivalent grain centroids within radius, in degrees."""
-    # Preserve centroid order when no merge is needed.
-    if qbar.shape[1] <= 32:
-        cutoff = np.radians(radius)
-        if all(quat_distance(qbar[:, i], qbar[:, j]) > cutoff
-               for i in range(qbar.shape[1]) for j in range(i)):
-            return qbar
+    from scipy.cluster.hierarchy import fcluster
 
-    from scipy.cluster.hierarchy import fclusterdata
-
-    cl = fclusterdata(qbar.T, np.radians(radius),
-                      criterion='distance', metric=quat_distance)
-    n_merged = len(np.unique(cl))
-    if n_merged == qbar.shape[1]:
+    if qbar.shape[1] < 2:
         return qbar
-    merged = np.zeros((4, n_merged))
-    for i in range(n_merged):
-        members = qbar[:, cl == i + 1]
-        merged[:, i] = rotations.quatAverageCluster(members, qsym).flatten()
-    return merged
+    tree = native._QuaternionDistances(qbar.T, qsym.T).linkage(check_cancelled)
+    cutoff = np.radians(radius)
+    if tree[0, 2] > cutoff:
+        return qbar
+    labels = fcluster(tree, cutoff, criterion='distance')
+    return _average_clusters(qbar, labels, qsym, int(labels.max()))
+
+
+def write_orientation_archive(results: FindOrientationsResult, experiment: HedmExperiment):
+    """Publish the trial archive atomically, checking cancellation between chunks."""
+    from pathlib import Path
+    from hexrd.core.utils.npz import savez_compressed
+
+    path = Path(experiment.scored_orientations_file)
+    temporary = path.with_suffix('.tmp')
+    try:
+        savez_compressed(temporary, _check=check_cancelled,
+                         test_quaternions=results.test_orientations,
+                         score=results.completeness)
+        check_cancelled()
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def write_results(results: FindOrientationsResult,
-                  experiment: HedmExperiment) -> str:
-    """Write standard orientation and grain files; return the analysis directory."""
+                  experiment: HedmExperiment, *, write_archive: bool = True) -> str:
+    """Write canonical initial grains first; optionally defer the trial archive.
+
+    When ``write_archive`` is false, the caller must publish it with
+    :func:`write_orientation_archive` before reporting completion.
+    """
     qbar = np.atleast_2d(results.grain_orientations)
     analysis_dir = experiment.analysis_dir
     os.makedirs(analysis_dir, exist_ok=True)
     np.savetxt(experiment.accepted_orientations_file,
                qbar.T, fmt='%.18e', delimiter='\t')
-    np.savez_compressed(
-        experiment.scored_orientations_file,
-        test_quaternions=results.test_orientations, score=results.completeness)
     _write_grains_out(os.path.join(analysis_dir, 'grains.out'), qbar)
+    if write_archive:
+        write_orientation_archive(results, experiment)
     return analysis_dir
 
 

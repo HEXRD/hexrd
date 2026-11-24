@@ -85,6 +85,7 @@ def memoize(func=None, maxsize=2):
                 cache.popitem(last=False)
 
         setattr(func, 'cache_info', cache_info)
+        setattr(func, 'cache_clear', cache.clear)
         setattr(func, 'set_cache_maxsize', set_cache_maxsize)
 
         @wraps(func)

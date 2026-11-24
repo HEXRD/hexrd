@@ -1,0 +1,77 @@
+{
+  "date": "2026-11-17",
+  "branch": "fit-grains-progression-realtime",
+  "base_commit": "4070b5275c9732b516fa7923ad9c7e0a61daed7b",
+  "source": {
+    "config": "../inconel/fitting_config.yml",
+    "image_file": "../inconel/data/perfect_beam_idealized_detector_deformed_sample_idealized_output_data.npz",
+    "image_sha256": "672f1a9dec4c3af488c042a96054f2f3e97d73cf6a24f14fb23983fda1c65024",
+    "frames": 1440,
+    "shape": [
+      3500,
+      3500
+    ]
+  },
+  "execution": {
+    "protocol": "DECTRIS SIMPLON legacy Stream V1, localhost TCP PUSH/PULL",
+    "replay_rate_cap_fps": 6,
+    "checkpoint_frames": 360,
+    "analysis_workers": 1,
+    "orientation_initialization": "Independent discovery from acquired frames; saved estimates and maps ignored"
+  },
+  "correctness": {
+    "pixel_roundtrip": {
+      "frames": 1440,
+      "omega_bitwise_equal": true,
+      "all_pixel_values_bitwise_equal": true,
+      "nonzero_pixels": 7560173,
+      "source_csr_sha256": "55b5f61deb13d42f1001571a45af6bcd991e5cebae91ffd9e10dfed26af615ee"
+    },
+    "discovered_grains": 1690,
+    "trial_orientations": 10736115,
+    "accepted_candidates": 73027,
+    "orientation_trial_score_fit_arrays": "bitwise identical to independent offline run",
+    "grain_archive_arrays": "dtype, shape, and bytes identical",
+    "text_files_bitwise_identical": 1691,
+    "unit_tests_passed": 28
+  },
+  "memory": {
+    "role_address_space_soft_limits_mib": {
+      "publisher": 1536,
+      "receiver": 1536,
+      "analysis": 4096
+    },
+    "aggregate_role_allowance_mib": 7168,
+    "image_cache_mib": 128,
+    "sampled_process_tree_peak_rss_bytes": 2161373184,
+    "sampled_process_tree_peak_vms_bytes": 2984390656,
+    "final_analysis_kernel_peak_rss_mib": 2115.95703125,
+    "note": "Sampled tree peak may miss short allocation spikes; role allocation guards remain active."
+  },
+  "timings": {
+    "offline_analysis_seconds": 337.4052518009994,
+    "final_analysis_seconds": 342.05246803200043,
+    "provisional": [
+      {
+        "prefix": "prefix-000360",
+        "acquired_frames": 882,
+        "at": 1794940126.614819,
+        "result": {
+          "frames": 360,
+          "grains": 1691,
+          "elapsed_seconds": 87.58277675000045,
+          "peak_rss_mib": 1324.12890625,
+          "complete": false
+        }
+      }
+    ],
+    "note": "No end-to-end acceleration claim: final fresh analysis runs after acquisition."
+  },
+  "artifacts_root": ".local-bench/live-stream",
+  "limits": [
+    "POC only; no detector-rate throughput guarantee",
+    "Single physical detector, ascending omega, single-study YAML, Stream V1",
+    "Raw detector preprocessing and private streamout integration not implemented",
+    "No independent new master benchmark; parity reference is current branch offline pipeline"
+  ]
+}

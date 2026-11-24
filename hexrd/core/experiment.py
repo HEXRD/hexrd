@@ -179,6 +179,15 @@ def _parse_multiprocessing(spec) -> int:
                      f"got {spec!r}")
 
 
+def _as_csr(frame):
+    """Compact native dense frames; preserve SciPy's sparse/layout fallbacks."""
+    from scipy.sparse import csr_array, issparse
+
+    array = None if issparse(frame) else np.asarray(frame)
+    buffers = None if array is None else transforms._denseToCSR(array)
+    return csr_array(frame) if buffers is None else csr_array(buffers, shape=array.shape)
+
+
 def _frame_csr(data, row, col, shape, dtype) -> csr_array:
     """CSR frame from COO triplets, skipping the COO sort when already canonical.
 
@@ -364,6 +373,16 @@ class RoiImageSeries:
                             for image in self._parent.images]
         return self._images
 
+    @property
+    def dense_frames(self):
+        if self._images is not None or getattr(self._parent, '_images', None) is not None:
+            return None
+        frames = getattr(self._parent, 'dense_frames', None)
+        if frames is not None:
+            r, c = self._roi
+            height, width = self._shape
+            return (frame[r:r + height, c:c + width] for frame in frames)
+
     def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
         """Pack cropped pixels without retaining extra ROI frame copies."""
         r0, c0 = self._roi
@@ -474,8 +493,14 @@ class Experiment:
         instrument = _load_instrument(self._path(config['instrument']))
         self._configure(config, instrument)
 
+        self._load_sources()
+        self._materials_file = self._path(config['material']['definitions'])
+
+    def _load_sources(self):
+        """Bind fresh image descriptors while preserving detector/ROI routing."""
+        self.__dict__.pop('_image_series', None)
         self.image_series_list = []
-        for d in config['image_series']['data']:
+        for d in self.config['image_series']['data']:
             if isinstance(d.get('panel'), (list, tuple)) and len(d['panel']) == 1:
                 d = dict(d, panel=d['panel'][0])
             panel, parent = self._load_image_series(d)
@@ -492,7 +517,6 @@ class Experiment:
                 self.image_series_list.append(RoiImageSeries(
                     name, parent, det.pixels.roi,
                     (det.pixels.rows, det.pixels.columns)))
-        self._materials_file = self._path(config['material']['definitions'])
 
     def _configure(self, config, instrument):
         self.config = config

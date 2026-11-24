@@ -15,7 +15,7 @@ import numpy as np
 from pydantic import Field, TypeAdapter, field_validator
 from pydantic.dataclasses import dataclass
 
-from hexrd.core.experiment import Beam, Experiment, ImageSeries, _pixel_chunks
+from hexrd.core.experiment import Beam, Experiment, ImageSeries, _pixel_chunks, _as_csr
 
 _FCH5_PARALLEL_MIN_PIXELS = 128 * 1024**2
 
@@ -80,7 +80,6 @@ class _AdapterImageSeries(ImageSeries):
         self._lock = threading.Lock()
 
     def pixel_chunks(self, row_of_frame, max_pixels=8_000_000, threshold=None):
-        from scipy.sparse import csr_array
         from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
         from hexrd.core.extensions import transforms as native
         from hexrd.hedm._progress import activity, check_cancelled
@@ -131,7 +130,7 @@ class _AdapterImageSeries(ImageSeries):
         def pixels():
             for i in range(len(self)):
                 check_cancelled()
-                frame = csr_array(self._series[i])
+                frame = _as_csr(self._series[i])
                 ids = np.empty(frame.nnz, dtype=np.int64)
                 native._csrPixelIds(frame.indptr, frame.indices, frame.shape[1], ids)
                 yield ids, frame.data
@@ -139,12 +138,25 @@ class _AdapterImageSeries(ImageSeries):
         yield from _pixel_chunks(pixels(), row_of_frame, max_pixels)
 
     @property
+    def dense_frames(self):
+        """Borrow dense adapter frames without a dense/CSR/dense round trip."""
+        from itertools import chain
+        from scipy.sparse import issparse
+        from hexrd.core.imageseries.load.framecache import FrameCacheImageSeriesAdapter
+
+        if isinstance(self._series, ImageSeries) or isinstance(
+                getattr(self._series, '_adapter', None), FrameCacheImageSeriesAdapter):
+            return None
+        first = self._series[0]
+        if issparse(first):
+            return None
+        return chain((first,), (self._series[i] for i in range(1, len(self))))
+
+    @property
     def images(self):
         with self._lock:
             if self._images is None:
-                from scipy.sparse import csr_array
-
-                self._images = [csr_array(self._series[i]) for i in range(len(self))]
+                self._images = [_as_csr(self._series[i]) for i in range(len(self))]
         return self._images
 
     @property

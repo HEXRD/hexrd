@@ -1,0 +1,4646 @@
+{
+  "date": "2026-11-17",
+  "hardware": {
+    "system": "WSL2 Linux",
+    "cpu": "Intel Core i7-13700HX",
+    "logical_cpus_visible": 24
+  },
+  "target_fps": 100,
+  "budget_ms_per_frame": 10,
+  "production_target_met": false,
+  "actual_stream": {
+    "receiver": {
+      "frame_count": 1440,
+      "received_span_seconds": 95.2881417210001,
+      "sustained_fps": 15.101564308110184,
+      "stages": {
+        "decode": {
+          "mean_ms": 13.888364213187918,
+          "p95_ms": 15.931084549902153
+        },
+        "csr": {
+          "mean_ms": 29.44487363262864,
+          "p95_ms": 31.37660565053011
+        },
+        "save_npz": {
+          "mean_ms": 2.4466965402597096,
+          "p95_ms": 2.8980127992326743
+        },
+        "accept": {
+          "mean_ms": 65.86804349376698,
+          "p95_ms": 72.16512820054959
+        },
+        "status": {
+          "mean_ms": 0.22050009833871534,
+          "p95_ms": 0.34620489955159367
+        }
+      },
+      "peak_rss_mib": 199.62109375
+    },
+    "publisher": {
+      "target_fps": 100,
+      "frames": 1440,
+      "compressed_buffer_bytes": 312537124,
+      "send_seconds": 92.59065395499965,
+      "actual_send_fps": 15.552325623489603
+    },
+    "memory": {
+      "started": 1794941725.321058,
+      "peak_rss_bytes": 2269282304,
+      "peak_vms_bytes": 2922516480,
+      "ended": 1794942139.4228854,
+      "exit_codes": [
+        0,
+        0
+      ]
+    },
+    "final_analysis": {
+      "frames": 1440,
+      "grains": 1690,
+      "elapsed_seconds": 312.6642029329996,
+      "peak_rss_mib": 2107.13671875,
+      "complete": true
+    },
+    "original_images_read_during_timed_transmission": false,
+    "note": "All 1,440 compressed messages prepared before timing; emulator backpressure prevents drops. Sender enqueue rate differs from receiver completion rate."
+  },
+  "in_memory_current": [
+    {
+      "workers": 1,
+      "frames": 384,
+      "frames_per_second": 15.797346530893515,
+      "mean_latency_ms": 62.62503412235769,
+      "p95_latency_ms": 69.17454779977561
+    },
+    {
+      "workers": 2,
+      "frames": 384,
+      "frames_per_second": 26.875881520296776,
+      "mean_latency_ms": 73.00818415360766,
+      "p95_latency_ms": 81.97939525007313
+    },
+    {
+      "workers": 4,
+      "frames": 384,
+      "frames_per_second": 39.38712337888535,
+      "mean_latency_ms": 98.48324443750538,
+      "p95_latency_ms": 104.48760715021308
+    },
+    {
+      "workers": 8,
+      "frames": 384,
+      "frames_per_second": 51.20137319352239,
+      "mean_latency_ms": 148.143749765597,
+      "p95_latency_ms": 161.69054205015527
+    },
+    {
+      "workers": 16,
+      "frames": 384,
+      "frames_per_second": 49.983207614234765,
+      "mean_latency_ms": 284.3199403776164,
+      "p95_latency_ms": 415.1914039998701
+    }
+  ],
+  "process_pool_prototypes": [
+    {
+      "mode": "current",
+      "workers": 2,
+      "frames": 384,
+      "frames_per_second": 28.527469072445275,
+      "mean_latency_ms": 68.37322021091079,
+      "p95_latency_ms": 72.78471790032198
+    },
+    {
+      "mode": "current",
+      "workers": 4,
+      "frames": 384,
+      "frames_per_second": 47.35154630886328,
+      "mean_latency_ms": 82.77281516929946,
+      "p95_latency_ms": 86.70091960007085
+    },
+    {
+      "mode": "current",
+      "workers": 8,
+      "frames": 384,
+      "frames_per_second": 66.75270789400669,
+      "mean_latency_ms": 116.8932938098924,
+      "p95_latency_ms": 130.58425284971233
+    },
+    {
+      "mode": "raw_uint32",
+      "workers": 2,
+      "frames": 384,
+      "frames_per_second": 40.72335348705133,
+      "mean_latency_ms": 47.67154533332748,
+      "p95_latency_ms": 50.095812699510134
+    },
+    {
+      "mode": "raw_uint32",
+      "workers": 4,
+      "frames": 384,
+      "frames_per_second": 70.50380368433855,
+      "mean_latency_ms": 54.91160457033099,
+      "p95_latency_ms": 57.28085279993138
+    },
+    {
+      "mode": "raw_uint32",
+      "workers": 8,
+      "frames": 384,
+      "frames_per_second": 106.08347400594415,
+      "mean_latency_ms": 73.04432421614375,
+      "p95_latency_ms": 82.35622864990545
+    }
+  ],
+  "decoded_image_to_map": [
+    {
+      "config": "../inconel/fitting_config.yml",
+      "shape": [
+        3500,
+        3500
+      ],
+      "frames": 48,
+      "csr": {
+        "mean_ms": 29.005537895803474,
+        "p95_ms": 31.005613600291326
+      },
+      "coordinate_pack": {
+        "mean_ms": 0.045076708374836016,
+        "p95_ms": 0.055183350104925914
+      },
+      "map_bin": {
+        "mean_ms": 21.724323541699658,
+        "p95_ms": 21.842941799604887
+      },
+      "total": {
+        "mean_ms": 50.77493814587797,
+        "p95_ms": 53.2729929501329
+      },
+      "elapsed_with_setup_and_io": 6.029823306999788,
+      "note": "One-off geometry, frame reads and wire decode excluded; CSR included only in decoded_maps mode"
+    },
+    {
+      "config": "../sven_dataset/fitting_original.yml",
+      "shape": [
+        4362,
+        4148
+      ],
+      "frames": 24,
+      "csr": {
+        "mean_ms": 254.19523629174518,
+        "p95_ms": 327.2473639504824
+      },
+      "coordinate_pack": {
+        "mean_ms": 20.617560041690314,
+        "p95_ms": 28.519047399686315
+      },
+      "map_bin": {
+        "mean_ms": 81.57871995835346,
+        "p95_ms": 102.89025485044476
+      },
+      "total": {
+        "mean_ms": 356.39151629178895,
+        "p95_ms": 447.29197279948494
+      },
+      "elapsed_with_setup_and_io": 17.138328146000276,
+      "note": "One-off geometry, frame reads and wire decode excluded; CSR included only in decoded_maps mode"
+    }
+  ],
+  "sven_csr_only": {
+    "shape": [
+      4362,
+      4148
+    ],
+    "dtype": "float64",
+    "csr": {
+      "mean_ms": 243.5612552414788,
+      "p50_ms": 263.7486229996284,
+      "p95_ms": 301.5215483997963,
+      "max_ms": 303.80016900016926
+    },
+    "pixels_exact": true,
+    "note": "Original corrected Sven intensities; no unsigned conversion or Eiger codec applied",
+    "sampled_frames": 29,
+    "includes_five_densest_frames": true
+  },
+  "correctness": {
+    "full_inconel_after_timing": "Bitwise match to independent offline reference",
+    "frames": 1440,
+    "grains": 1690,
+    "trial_orientations": 10736115,
+    "text_files": 1691,
+    "grain_npz_arrays": "Bitwise identical dtype, shape and bytes",
+    "pixel_roundtrip": {
+      "frames": 1440,
+      "omega_bitwise_equal": true,
+      "all_pixel_values_bitwise_equal": true,
+      "nonzero_pixels": 7560173,
+      "source_csr_sha256": "55b5f61deb13d42f1001571a45af6bcd991e5cebae91ffd9e10dfed26af615ee"
+    },
+    "prototype_scope": "Per-frame pixel/CSR checks only; prototype process pool is not integrated into the receiver",
+    "sven_scope": "Exact original float64 pixel support checked on 29 frames; no full Sven streamed fit performed"
+  },
+  "guards": {
+    "single_process_experiments_mib": 4096,
+    "process_pool_mib_per_process": 768,
+    "max_process_pool_workers": 8,
+    "receiver_mib": 1536,
+    "publisher_mib": 1536,
+    "analysis_mib": 4096,
+    "live_roles_total_mib": 7168,
+    "watchdog_rss_mib": 7168
+  },
+  "runtime_code_changed_for_this_measurement": false,
+  "caveats": [
+    "No raw Eiger 16M production-server or physical network-rate validation",
+    "Corrected Sven frames contain fractional intensities and were not cast to detector counts",
+    "One-time setup and source reads excluded from per-frame microbenchmarks",
+    "NPZ write timings include compression and buffered writes, not durable HDD throughput",
+    "Full grain fitting is multi-pass work; frame-ingest throughput is not full-analysis throughput",
+    "MALLOC_ARENA_MAX=2 used in bounded parallel experiments; numerical libraries restricted to one thread per process"
+  ],
+  "artifacts_root": ".local-bench/live-stream-rate",
+  "versions": {
+    "python": "3.12.7",
+    "numpy": "2.3.5",
+    "scipy": "1.17.1",
+    "lz4": "4.4.5",
+    "pyzmq": "27.3.0",
+    "dectris-compression": "0.3.1"
+  },
+  "core_opportunities": {
+    "date": "2026-11-17",
+    "dense_mapping": [
+      {
+        "config": "../inconel/fitting_config.yml",
+        "shape": [
+          3500,
+          3500
+        ],
+        "dtype": "<i4",
+        "frames_checked": 48,
+        "planned_pixel_visits": 2492420,
+        "current_decoded_to_map": {
+          "mean_ms": 46.54461620831777,
+          "p95_ms": 48.190254200153504
+        },
+        "native_direct_map": {
+          "mean_ms": 5.150298875093995,
+          "p95_ms": 5.738109100457223
+        },
+        "bitwise_public_map_rows_equal": true
+      },
+      {
+        "config": "../sven_dataset/fitting_original.yml",
+        "shape": [
+          4362,
+          4148
+        ],
+        "dtype": "<f8",
+        "frames_checked": 24,
+        "planned_pixel_visits": 378525,
+        "current_decoded_to_map": {
+          "mean_ms": 319.6755287915873,
+          "p95_ms": 404.76191525012837
+        },
+        "native_direct_map": {
+          "mean_ms": 0.8526707084304993,
+          "p95_ms": 0.9231283506778709
+        },
+        "bitwise_public_map_rows_equal": true
+      }
+    ],
+    "integer_sparse_dispatch": {
+      "dtype": "int32",
+      "frames": 48,
+      "max_ring_pixel_count": 335144,
+      "absolute_sum_bound": 1439432519450624,
+      "float64_exact_integer_limit": 9007199254740992,
+      "current_sparse_to_map": {
+        "mean_ms": 18.509594291723868,
+        "p95_ms": 19.542509249822615
+      },
+      "existing_native_scatter": {
+        "mean_ms": 0.4003206042095068,
+        "p95_ms": 0.5258320494704094
+      },
+      "histograms_bitwise_equal": true,
+      "scope": "Single panel, one input frame per omega row. General dispatch must also bound repeated rows and sums across panels. Floating-point inputs retain the prefix route.",
+      "coverage_masks_bitwise_equal": true
+    },
+    "additional_dtype_and_edge_cases_bitwise_equal": 31,
+    "allocation_guard_mib": 4096,
+    "compilation_flags": [
+      "-O3",
+      "-fno-fast-math",
+      "-ffp-contract=off"
+    ],
+    "prototype_cpp_sha256": "3af79b41781cd291b8f6b786a9dcc5567e0ce6cfacfa01bbae371551e153778f",
+    "runtime_integration": false,
+    "scope": "Isolated map kernels; source reads, decoding, static geometry, scoring and fitting excluded. No full-fit or new master parity claim for these prototypes."
+  },
+  "integrated_core": {
+    "branch": "fit-grains-progression-realtime",
+    "validation_date": "2026-11-20",
+    "core_measurement_date": "2026-11-17",
+    "runtime_integration": true,
+    "native_source": "hexrd/core/transforms/cpp_sublibrary/src/histogram.hpp",
+    "native_source_sha256": "998179f7fe3486b7dbfc6590ceda9c39973e00991178d1c6384ec368e9d45cc6",
+    "batch_dispatch": "Shared ordinary offline map builder: typed dense inputs, per-ring proven integer sparse inputs, ordered floating-point fallback",
+    "kernel_samples": [
+      {
+        "config": "../inconel/fitting_config.yml",
+        "shape": [
+          3500,
+          3500
+        ],
+        "dtype": "<i4",
+        "current_decoded_to_map": {
+          "mean_ms": 50.00414393740963,
+          "p50_ms": 48.457094499099185,
+          "p95_ms": 58.316492200265195,
+          "max_ms": 78.88272799937113
+        },
+        "compiled_direct_rings": {
+          "mean_ms": 4.897587000148936,
+          "p50_ms": 4.788895000274351,
+          "p95_ms": 5.479124400244473,
+          "max_ms": 5.9798069996759295
+        },
+        "bitwise_histograms_equal": true,
+        "bitwise_public_map_rows_equal": true,
+        "excluded": "Source reads, wire decode, one-off detector geometry and histogram plans",
+        "frames_checked": 48
+      },
+      {
+        "config": "../sven_dataset/fitting_original.yml",
+        "shape": [
+          4362,
+          4148
+        ],
+        "dtype": "<f8",
+        "current_decoded_to_map": {
+          "mean_ms": 340.5517773333789,
+          "p50_ms": 348.84107149991905,
+          "p95_ms": 448.1020191488824,
+          "max_ms": 474.4159870006115
+        },
+        "compiled_direct_rings": {
+          "mean_ms": 0.9104137917195961,
+          "p50_ms": 0.8678545009388472,
+          "p95_ms": 1.1372018497240786,
+          "max_ms": 1.224975001605344
+        },
+        "bitwise_histograms_equal": true,
+        "bitwise_public_map_rows_equal": true,
+        "excluded": "Source reads, wire decode, one-off detector geometry and histogram plans",
+        "frames_checked": 24
+      }
+    ],
+    "public_incremental_append": [
+      {
+        "config": "../inconel/fitting_config.yml",
+        "frames": 24,
+        "mean_ms": 5.671730458288948,
+        "p95_ms": 6.211080399680213,
+        "max_ms": 6.398117000571801,
+        "snapshots_exact": true,
+        "scope": "First 24 original frames; decoded inputs; complete public append including masking, panel merge and storage; source reads, decoding and snapshot creation excluded"
+      },
+      {
+        "config": "../sven_dataset/fitting_original.yml",
+        "frames": 24,
+        "mean_ms": 1.1920604583792738,
+        "p95_ms": 1.5147235007134436,
+        "max_ms": 1.650643000175478,
+        "snapshots_exact": true,
+        "scope": "First 24 original frames; decoded inputs; complete public append including masking, panel merge and storage; source reads, decoding and snapshot creation excluded"
+      }
+    ],
+    "offline_maps": {
+      "results": [
+        {
+          "dataset": "inconel",
+          "frames": 1440,
+          "seconds": {
+            "before": [
+              16.614815588,
+              13.90778546499999,
+              14.331832109999993
+            ],
+            "current": [
+              2.047864268000012,
+              1.869774413000016,
+              1.8905264290000048
+            ]
+          },
+          "median_speedup": 7.580868423818241,
+          "maps_and_axes_bitwise_equal": true,
+          "scope": "Public offline map builder; source reads and per-call geometry included; material/config construction, scoring and fitting excluded; one worker"
+        },
+        {
+          "dataset": "sven-prefix",
+          "frames": 24,
+          "seconds": {
+            "before": [
+              3.1588614380000024,
+              1.879971944999994,
+              1.8676583090000065
+            ],
+            "current": [
+              1.8185445610000102,
+              1.8014695460000212,
+              1.8708131910000247
+            ]
+          },
+          "median_speedup": 1.0337783221359202,
+          "maps_and_axes_bitwise_equal": true,
+          "scope": "Public offline map builder; source reads and per-call geometry included; material/config construction, scoring and fitting excluded; one worker"
+        }
+      ],
+      "peak_rss_mib": 3077.69140625
+    },
+    "receiver": {
+      "frame_count": 1440,
+      "received_span_seconds": 108.43318493300103,
+      "sustained_fps": 13.270845091280247,
+      "stages": {
+        "decode": {
+          "mean_ms": 14.67274852710716,
+          "p50_ms": 14.470913500190363,
+          "p95_ms": 16.713758149944624,
+          "max_ms": 50.15773599916429
+        },
+        "csr": {
+          "mean_ms": 30.162883317341816,
+          "p50_ms": 30.006924000190338,
+          "p95_ms": 32.29766584954632,
+          "max_ms": 47.00806999971974
+        },
+        "save_npz": {
+          "mean_ms": 2.344450772908304,
+          "p50_ms": 2.304185500179301,
+          "p95_ms": 2.7750136006034154,
+          "max_ms": 5.114585001138039
+        },
+        "accept": {
+          "mean_ms": 74.94563870834428,
+          "p50_ms": 74.34827949964529,
+          "p95_ms": 82.69056594963331,
+          "max_ms": 113.78400799912924
+        },
+        "status": {
+          "mean_ms": 0.26177346401122636,
+          "p50_ms": 0.2420544997221441,
+          "p95_ms": 0.3606847996707074,
+          "max_ms": 2.5000639998324914
+        }
+      },
+      "peak_rss_mib": 1260.4609375
+    },
+    "final_analysis": {
+      "frames": 1440,
+      "grains": 1690,
+      "elapsed_seconds": 280.02298799300115,
+      "peak_rss_mib": 1930.578125,
+      "complete": true
+    },
+    "live_process_tree_memory": {
+      "started": 1794945845.334883,
+      "peak_rss_bytes": 3026739200,
+      "peak_vms_bytes": 4043497472,
+      "ended": 1794946244.291541,
+      "exit_codes": [
+        0,
+        0
+      ]
+    },
+    "source_pixels": {
+      "frames": 1440,
+      "omega_bitwise_equal": true,
+      "all_pixel_values_bitwise_equal": true,
+      "nonzero_pixels": 7560173,
+      "source_csr_sha256": "55b5f61deb13d42f1001571a45af6bcd991e5cebae91ffd9e10dfed26af615ee"
+    },
+    "scientific_parity": {
+      "inconel_offline_bitwise": true,
+      "grain_count": 1690,
+      "trials": 10736115,
+      "grain_and_spot_text_files": 1691,
+      "master_revision": "0a041b17",
+      "master_example_comparisons": 18,
+      "master_sven_grains": 4,
+      "master_sven_fit_and_spot_payload_bitwise": true,
+      "master_sven_spot_files_bitwise": 4,
+      "master_sven_input_adapter": "Bounded original-pixel reader; eager decoded full scan exceeds laptop RAM",
+      "full_high_grain_count_sven_stream_validation": false
+    },
+    "tests": {
+      "passed": 375,
+      "deselected": 2,
+      "includes_large_reference_map_tests": 2
+    },
+    "live_role_allowances_mib": {
+      "publisher": 1536,
+      "incremental_receiver": 2048,
+      "analysis": 4096,
+      "total": 7680
+    },
+    "production_target_met": false,
+    "remaining_bottleneck": "Wire decode, full-image dtype validation/copy and CSR pixel spooling; 13.27 Hz receiver remains below 100 Hz. Incremental maps opt-in.",
+    "artifact_directory": ".local-bench/live-core-integration/"
+  },
+  "inconel_receiver_100hz_target_met": true,
+  "sven_complete_science_100hz_target_met": false,
+  "production_target_met_note": "Inconel reception, map accumulation and pixel persistence exceed 100 Hz. Complete orientation discovery and grain fitting do not. These receiver measurements do not establish 100 Hz scientific processing for Sven or Eiger 16M production inputs.",
+  "parallel_receiver": {
+    "date": "2026-11-20",
+    "runs": [
+      {
+        "codec": "lz4",
+        "frames": 1440,
+        "frame_shape": [
+          3500,
+          3500
+        ],
+        "decode_workers": 4,
+        "offered_fps": 150,
+        "received_fps": 150.33360182214656,
+        "received_span_seconds": 9.572044989000005,
+        "worker_service": {
+          "mean_ms": 17.701028450694086,
+          "p50_ms": 17.196733999981006,
+          "p95_ms": 22.235301550006167,
+          "max_ms": 39.573908999955165
+        },
+        "stages": {
+          "decode": {
+            "mean_ms": 4.342266736807213,
+            "p50_ms": 4.255012500038902,
+            "p95_ms": 5.432855400010794,
+            "max_ms": 24.339370000006966
+          },
+          "save_npz": {
+            "mean_ms": 2.6869567680528736,
+            "p50_ms": 2.5010700001075747,
+            "p95_ms": 4.294407799989131,
+            "max_ms": 8.296590999862019
+          },
+          "prepare": {
+            "mean_ms": 17.701028450694086,
+            "p50_ms": 17.196733999981006,
+            "p95_ms": 22.235301550006167,
+            "max_ms": 39.573908999955165
+          },
+          "accept": {
+            "mean_ms": 0.7790322145846555,
+            "p50_ms": 0.6110734999538181,
+            "p95_ms": 1.4527864000683621,
+            "max_ms": 5.4590859999734676
+          },
+          "status": {
+            "mean_ms": 0.2123291163413853,
+            "p50_ms": 0.19181700008630287,
+            "p95_ms": 0.3312140499474481,
+            "max_ms": 2.626389999932144
+          },
+          "sparse_constructor_only": {
+            "mean_ms": 0.051929401735940746,
+            "p50_ms": 0.05566550009916682,
+            "p95_ms": 0.09152554986258106,
+            "max_ms": 0.6361929999911808
+          }
+        },
+        "sparse_constructor_note": "Wrapping compact buffers only; native packing included in prepare",
+        "publisher": {
+          "target_fps": 150,
+          "frames": 1440,
+          "compressed_buffer_bytes": 312537124,
+          "send_seconds": 9.593648636000125,
+          "actual_send_fps": 150.09930576323237,
+          "send_wait": {
+            "mean_ms": 0.16735912986010565,
+            "p50_ms": 0.14138100004856824,
+            "p95_ms": 0.33806784985017646,
+            "max_ms": 1.4359419999436795
+          },
+          "lateness": {
+            "mean_ms": 0.29978549452225584,
+            "p50_ms": 0.27852933340000163,
+            "p95_ms": 0.47501763344826026,
+            "max_ms": 1.5289363334431982
+          }
+        },
+        "final_analysis": {
+          "frames": 1440,
+          "grains": 1690,
+          "elapsed_seconds": 231.31939234300012,
+          "peak_rss_mib": 1931.25390625,
+          "complete": true
+        },
+        "process_tree": {
+          "started": 1795186199.6314542,
+          "peak_rss_bytes": 3134844928,
+          "peak_vms_bytes": 4166803456,
+          "ended": 1795186465.701514,
+          "exit_codes": [
+            0,
+            0
+          ]
+        },
+        "pixels": {
+          "frames": 1440,
+          "nonzero_pixels": 7560173,
+          "omega_bitwise_equal": true,
+          "all_pixel_buffers_bitwise_equal": true,
+          "source_sha256": "aa3873d8aa60c772ec06af56ad73e272bd41c57ff614ac8ecd752e364d2615ae"
+        },
+        "orientations_trials_scores_fits_archives_and_text_bitwise_equal": true,
+        "grain_count": 1690,
+        "grain_spot_text_files": 1691,
+        "artifact_directory": ".local-bench/live-fast",
+        "concurrency": "Prefix orientation analysis; no provisional grain fit completed during acquisition",
+        "disk_scope": "Compressed sparse NPZ buffered writes included; durable HDD bandwidth not measured"
+      },
+      {
+        "codec": "bs32-lz4",
+        "frames": 1440,
+        "frame_shape": [
+          3500,
+          3500
+        ],
+        "decode_workers": 4,
+        "offered_fps": 150,
+        "received_fps": 135.29948259813554,
+        "received_span_seconds": 10.63566521000007,
+        "worker_service": {
+          "mean_ms": 26.553485035418113,
+          "p50_ms": 26.260071500132653,
+          "p95_ms": 29.0572923499667,
+          "max_ms": 57.54738199993881
+        },
+        "stages": {
+          "decode": {
+            "mean_ms": 12.465183592359905,
+            "p50_ms": 12.259272000051169,
+            "p95_ms": 13.153103849901981,
+            "max_ms": 38.26332299991009
+          },
+          "save_npz": {
+            "mean_ms": 3.7082398493075805,
+            "p50_ms": 3.546732500012695,
+            "p95_ms": 5.6570508501522445,
+            "max_ms": 7.942146000004868
+          },
+          "prepare": {
+            "mean_ms": 26.553485035418113,
+            "p50_ms": 26.260071500132653,
+            "p95_ms": 29.0572923499667,
+            "max_ms": 57.54738199993881
+          },
+          "accept": {
+            "mean_ms": 0.7318351673666889,
+            "p50_ms": 0.5518944999494124,
+            "p95_ms": 1.5153636499007916,
+            "max_ms": 3.554064000127255
+          },
+          "status": {
+            "mean_ms": 0.27148011080482315,
+            "p50_ms": 0.14823650008111144,
+            "p95_ms": 0.48228075015686034,
+            "max_ms": 32.709830000158036
+          },
+          "sparse_constructor_only": {
+            "mean_ms": 0.044876569445840966,
+            "p50_ms": 0.03981349993864569,
+            "p95_ms": 0.0936419499680596,
+            "max_ms": 0.2432510000289767
+          }
+        },
+        "sparse_constructor_note": "Wrapping compact buffers only; native packing included in prepare",
+        "publisher": {
+          "target_fps": 150,
+          "frames": 1440,
+          "compressed_buffer_bytes": 531077117,
+          "send_seconds": 10.51218487999995,
+          "actual_send_fps": 136.983892163054,
+          "send_wait": {
+            "mean_ms": 6.240745338194465,
+            "p50_ms": 0.2865985001108129,
+            "p95_ms": 29.382756749987493,
+            "max_ms": 62.48991699999351
+          },
+          "lateness": {
+            "mean_ms": 393.8885749889465,
+            "p50_ms": 359.21889066685253,
+            "p95_ms": 881.1624623833608,
+            "max_ms": 918.8473576668912
+          }
+        },
+        "final_analysis": {
+          "frames": 1440,
+          "grains": 1690,
+          "elapsed_seconds": 236.04284989799976,
+          "peak_rss_mib": 1931.29296875,
+          "complete": true
+        },
+        "process_tree": {
+          "started": 1795186919.2061973,
+          "peak_rss_bytes": 3158507520,
+          "peak_vms_bytes": 4387749888,
+          "ended": 1795187241.8542335,
+          "exit_codes": [
+            0,
+            0
+          ]
+        },
+        "pixels": {
+          "frames": 1440,
+          "nonzero_pixels": 7560173,
+          "omega_bitwise_equal": true,
+          "all_pixel_buffers_bitwise_equal": true,
+          "source_sha256": "aa3873d8aa60c772ec06af56ad73e272bd41c57ff614ac8ecd752e364d2615ae",
+          "reference": "Plain LZ4 replay, checked against every original source pixel"
+        },
+        "orientations_trials_scores_fits_archives_and_text_bitwise_equal": true,
+        "grain_count": 1690,
+        "grain_spot_text_files": 1691,
+        "artifact_directory": ".local-bench/live-fast-bslz4",
+        "concurrency": "Prefix orientation analysis; no provisional grain fit completed during acquisition",
+        "disk_scope": "Compressed sparse NPZ buffered writes included; durable HDD bandwidth not measured"
+      }
+    ],
+    "allocation_allowances_mib": {
+      "publisher": 1536,
+      "receiver": 2048,
+      "analysis": 4096,
+      "total": 7680
+    },
+    "numerical_threads_per_library": 1,
+    "malloc_arena_max": 2,
+    "source_reads_and_encoding_during_timed_stream": false,
+    "max_inflight_jobs": 4,
+    "decoder_buffers": "One reusable decoded-image buffer per thread",
+    "changes": [
+      "Typed SIMD dense-to-CSR packing with SciPy fallbacks",
+      "Reusable LZ4/DECTRIS native decode destinations with public codec fallbacks",
+      "Exact source-dtype validation/conversion on nonzero pixels only",
+      "Bounded decode/map/spool threads; ordered map and prefix commits"
+    ],
+    "native_packer_sha256": "dc8bec35e0f52ed1174f2f6755bb954c4a26b3201f66cd34796dcbfe0a236a13",
+    "libraries": {
+      "lz4": "4.4.5",
+      "dectris-compression": "0.3.1",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "pyzmq": "27.3.0"
+    },
+    "offline_dense_csr": [
+      {
+        "config": "../inconel/fitting_config.yml",
+        "frames": 48,
+        "shape": [
+          3500,
+          3500
+        ],
+        "dtype": "<i4",
+        "scipy": {
+          "mean_ms": 26.510682479174836,
+          "p95_ms": 27.846554850032135
+        },
+        "native": {
+          "mean_ms": 3.145868437485433,
+          "p95_ms": 3.699884500065309
+        },
+        "speedup": 8.427142776627191,
+        "csr_buffers_bitwise_equal": true,
+        "scope": "Dense-to-CSR conversion only; source reads/densification excluded"
+      },
+      {
+        "config": "../sven_dataset/fitting_original.yml",
+        "frames": 24,
+        "shape": [
+          4362,
+          4148
+        ],
+        "dtype": "<f8",
+        "scipy": {
+          "mean_ms": 227.5604064999944,
+          "p95_ms": 318.73192665010487
+        },
+        "native": {
+          "mean_ms": 95.19592833332997,
+          "p95_ms": 156.99711295004587
+        },
+        "speedup": 2.3904426427061902,
+        "csr_buffers_bitwise_equal": true,
+        "scope": "Dense-to-CSR conversion only; source reads/densification excluded"
+      }
+    ],
+    "master_reference": "0a041b17",
+    "master_examples": {
+      "master": "0a041b17",
+      "cases": [
+        {
+          "case": "dexelas-roi",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas-roi",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "ruby-0",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-0",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "zirconium",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 3
+        },
+        {
+          "case": "zirconium",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 3
+        }
+      ]
+    },
+    "master_sven_fit_sample": {
+      "grains": 4,
+      "fit_and_spot_payload_bitwise": true,
+      "spot_files_bitwise": 4
+    },
+    "tests": {
+      "passed": 439,
+      "deselected": 2,
+      "last_log": ".local-bench/live-fast/final-tests.log"
+    },
+    "limits": [
+      "Real Inconel 3500x3500 counts; raw Eiger 16M production frames not available",
+      "Sven conversion retains fractional float64 data; these cannot be represented losslessly in Eiger unsigned messages",
+      "Frame throughput differs from discovery/fitting latency; final fits run after acquisition",
+      "Replay backpressure retains frames; physical-detector overrun behaviour unverified"
+    ],
+    "native_buffer_symbols_available": {
+      "LZ4_decompress_safe": true,
+      "compression_decompress_buffer": true
+    },
+    "public_decoder_fallbacks_tested": true
+  },
+  "priorities_1_2": {
+    "date": "2026-11-20",
+    "scope": "Persistent analysis and fitting processes, multicore discovery, asynchronous atomic trial archives",
+    "timing_baseline": "Frozen pre-change sandbox driver and orientation module, same native binary; not master timings",
+    "baseline_sources": {
+      "before_stream_fit_grains.py": "2e0674a484439c1c5667b48509713c4c8ef8754b7c2db8004a862f8c240c4734",
+      "before_find_orientations.py": "9b93af0be2d28ff26ae8334573632189a20743c8da536d5088f44fdd6fef24d9"
+    },
+    "paired_runs": {
+      "after": {
+        "name": "after",
+        "wall_seconds": 147.9149543099993,
+        "peak_rss_bytes": 2020724736,
+        "peak_vms_bytes": 3084341248,
+        "result": {
+          "frames": 1440,
+          "grains": 1690,
+          "elapsed_seconds": 145.2642366989994,
+          "session_setup_seconds": 1.7877337489999263,
+          "discovery_seconds": 18.089988534999975,
+          "fit_seconds": 124.94318118900082,
+          "archive_wait_seconds": 1.4239999472920317e-05,
+          "session_pid": 6,
+          "fit_worker_pids": [
+            20,
+            23
+          ],
+          "peak_rss_mib": 2051.99609375,
+          "complete": true
+        }
+      },
+      "before": {
+        "name": "before",
+        "wall_seconds": 265.6908017659998,
+        "peak_rss_bytes": 1833877504,
+        "peak_vms_bytes": 2381881344,
+        "result": {
+          "frames": 1440,
+          "grains": 1690,
+          "elapsed_seconds": 263.38838108299933,
+          "peak_rss_mib": 1929.234375,
+          "complete": true
+        }
+      }
+    },
+    "process_wall_speedup": 1.7962402990651412,
+    "analysis_elapsed_speedup": 1.8131674186865676,
+    "paired_run_note": "One sequential after/before pair; not repeated medians. Normal host/storage variability applies.",
+    "before_export_setup_interval_seconds": 13.642,
+    "before_export_interval_note": "Inferred from clustering-complete to image-setup log timestamps; not compression-only timing.",
+    "live": {
+      "wall_seconds": 164.2946437520004,
+      "peak_rss_bytes": 3967111168,
+      "peak_vms_bytes": 5501587456,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "acquisition": {
+        "frames": 1440,
+        "seconds": 9.629364178999822,
+        "frames_per_second": 149.43873481680546
+      },
+      "final": {
+        "frames": 1440,
+        "grains": 1690,
+        "elapsed_seconds": 129.6375643170004,
+        "session_setup_seconds": 1.9549554029999854,
+        "discovery_seconds": 15.929812555000353,
+        "fit_seconds": 111.57621406099952,
+        "archive_wait_seconds": 1.8944000657938886e-05,
+        "session_pid": 24087,
+        "fit_worker_pids": [
+          24137,
+          24140
+        ],
+        "peak_rss_mib": 2076.71484375,
+        "complete": true
+      }
+    },
+    "live_service_reuse_verified": true,
+    "live_worker_reuse_after_supersession_verified": true,
+    "exact_baseline_and_offline_arrays_and_all_text_files": true,
+    "scientific_grains": 1690,
+    "text_files": 1691,
+    "source_pixel_buffers_and_omega_preserved": true,
+    "master_examples": {
+      "master": "0a041b17",
+      "cases": [
+        {
+          "case": "dexelas-roi",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24,
+          "worker_pids": [
+            6,
+            9
+          ]
+        },
+        {
+          "case": "dexelas-roi",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24,
+          "worker_pids": [
+            7
+          ]
+        },
+        {
+          "case": "dexelas",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24,
+          "worker_pids": [
+            12,
+            15
+          ]
+        },
+        {
+          "case": "dexelas",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24,
+          "worker_pids": [
+            20
+          ]
+        },
+        {
+          "case": "ruby-0",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            25
+          ]
+        },
+        {
+          "case": "ruby-0",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            30
+          ]
+        },
+        {
+          "case": "ruby-1",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            35
+          ]
+        },
+        {
+          "case": "ruby-1",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            40
+          ]
+        },
+        {
+          "case": "ruby-2",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            45
+          ]
+        },
+        {
+          "case": "ruby-2",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            50
+          ]
+        },
+        {
+          "case": "ruby-3",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            55
+          ]
+        },
+        {
+          "case": "ruby-3",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            60
+          ]
+        },
+        {
+          "case": "ruby-4",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            65
+          ]
+        },
+        {
+          "case": "ruby-4",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            70
+          ]
+        },
+        {
+          "case": "ruby-5",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            75
+          ]
+        },
+        {
+          "case": "ruby-5",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1,
+          "worker_pids": [
+            80
+          ]
+        },
+        {
+          "case": "zirconium",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 3,
+          "worker_pids": [
+            85,
+            88
+          ]
+        },
+        {
+          "case": "zirconium",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 3,
+          "worker_pids": [
+            93
+          ]
+        }
+      ]
+    },
+    "sven_master_sample": {
+      "grains": 4,
+      "fits_and_spot_files_bitwise_equal": true,
+      "fit_seconds": 13.243116,
+      "pool_elapsed_seconds": 16.608556915999543,
+      "workers": 1,
+      "worker_limit_mib": 1792,
+      "cache_mib": 512,
+      "native_read_workers": 4,
+      "note": "Preserves the existing grouped FCH5 path. Not a paired Sven speed comparison."
+    },
+    "allocation_allowances_mib": {
+      "publisher": 1536,
+      "incremental_receiver": 2048,
+      "coordinator_and_archive_thread": 2560,
+      "fit_pool_total": 1792,
+      "total": 7936
+    },
+    "worker_policy": "Up to two fitting processes; staged, singleton and large FCH5 workloads use one larger worker. Aggregate fit budget unchanged.",
+    "tests": {
+      "passed": 498,
+      "deselected": 2,
+      "warnings": 4,
+      "log": ".local-bench/priority12/final-tests.log",
+      "includes": "2000-grain scheduler grouping; archive overlap/failure/cancellation; process-group cleanup after parent exit; source/ROI routing"
+    },
+    "exactness": "Canonical initial text round trip, thresholds, tolerance passes, culling, optimizer and output ordering retained. Provisional fits are not final warm starts.",
+    "remaining": "Final scientific analysis still lags acquisition; frame-ready scheduling and incremental discovery remain necessary for complete 100 Hz service.",
+    "artifact_directory": ".local-bench/priority12"
+  },
+  "sven_reader_allocation_followup": {
+    "date": "2026-11-20",
+    "scope": "Original fractional float64 FCH5 pixels; known initial grain estimates. Samples do not include orientation discovery and do not establish complete 2103-grain throughput.",
+    "script_sha256": "b27dcb6dfbabcf2b97911adfd223bfd3a266714c2285505562063f17d9b7d745",
+    "baseline_128": {
+      "grain_count": 128,
+      "seconds": [
+        93.39358881299995
+      ],
+      "parent_process_cpu_seconds": [
+        135.059441
+      ],
+      "address_space_limit_mb": 3072,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy",
+        "read_workers": 4
+      },
+      "memory": {
+        "peak_bytes": {
+          "rss": 1062105088,
+          "pss": 1053727744,
+          "uss": 1050923008
+        },
+        "peak_processes": 1,
+        "samples": 876,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "configured_eight_readers_128": {
+      "grain_count": 128,
+      "seconds": [
+        83.02233086800015
+      ],
+      "parent_process_cpu_seconds": [
+        144.0452458
+      ],
+      "address_space_limit_mb": 3072,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy",
+        "read_workers": 8
+      },
+      "memory": {
+        "peak_bytes": {
+          "rss": 1062395904,
+          "pss": 1055404032,
+          "uss": 1052250112
+        },
+        "peak_processes": 1,
+        "samples": 779,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "single_pair_speedup": 1.1249213053472251,
+    "timing_note": "One sequential 128-grain pair, both with the same memory instrumentation and direct source reads; not repeated medians or a master speed comparison.",
+    "configured_eight_readers_13_seconds": [
+      19.485141121000197,
+      19.471985668999878
+    ],
+    "default_four_readers_13_seconds": [
+      22.9155434459999,
+      22.938164576999952
+    ],
+    "thirteen_grain_note": "Two runs per setting. Eight-reader runs included memory monitoring; four-reader runs did not. The 128-grain pair is the comparable-instrumentation timing.",
+    "compression_experiment": {
+      "compressed_13_seconds": [
+        22.9155434459999,
+        22.938164576999952
+      ],
+      "uncompressed_13_seconds": [
+        23.08122316999993,
+        22.462771870000097
+      ],
+      "accepted": false,
+      "reason": "No meaningful speed gain; retain bounded compressed storage for larger grain groups."
+    },
+    "parity": {
+      "comparisons": [
+        {
+          "reference": "before-13",
+          "actual": "compressed-a",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 13
+        },
+        {
+          "reference": "before-13",
+          "actual": "compressed-b",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 13
+        },
+        {
+          "reference": "before-13",
+          "actual": "raw-a",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 13
+        },
+        {
+          "reference": "before-13",
+          "actual": "raw-b",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 13
+        },
+        {
+          "reference": "before-13",
+          "actual": "read-8-a",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 13
+        },
+        {
+          "reference": "before-13",
+          "actual": "read-8-b",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 13
+        },
+        {
+          "reference": "current-128",
+          "actual": "read-8-128",
+          "fit_and_spot_payloads_bitwise_identical": true,
+          "spot_files_byte_identical": 128
+        }
+      ],
+      "first_128_match_earlier_complete_2103_reference": true,
+      "first_four_match_independent_master": true
+    },
+    "persistent_pool_13": {
+      "grains": 13,
+      "exact": true,
+      "spot_files": 13,
+      "elapsed_including_pool_start": 22.163444331999926,
+      "worker_pids": [
+        8
+      ],
+      "memory": {
+        "peak_bytes": {
+          "rss": 1285648384,
+          "pss": 1124917248,
+          "uss": 982822912
+        },
+        "peak_processes": 3,
+        "samples": 207,
+        "sample_interval_seconds": 0.1
+      }
+    },
+    "regression_tests": {
+      "passed": 504,
+      "deselected": 2,
+      "seconds": 38.78,
+      "log": ".local-bench/sven-100hz/final-tests.log",
+      "note": "Two large reference-map tests passed in the earlier separately guarded run."
+    },
+    "defaults_unchanged": true,
+    "live_role_allocation_total_mib": 7936,
+    "complete_science_100hz_achieved": false,
+    "artifacts": ".local-bench/sven-100hz"
+  },
+  "sven_sparse_extraction_followup": {
+    "date": "2026-11-20",
+    "scope": "Same pre-existing threshold-specific support cache and all 2103 real estimates, one fitting process. Includes loading that cache and writing spots; excludes cache preparation and orientation discovery. Not complete raw-input or live throughput.",
+    "before": {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.local-bench/sven-frame-work/foreground.yml",
+      "config_sha256": "b2ccbb17229971373165be62435065d7627e0feef477f555c8bed92f29dc7e40",
+      "grains": "/home/zack/hexrd/.local-bench/reconcile/grains-2103.out",
+      "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+      "grain_count": 2103,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "grain",
+      "address_space_limit_mb": 6144,
+      "direct_fch5_reads": false,
+      "image_cache": {
+        "max_size_mb": 512,
+        "mode": "eager",
+        "read_workers": 4
+      },
+      "setup_seconds": 0.7928090369996426,
+      "seconds": [
+        209.91401445200063
+      ],
+      "parent_process_cpu_seconds": [
+        217.5980949
+      ],
+      "effective_parent_cpu_cores": [
+        1.0366058477232183
+      ],
+      "median_seconds": 209.91401445200063,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": false,
+      "memory": {
+        "peak_bytes": {
+          "rss": 4119449600,
+          "pss": 4111059968,
+          "uss": 4108226560
+        },
+        "peak_processes": 1,
+        "samples": 1865,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      }
+    },
+    "after": {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.local-bench/sven-frame-work/foreground.yml",
+      "config_sha256": "b2ccbb17229971373165be62435065d7627e0feef477f555c8bed92f29dc7e40",
+      "grains": "/home/zack/hexrd/.local-bench/reconcile/grains-2103.out",
+      "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+      "grain_count": 2103,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "grain",
+      "address_space_limit_mb": 6144,
+      "direct_fch5_reads": false,
+      "image_cache": {
+        "max_size_mb": 512,
+        "mode": "eager",
+        "read_workers": 4
+      },
+      "setup_seconds": 0.7527365290006856,
+      "seconds": [
+        149.799070391
+      ],
+      "parent_process_cpu_seconds": [
+        162.7384631
+      ],
+      "effective_parent_cpu_cores": [
+        1.0863783244797587
+      ],
+      "median_seconds": 149.799070391,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": false,
+      "memory": {
+        "peak_bytes": {
+          "rss": 4121452544,
+          "pss": 4112907264,
+          "uss": 4110057472
+        },
+        "peak_processes": 1,
+        "samples": 1329,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      }
+    },
+    "single_pair_speedup": 1.4013038525812667,
+    "cache_preparation_seconds_excluded": 648.5157581150002,
+    "cold_preparation_plus_current_fit_seconds": 798.3148285060001,
+    "parity": {
+      "grains": 2103,
+      "all_grain_fields_bitwise_identical": true,
+      "spot_files_byte_identical": 2103,
+      "grains_out_byte_identical": true,
+      "grains_npz_arrays_bitwise_identical": true,
+      "earlier_complete_original_source_reference_matches": true,
+      "independent_master_raw_grains": 4,
+      "master_raw_fit_and_spot_payloads_exact": true,
+      "master_examples": 18,
+      "thread_experiments": [
+        {
+          "workers": 1,
+          "seconds": [
+            25.158108892999735
+          ],
+          "peak_rss_bytes": 4248666112,
+          "fits_exact": true
+        },
+        {
+          "workers": 4,
+          "seconds": [
+            20.678443991000222
+          ],
+          "peak_rss_bytes": 4298682368,
+          "fits_exact": true
+        },
+        {
+          "workers": 8,
+          "seconds": [
+            25.803479150000385
+          ],
+          "peak_rss_bytes": 4371120128,
+          "fits_exact": true
+        },
+        {
+          "workers": 16,
+          "seconds": [
+            25.26281526899993
+          ],
+          "peak_rss_bytes": 4519780352,
+          "fits_exact": true
+        }
+      ],
+      "active_binary_sha256": "70a6ad5386437378508734d17f997356af38a608e02cada1d215db9b10ec4a8a"
+    },
+    "raw_original_source_four_grain_run": {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.local-bench/sven-100hz/config-8.yml",
+      "config_sha256": "0f8ebf72c93f3a54d8e3319e4274fbbafc021a2c5e86be628f25ca11aaf02bf8",
+      "grains": "/home/zack/hexrd/.local-bench/reconcile/grains-2103.out",
+      "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+      "grain_count": 4,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "grain",
+      "address_space_limit_mb": 3072,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy",
+        "read_workers": 8
+      },
+      "setup_seconds": 0.7877502129995264,
+      "seconds": [
+        11.973384066000108
+      ],
+      "parent_process_cpu_seconds": [
+        25.7925151
+      ],
+      "effective_parent_cpu_cores": [
+        2.154154160413263
+      ],
+      "median_seconds": 11.973384066000108,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 669188096,
+          "pss": 660603904,
+          "uss": 657723392
+        },
+        "peak_processes": 1,
+        "samples": 112,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      }
+    },
+    "tests": {
+      "passed": 762,
+      "deselected": 2,
+      "seconds": 42.4,
+      "log": ".local-bench/sven-frame-work/final-tests.log"
+    },
+    "runtime_lines": {
+      "python_net": -20,
+      "cpp_net": -17,
+      "total_net": -37
+    },
+    "algorithm": "Reuse the existing exact scaled integer moments only for representable nonnegative half counts within sum/moment bounds. Otherwise retain native general labelling and NumPy reductions. Apply panel masks before labelling. Geometry snapshots omit configuration/mask serialization.",
+    "scientific_parameters_changed": false,
+    "native_binary_sha256": "70a6ad5386437378508734d17f997356af38a608e02cada1d215db9b10ec4a8a",
+    "source_sha256": {
+      "hexrd/core/transforms/cpp_sublibrary/src/spot_extraction.hpp": "489eb7b6cf0b703ac58e4b79cbb3f642e0a0e1104ad6fbc335c68445799c27ea",
+      "hexrd/core/instrument/_spotutils.py": "666ec2d503b351b0931a2cf2684f0c75aaecb9be797412c0d8d85288cd662011",
+      "hexrd/hedm/fitting/grains.py": "6dc284779fb7aa9115e0b929f0c28afd8596b591499fc1c3e5861ac46201e617"
+    },
+    "baseline_sources": {
+      "before-grains.py": "23de54a89e11391216c74b2f1409838a0f6033d631deda01ff814e9bbc1622fe",
+      "before-spotutils.py": "4dca37f184036244ce6734ae48c1259e9076af7b9f6111b458fcc54344aa3fbf",
+      "before-transforms.so": "3817a1e459245aad0197817704dbdc6878ceeeddb30e803f095688a9dc7ba205"
+    },
+    "baseline_isolation": "Separate extension package path and frozen fitting functions; current installed binary was not swapped during the paired benchmark.",
+    "memory": "Heavy jobs serialized; fitting processes hard-limited to 6144 MiB, original-source probes 3072 MiB, compiler 4096 MiB. Coordinator limited to 128 MiB. No raw Sven eager load.",
+    "rejected_generic_labeller": {
+      "reason": "Sparse fractional floating-point microbenchmarks slowed by roughly 20\u201330%; retained native labelling instead.",
+      "reference": [
+        {
+          "dtype": "f4",
+          "threshold": 100.0,
+          "seconds": [
+            0.001079077999747824,
+            0.0008689559999766061,
+            0.0008241339992309804,
+            0.0008178400003089337
+          ],
+          "median_seconds": 0.0008465449996037933
+        },
+        {
+          "dtype": "f4",
+          "threshold": 950.0,
+          "seconds": [
+            0.0025448890000916435,
+            0.0022755030004191212,
+            0.0029169760000513634,
+            0.0023016019995338866
+          ],
+          "median_seconds": 0.002423245499812765
+        },
+        {
+          "dtype": "f8",
+          "threshold": 100.0,
+          "seconds": [
+            0.0009891999998217216,
+            0.0010097249996761093,
+            0.0008830090000628843,
+            0.0008843489995342679
+          ],
+          "median_seconds": 0.0009367744996779948
+        },
+        {
+          "dtype": "f8",
+          "threshold": 950.0,
+          "seconds": [
+            0.002410725999652641,
+            0.002270085000418476,
+            0.0022701320003761793,
+            0.002399930999672506
+          ],
+          "median_seconds": 0.0023350315000243427
+        },
+        {
+          "dtype": "u4",
+          "threshold": 100000000.0,
+          "seconds": [
+            0.0002941899992947583,
+            0.00026007299948105356,
+            0.0003240569994886755,
+            0.00027187499927094905
+          ],
+          "median_seconds": 0.0002830324992828537
+        },
+        {
+          "dtype": "u4",
+          "threshold": 950000000.0,
+          "seconds": [
+            0.00013435300024866592,
+            9.792499986360781e-05,
+            9.131600018008612e-05,
+            8.810500003164634e-05
+          ],
+          "median_seconds": 9.462050002184696e-05
+        }
+      ],
+      "rejected": [
+        {
+          "dtype": "f4",
+          "threshold": 100.0,
+          "seconds": [
+            0.10445365900068282,
+            0.0007674629996472504,
+            0.0007903719997557346,
+            0.0007757690000289585
+          ],
+          "median_seconds": 0.0007830704998923466
+        },
+        {
+          "dtype": "f4",
+          "threshold": 950.0,
+          "seconds": [
+            0.003161929000270902,
+            0.002952676999484538,
+            0.0029209280000941362,
+            0.002937655999630806
+          ],
+          "median_seconds": 0.002945166499557672
+        },
+        {
+          "dtype": "f8",
+          "threshold": 100.0,
+          "seconds": [
+            0.0008709180001460481,
+            0.0010059960004582535,
+            0.0007730569996056147,
+            0.0010074729998450493
+          ],
+          "median_seconds": 0.0009384570003021508
+        },
+        {
+          "dtype": "f8",
+          "threshold": 950.0,
+          "seconds": [
+            0.0031163029998424463,
+            0.00300464700012526,
+            0.003466653000032238,
+            0.0030756109999856562
+          ],
+          "median_seconds": 0.0030959569999140513
+        },
+        {
+          "dtype": "u4",
+          "threshold": 100000000.0,
+          "seconds": [
+            0.0002925079998021829,
+            0.000250046000473958,
+            0.00030877500012138626,
+            0.00032105499940371374
+          ],
+          "median_seconds": 0.0003006414999617846
+        },
+        {
+          "dtype": "u4",
+          "threshold": 950000000.0,
+          "seconds": [
+            0.0001470340002924786,
+            0.00010993700016115326,
+            9.275100001104875e-05,
+            8.292299935419578e-05
+          ],
+          "median_seconds": 0.000101344000086101
+        }
+      ],
+      "retained": [
+        {
+          "dtype": "f4",
+          "threshold": 100.0,
+          "seconds": [
+            0.0010792729999593575,
+            0.0008696240001881961,
+            0.0008900530001483276,
+            0.0007936279998830287
+          ],
+          "median_seconds": 0.0008798385001682618
+        },
+        {
+          "dtype": "f4",
+          "threshold": 950.0,
+          "seconds": [
+            0.0022902030004843255,
+            0.0026534270000411198,
+            0.0023357849995591096,
+            0.002369503999943845
+          ],
+          "median_seconds": 0.0023526444997514773
+        },
+        {
+          "dtype": "f8",
+          "threshold": 100.0,
+          "seconds": [
+            0.001033651999932772,
+            0.0011129260001325747,
+            0.0009678019996499643,
+            0.0009327300003860728
+          ],
+          "median_seconds": 0.0010007269997913681
+        },
+        {
+          "dtype": "f8",
+          "threshold": 950.0,
+          "seconds": [
+            0.0023337389993685065,
+            0.0023319820002143388,
+            0.0022905679998075357,
+            0.0022544780003954656
+          ],
+          "median_seconds": 0.0023112750000109372
+        },
+        {
+          "dtype": "u4",
+          "threshold": 100000000.0,
+          "seconds": [
+            0.00027846400007547345,
+            0.0002830160001394688,
+            0.0002494209993528784,
+            0.00024134799969033338
+          ],
+          "median_seconds": 0.00026394249971417594
+        },
+        {
+          "dtype": "u4",
+          "threshold": 950000000.0,
+          "seconds": [
+            0.00011550500039447797,
+            9.831200077314861e-05,
+            8.522799998900155e-05,
+            8.242399962909985e-05
+          ],
+          "median_seconds": 9.177000038107508e-05
+        }
+      ]
+    },
+    "ring_only_sampling_prototype": {
+      "elapsed_seconds": 2.5575121080000827,
+      "frames_per_second": 9.384119795533428,
+      "includes_source_index_setup_and_reads": true,
+      "pixels": 378525,
+      "detector_pixels": 18093576,
+      "frames": 24,
+      "exact": true,
+      "mean_ms": 82.59779858334089,
+      "p95_ms": 31.356893700240104,
+      "timings": [
+        {
+          "frame": 0,
+          "sample_ms": 1337.1932419995574,
+          "total_ms": 1337.6604959994438
+        },
+        {
+          "frame": 156,
+          "sample_ms": 26.933836999887717,
+          "total_ms": 27.428733999840915
+        },
+        {
+          "frame": 312,
+          "sample_ms": 28.683354000349937,
+          "total_ms": 29.196152000622533
+        },
+        {
+          "frame": 469,
+          "sample_ms": 29.867797999941104,
+          "total_ms": 30.337027999848942
+        },
+        {
+          "frame": 625,
+          "sample_ms": 28.48417299992434,
+          "total_ms": 28.946988999450696
+        },
+        {
+          "frame": 782,
+          "sample_ms": 29.420760999528284,
+          "total_ms": 29.944345999865618
+        },
+        {
+          "frame": 938,
+          "sample_ms": 23.625073000403063,
+          "total_ms": 24.11531500001729
+        },
+        {
+          "frame": 1095,
+          "sample_ms": 27.07990399994742,
+          "total_ms": 27.62311599963141
+        },
+        {
+          "frame": 1251,
+          "sample_ms": 29.27528399959556,
+          "total_ms": 29.860212999665237
+        },
+        {
+          "frame": 1408,
+          "sample_ms": 26.487973000257625,
+          "total_ms": 27.092126000752614
+        },
+        {
+          "frame": 1564,
+          "sample_ms": 28.703752999717835,
+          "total_ms": 29.26739099984843
+        },
+        {
+          "frame": 1721,
+          "sample_ms": 26.35138899950107,
+          "total_ms": 26.850976999412524
+        },
+        {
+          "frame": 1877,
+          "sample_ms": 24.652828000398586,
+          "total_ms": 25.204763999681745
+        },
+        {
+          "frame": 2034,
+          "sample_ms": 27.03839199966751,
+          "total_ms": 27.664846000334364
+        },
+        {
+          "frame": 2190,
+          "sample_ms": 29.29935900010605,
+          "total_ms": 29.800862000229245
+        },
+        {
+          "frame": 2347,
+          "sample_ms": 29.115962000105355,
+          "total_ms": 29.63371200075926
+        },
+        {
+          "frame": 2503,
+          "sample_ms": 29.423644999951648,
+          "total_ms": 29.968812999868533
+        },
+        {
+          "frame": 2660,
+          "sample_ms": 25.427568999475625,
+          "total_ms": 25.92069599995739
+        },
+        {
+          "frame": 2816,
+          "sample_ms": 27.784879000137153,
+          "total_ms": 28.466071999901033
+        },
+        {
+          "frame": 2973,
+          "sample_ms": 27.5028519999978,
+          "total_ms": 28.011334000439092
+        },
+        {
+          "frame": 3129,
+          "sample_ms": 31.03236900005868,
+          "total_ms": 31.536870000309136
+        },
+        {
+          "frame": 3286,
+          "sample_ms": 28.846323999459855,
+          "total_ms": 29.42898299988883
+        },
+        {
+          "frame": 3442,
+          "sample_ms": 25.474862999544712,
+          "total_ms": 26.05147600024793
+        },
+        {
+          "frame": 3599,
+          "sample_ms": 21.86559500023577,
+          "total_ms": 22.335855000164884
+        }
+      ]
+    },
+    "ring_prototype_note": "24 evenly spaced original-source frames. Source-index setup, reads and histogram calculation timed; static geometry and prior reference-generation reads excluded. No reference reads interleaved with timed sampling. Prototype only, not integrated.",
+    "complete_science_100hz_achieved": false,
+    "artifacts": ".local-bench/sven-frame-work",
+    "current_core_thread_followup": [
+      {
+        "workers": 4,
+        "seconds": [
+          16.570649381000294
+        ],
+        "profiled": false,
+        "memory": {
+          "peak_bytes": {
+            "rss": 4237664256,
+            "pss": 4229269504,
+            "uss": 4226437120
+          },
+          "peak_processes": 1,
+          "samples": 148,
+          "sample_interval_seconds": 0.1
+        }
+      },
+      {
+        "workers": 16,
+        "seconds": [
+          20.286539196000376
+        ],
+        "profiled": false,
+        "memory": {
+          "peak_bytes": {
+            "rss": 4254408704,
+            "pss": 4247717888,
+            "uss": 4244828160
+          },
+          "peak_processes": 1,
+          "samples": 157,
+          "sample_interval_seconds": 0.1
+        }
+      },
+      {
+        "workers": 1,
+        "seconds": [
+          21.146216752999862
+        ],
+        "profiled": true,
+        "memory": {
+          "peak_bytes": {
+            "rss": 4238778368,
+            "pss": 4230253568,
+            "uss": 4227391488
+          },
+          "peak_processes": 1,
+          "samples": 190,
+          "sample_interval_seconds": 0.1
+        }
+      }
+    ],
+    "current_core_thread_note": "128-grain supplied-estimate diagnostic on the prepared support cache; includes loading. Four and sixteen are unprofiled; the one-thread run is profiled and not a fair speed baseline. Production scheduling unchanged.",
+    "unsigned_coordinate_probe": {
+      "before": {
+        "source": "/home/zack/hexrd",
+        "config": "/home/zack/hexrd/.local-bench/sven-100hz/config-8.yml",
+        "config_sha256": "0f8ebf72c93f3a54d8e3319e4274fbbafc021a2c5e86be628f25ca11aaf02bf8",
+        "grains": "/home/zack/hexrd/.local-bench/reconcile/grains-2103.out",
+        "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+        "grain_count": 128,
+        "study": 0,
+        "workers": 1,
+        "measurement_mode": "grain",
+        "address_space_limit_mb": 3072,
+        "direct_fch5_reads": true,
+        "image_cache": {
+          "max_size_mb": 512.0,
+          "mode": "lazy",
+          "read_workers": 8
+        },
+        "setup_seconds": 0.78063333099999,
+        "seconds": [
+          80.13649720099966
+        ],
+        "parent_process_cpu_seconds": [
+          141.11235739999998
+        ],
+        "effective_parent_cpu_cores": [
+          1.760899993495594
+        ],
+        "median_seconds": 80.13649720099966,
+        "profiled": false,
+        "write_spots": true,
+        "return_spot_data": true,
+        "memory": {
+          "peak_bytes": {
+            "rss": 1058217984,
+            "pss": 1050962944,
+            "uss": 1048170496
+          },
+          "peak_processes": 1,
+          "samples": 755,
+          "sample_interval_seconds": 0.1
+        },
+        "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+        "numpy": "2.3.5",
+        "scipy": "1.17.1",
+        "thread_environment": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "candidate": {
+        "source": "/home/zack/hexrd",
+        "config": "/home/zack/hexrd/.local-bench/sven-100hz/config-8.yml",
+        "config_sha256": "0f8ebf72c93f3a54d8e3319e4274fbbafc021a2c5e86be628f25ca11aaf02bf8",
+        "grains": "/home/zack/hexrd/.local-bench/reconcile/grains-2103.out",
+        "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+        "grain_count": 128,
+        "study": 0,
+        "workers": 1,
+        "measurement_mode": "grain",
+        "address_space_limit_mb": 3072,
+        "direct_fch5_reads": true,
+        "image_cache": {
+          "max_size_mb": 512.0,
+          "mode": "lazy",
+          "read_workers": 8
+        },
+        "setup_seconds": 0.7605036690001725,
+        "seconds": [
+          79.2690723730002
+        ],
+        "parent_process_cpu_seconds": [
+          139.8942008
+        ],
+        "effective_parent_cpu_cores": [
+          1.7648017898043336
+        ],
+        "median_seconds": 79.2690723730002,
+        "profiled": false,
+        "write_spots": true,
+        "return_spot_data": true,
+        "memory": {
+          "peak_bytes": {
+            "rss": 1058689024,
+            "pss": 1051198464,
+            "uss": 1048326144
+          },
+          "peak_processes": 1,
+          "samples": 749,
+          "sample_interval_seconds": 0.1
+        },
+        "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+        "numpy": "2.3.5",
+        "scipy": "1.17.1",
+        "thread_environment": {
+          "OPENBLAS_NUM_THREADS": "1",
+          "OMP_NUM_THREADS": "1",
+          "MKL_NUM_THREADS": "1"
+        }
+      },
+      "accepted": false,
+      "fits_and_spot_payloads_exact": true,
+      "spot_files_byte_identical": 128,
+      "reason": "About 1% timing difference with effectively unchanged peak memory and pixel-cache hit counts; no demonstrated benefit on this original-input sample."
+    },
+    "bounded_original_input_128": {
+      "source": "/home/zack/hexrd",
+      "config": "/home/zack/hexrd/.local-bench/sven-100hz/config-8.yml",
+      "config_sha256": "0f8ebf72c93f3a54d8e3319e4274fbbafc021a2c5e86be628f25ca11aaf02bf8",
+      "grains": "/home/zack/hexrd/.local-bench/reconcile/grains-2103.out",
+      "grains_sha256": "45b5df5c7c66e3028858bec5063a05bb33d6d43c780766e0684c3607e4e5a218",
+      "grain_count": 128,
+      "study": 0,
+      "workers": 1,
+      "measurement_mode": "grain",
+      "address_space_limit_mb": 1792,
+      "direct_fch5_reads": true,
+      "image_cache": {
+        "max_size_mb": 512.0,
+        "mode": "lazy",
+        "read_workers": 8
+      },
+      "setup_seconds": 0.7616157459997339,
+      "seconds": [
+        79.29348046700034
+      ],
+      "parent_process_cpu_seconds": [
+        140.28159879999998
+      ],
+      "effective_parent_cpu_cores": [
+        1.7691441714225313
+      ],
+      "median_seconds": 79.29348046700034,
+      "profiled": false,
+      "write_spots": true,
+      "return_spot_data": true,
+      "memory": {
+        "peak_bytes": {
+          "rss": 1053761536,
+          "pss": 1046700032,
+          "uss": 1043476480
+        },
+        "peak_processes": 1,
+        "samples": 747,
+        "sample_interval_seconds": 0.1
+      },
+      "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:27:36) [GCC 11.2.0]",
+      "numpy": "2.3.5",
+      "scipy": "1.17.1",
+      "thread_environment": {
+        "OPENBLAS_NUM_THREADS": "1",
+        "OMP_NUM_THREADS": "1",
+        "MKL_NUM_THREADS": "1"
+      },
+      "fits_and_spots_exact": true
+    },
+    "larger_workspace_probe": {
+      "workspace_mib": 768,
+      "process_address_limit_mib": 1792,
+      "accepted": false,
+      "allocation_guard_triggered": true,
+      "error": "MemoryError: std::bad_alloc",
+      "log": ".local-bench/sven-frame-work/workspace-768-128.log",
+      "production_workspace_unchanged_mib": 512,
+      "note": "Experiment stopped cleanly at the lower allocation ceiling; no increase to the laptop memory limit."
+    }
+  },
+  "sven_csr_allocation_followup": {
+    "date": "2026-11-21",
+    "change": "Reserve typed CSR destinations, fill once with the existing SIMD scan, then shrink before returning. Under allocation pressure, retry with an exact nonzero count before filling. Remove vector growth and final copies.",
+    "runtime_lines_delta": 16,
+    "scientific_algorithm_changed": false,
+    "paired_conversion": [
+      {
+        "config": "../inconel/fitting_config.yml",
+        "frames": 24,
+        "before_mean_ms": 4.069837833033792,
+        "after_mean_ms": 3.1497055413941175,
+        "before_p95_ms": 5.003706949082697,
+        "after_p95_ms": 3.87775470080669,
+        "speedup": 1.2921327976685741,
+        "scipy_csr_buffers_bitwise_identical": true,
+        "source_reads_excluded": true
+      },
+      {
+        "config": "../sven_dataset/fitting_original.yml",
+        "frames": 24,
+        "before_mean_ms": 82.09604662495924,
+        "after_mean_ms": 37.178789416581516,
+        "before_p95_ms": 104.26061334983387,
+        "after_p95_ms": 48.72916624753998,
+        "speedup": 2.2081420055152443,
+        "scipy_csr_buffers_bitwise_identical": true,
+        "source_reads_excluded": true
+      }
+    ],
+    "threaded_core_probe": {
+      "scope": "Core CSR preparation and exact eta/omega histogram only; immutable reuse of four real Sven images. Source reads, wire decode, persistence, discovery and grain fitting excluded. Validation outside compute timing. Not complete scientific throughput. Measured before the allocation-pressure safeguard; reserve-and-shrink fast-path scope only, not final-binary timing.",
+      "allocation_limit_bytes": 4294967296,
+      "results": [
+        {
+          "workers": 1,
+          "frames": 48,
+          "compute_seconds": 1.4681346409979597,
+          "compute_hz": 32.69454902812739,
+          "mean_latency_ms": 30.350456249986262,
+          "p95_latency_ms": 43.142264299603994,
+          "bitwise": true,
+          "peak_rss_bytes": 1833250816
+        },
+        {
+          "workers": 2,
+          "frames": 48,
+          "compute_seconds": 0.8751624310025363,
+          "compute_hz": 54.8469613178138,
+          "mean_latency_ms": 31.131218229158247,
+          "p95_latency_ms": 42.04056644994125,
+          "bitwise": true,
+          "peak_rss_bytes": 1833250816
+        },
+        {
+          "workers": 4,
+          "frames": 48,
+          "compute_seconds": 0.5645099619978282,
+          "compute_hz": 85.02950033003079,
+          "mean_latency_ms": 35.89557635412651,
+          "p95_latency_ms": 46.81741985059489,
+          "bitwise": true,
+          "peak_rss_bytes": 1833250816
+        },
+        {
+          "workers": 6,
+          "frames": 48,
+          "compute_seconds": 0.4424404870005674,
+          "compute_hz": 108.48916726723168,
+          "mean_latency_ms": 40.215986916791735,
+          "p95_latency_ms": 52.13026134961183,
+          "bitwise": true,
+          "peak_rss_bytes": 1838288896
+        },
+        {
+          "workers": 8,
+          "frames": 48,
+          "compute_seconds": 0.415129615999831,
+          "compute_hz": 115.6265372307707,
+          "mean_latency_ms": 46.833277812690234,
+          "p95_latency_ms": 65.59004415048547,
+          "bitwise": true,
+          "peak_rss_bytes": 1965244416
+        }
+      ]
+    },
+    "regression_tests": {
+      "passed": 765,
+      "deselected": 2,
+      "log": ".local-bench/read-batches/pressure-tests.log"
+    },
+    "allocation_limits": {
+      "serial_bench_mib": 3072,
+      "isolated_thread_probe_mib": 4096,
+      "live_role_limits_unchanged": true
+    },
+    "rejected_experiments": [
+      {
+        "name": "Lossless inverse-geometry compression",
+        "baseline_128_seconds": 79.29348,
+        "candidate_128_seconds": 79.593171634,
+        "live_1792_mib_guard_passed": false,
+        "retained": false
+      },
+      {
+        "name": "Double source-pixel query batch size",
+        "live_1792_mib_guard_passed": false,
+        "retained": false
+      },
+      {
+        "name": "Two-pass exact CSR allocation",
+        "sven_mean_ms": 41.982748833,
+        "inconel_mean_ms": 6.674631834,
+        "retained": false,
+        "reason": "Sparse-input regression"
+      },
+      {
+        "name": "Stored SIMD occupancy masks",
+        "sven_mean_ms": 50.088612583,
+        "inconel_mean_ms": 9.765397458,
+        "retained": false,
+        "reason": "Slower than reserve-and-shrink"
+      }
+    ],
+    "artifacts": ".local-bench/read-batches",
+    "native_binary_sha256": "fc742cda1d5018cbdf9d305afd9e8c74aa31a231e159ee50439fc5144a18caef",
+    "source_sha256": "a4dd99e49b2f035a619d69dec6c162bd57e45235cbb88cb51cda484a09ea55f8",
+    "complete_science_100hz_achieved": false,
+    "master_examples": {
+      "master": "0a041b17",
+      "cases": [
+        {
+          "case": "dexelas-roi",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas-roi",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "ruby-0",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-0",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "zirconium",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 3
+        },
+        {
+          "case": "zirconium",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 3
+        }
+      ]
+    },
+    "live_allocation_regression_found_and_addressed": "Pure worst-case reservation failed receiver 2 GiB allocation limit. Added exact-size fallback; regression test forces this path. Full live replay passed within unchanged guards.",
+    "live_replay": {
+      "wall_seconds": 161.92638286700094,
+      "peak_rss_bytes": 4027719680,
+      "peak_vms_bytes": 5500981248,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "acquisition": {
+        "frames": 1440,
+        "seconds": 9.573123939000652,
+        "frames_per_second": 150.3166582997586
+      },
+      "final": {
+        "frames": 1440,
+        "grains": 1690,
+        "elapsed_seconds": 128.13422910000008,
+        "session_setup_seconds": 1.8070248080002784,
+        "discovery_seconds": 15.741198560001067,
+        "fit_seconds": 110.28828932599936,
+        "archive_wait_seconds": 1.3165001291781664e-05,
+        "session_pid": 81890,
+        "fit_worker_pids": [
+          81940,
+          81943
+        ],
+        "peak_rss_mib": 2075.609375,
+        "complete": true
+      }
+    },
+    "live_parity": {
+      "frames": 1440,
+      "all_pixel_buffers_bitwise": true,
+      "omega_bytes_identical": true,
+      "orientations_trials_scores_fits_bitwise": true,
+      "text_files_byte_identical": 1691,
+      "reference": ".local-bench/priority12/after"
+    }
+  },
+  "shared_sven_fitting_probe": {
+    "date": "2026-11-21",
+    "implementation": "Ignored experimental driver only, no production scheduler or memory-default change.",
+    "readonly_shared_bytes": 3412071240,
+    "private_process_allocation_cap_bytes": 981885579,
+    "aggregate_allocation_ceiling_bytes": 8321499135,
+    "guard_derivation": "One shared MAP_SHARED mapping plus five per-process private allocation ceilings; <=7.75 GiB, including coordinator. Preparation runs alone with a 6 GiB address-space cap.",
+    "results": [
+      {
+        "workers": 4,
+        "grain_count": 128,
+        "shared_bytes": 3412071240,
+        "private_cap_bytes": 981885579,
+        "aggregate_allocation_ceiling_bytes": 8321499135,
+        "prepare_seconds": 22.447639311001694,
+        "fit_seconds": 2.349722324997856,
+        "total_seconds": 24.79736163599955,
+        "threshold_cache_preparation_excluded_seconds": 648.515758115,
+        "peak_parent_rss_bytes": 3955048448,
+        "prototyping_only": true
+      },
+      {
+        "workers": 4,
+        "grain_count": 2103,
+        "shared_bytes": 3412071240,
+        "private_cap_bytes": 981885579,
+        "aggregate_allocation_ceiling_bytes": 8321499135,
+        "prepare_seconds": 21.939571767001325,
+        "fit_seconds": 33.036219066998456,
+        "total_seconds": 54.97579083399978,
+        "threshold_cache_preparation_excluded_seconds": 648.515758115,
+        "peak_parent_rss_bytes": 3953688576,
+        "prototyping_only": true
+      }
+    ],
+    "parity": [
+      {
+        "grains": 128,
+        "all_fields_bitwise": true,
+        "spot_files_byte_identical": 128,
+        "reference": "Prior canonical run, already validated against complete original-input reference and independent master cases"
+      },
+      {
+        "grains": 2103,
+        "all_fields_bitwise": true,
+        "spot_files_byte_identical": 2103,
+        "reference": "Prior canonical run, already validated against complete original-input reference and independent master cases"
+      }
+    ],
+    "source": ".local-bench/invalid-pixels/sven-fit-threshold1000.fch5",
+    "raw_cache_preparation_excluded_seconds": 648.515758115,
+    "orientation_discovery_excluded": true,
+    "complete_science_100hz_achieved": false,
+    "return_spot_data": false,
+    "spot_files_written": true,
+    "failed_experiments": [
+      "Initial diagnostic used radians where metadata requires degrees; corrected and asserted omega bytes before measurements.",
+      "Returning every spot payload exhausted the prototype coordinator allocation cap during serialization; measured CLI-style runs retain all spot files and return fitted grain records only."
+    ],
+    "independent_master_adapter_validation": {
+      "grains": 4,
+      "master_readonly_shared_adapter_matches_original_raw_master": true,
+      "prepared_master": true,
+      "current_native_shared": true,
+      "all_fields_and_spot_files_bitwise": true
+    },
+    "independent_master_full_run": {
+      "workers": 4,
+      "grain_count": 2103,
+      "shared_bytes": 3412071240,
+      "private_cap_bytes": 981885579,
+      "aggregate_allocation_ceiling_bytes": 8321499135,
+      "prepare_seconds": 22.255318211002304,
+      "fit_seconds": 1039.6471249269998,
+      "total_seconds": 1061.9024431380021,
+      "threshold_cache_preparation_excluded_seconds": 648.515758115,
+      "peak_parent_rss_bytes": 3957059584,
+      "prototyping_only": true,
+      "reference_master": "0a041b17",
+      "input_adapter": "Read-only shared canonical CSR support; positive finite source buffers. Master extraction and optimizer unchanged.",
+      "state": "completed"
+    },
+    "independent_master_full_parity": {
+      "master": "0a041b17",
+      "grains": 2103,
+      "all_fields_bitwise": true,
+      "spot_files_byte_identical": 2103,
+      "scientific_extraction_and_optimizer_unchanged_in_reference": true,
+      "reference_input_adapter": "Read-only shared canonical positive finite CSR support; four-grain raw-master equivalence also verified",
+      "support_preparation_excluded_seconds": 648.515758115,
+      "complete_raw_input_100hz_proven": false
+    }
+  },
+  "native_support_index_probe": {
+    "scope": "Isolated native support-index kernel prototype. Source reads, wire decode, persistence and scientific fitting excluded. Original image never modified; full raw archive retention remains an integration requirement.",
+    "frames": 24,
+    "allocation_limit_mib": 3072,
+    "full_csr_mean_ms": 36.98668616652867,
+    "support_mean_ms": 9.330677541432427,
+    "support_p95_ms": 10.953824350326613,
+    "support_buffers_bitwise_equal_scipy": true,
+    "maps_bitwise_identical": true,
+    "small_special_values_exact": true,
+    "complete_science_100hz_proven": false,
+    "timings": [
+      {
+        "frame": 0,
+        "full_csr_ms": 26.63149599902681,
+        "support_csr_ms": 11.397186997783137,
+        "original_nonzero": 2208632,
+        "retained_nonzero": 60138
+      },
+      {
+        "frame": 156,
+        "full_csr_ms": 42.10264499852201,
+        "support_csr_ms": 7.949626000481658,
+        "original_nonzero": 4633730,
+        "retained_nonzero": 68644
+      },
+      {
+        "frame": 312,
+        "full_csr_ms": 35.111150002194336,
+        "support_csr_ms": 8.499919000314549,
+        "original_nonzero": 9239922,
+        "retained_nonzero": 80689
+      },
+      {
+        "frame": 469,
+        "full_csr_ms": 39.101389000279596,
+        "support_csr_ms": 9.04145700042136,
+        "original_nonzero": 11004935,
+        "retained_nonzero": 93648
+      },
+      {
+        "frame": 625,
+        "full_csr_ms": 38.752147997001885,
+        "support_csr_ms": 9.93748699693242,
+        "original_nonzero": 8509898,
+        "retained_nonzero": 84530
+      },
+      {
+        "frame": 782,
+        "full_csr_ms": 46.145809999870835,
+        "support_csr_ms": 8.122623999952339,
+        "original_nonzero": 9459010,
+        "retained_nonzero": 79044
+      },
+      {
+        "frame": 938,
+        "full_csr_ms": 35.30880399921443,
+        "support_csr_ms": 8.360209998500068,
+        "original_nonzero": 3234184,
+        "retained_nonzero": 62507
+      },
+      {
+        "frame": 1095,
+        "full_csr_ms": 26.754129001346882,
+        "support_csr_ms": 8.93219900171971,
+        "original_nonzero": 9113974,
+        "retained_nonzero": 77512
+      },
+      {
+        "frame": 1251,
+        "full_csr_ms": 27.84937400065246,
+        "support_csr_ms": 8.4307360011735,
+        "original_nonzero": 10815277,
+        "retained_nonzero": 87579
+      },
+      {
+        "frame": 1408,
+        "full_csr_ms": 35.67315400141524,
+        "support_csr_ms": 10.732101000030525,
+        "original_nonzero": 9406245,
+        "retained_nonzero": 83936
+      },
+      {
+        "frame": 1564,
+        "full_csr_ms": 45.00483899755636,
+        "support_csr_ms": 8.595766998041654,
+        "original_nonzero": 9114970,
+        "retained_nonzero": 81314
+      },
+      {
+        "frame": 1721,
+        "full_csr_ms": 38.40020500138053,
+        "support_csr_ms": 9.635630001866957,
+        "original_nonzero": 7780928,
+        "retained_nonzero": 70995
+      },
+      {
+        "frame": 1877,
+        "full_csr_ms": 32.929337001405656,
+        "support_csr_ms": 8.001792997674784,
+        "original_nonzero": 5181822,
+        "retained_nonzero": 65110
+      },
+      {
+        "frame": 2034,
+        "full_csr_ms": 26.30525900167413,
+        "support_csr_ms": 9.895802999380976,
+        "original_nonzero": 9719290,
+        "retained_nonzero": 81494
+      },
+      {
+        "frame": 2190,
+        "full_csr_ms": 31.646789000660647,
+        "support_csr_ms": 9.703567000542535,
+        "original_nonzero": 10051707,
+        "retained_nonzero": 85847
+      },
+      {
+        "frame": 2347,
+        "full_csr_ms": 43.97568899730686,
+        "support_csr_ms": 9.988050001993543,
+        "original_nonzero": 10002700,
+        "retained_nonzero": 85066
+      },
+      {
+        "frame": 2503,
+        "full_csr_ms": 48.498902997380355,
+        "support_csr_ms": 10.21035800295067,
+        "original_nonzero": 10764232,
+        "retained_nonzero": 84733
+      },
+      {
+        "frame": 2660,
+        "full_csr_ms": 42.55561299942201,
+        "support_csr_ms": 8.448319000308402,
+        "original_nonzero": 4723311,
+        "retained_nonzero": 67625
+      },
+      {
+        "frame": 2816,
+        "full_csr_ms": 53.546785999060376,
+        "support_csr_ms": 10.992952000378864,
+        "original_nonzero": 7622242,
+        "retained_nonzero": 73978
+      },
+      {
+        "frame": 2973,
+        "full_csr_ms": 39.840309000283014,
+        "support_csr_ms": 10.25980199847254,
+        "original_nonzero": 7448082,
+        "retained_nonzero": 74875
+      },
+      {
+        "frame": 3129,
+        "full_csr_ms": 36.468442001933,
+        "support_csr_ms": 9.956826997949975,
+        "original_nonzero": 9286253,
+        "retained_nonzero": 85325
+      },
+      {
+        "frame": 3286,
+        "full_csr_ms": 36.940721998689696,
+        "support_csr_ms": 8.810842999082524,
+        "original_nonzero": 9459972,
+        "retained_nonzero": 82923
+      },
+      {
+        "frame": 3442,
+        "full_csr_ms": 37.36445700269542,
+        "support_csr_ms": 9.049798998603364,
+        "original_nonzero": 5517566,
+        "retained_nonzero": 73087
+      },
+      {
+        "frame": 3599,
+        "full_csr_ms": 20.773018997715553,
+        "support_csr_ms": 8.983204999822192,
+        "original_nonzero": 1589936,
+        "retained_nonzero": 59327
+      }
+    ]
+  },
+  "packed_support_probe": {
+    "state": "isolated_native_feature_and_prototype",
+    "description": "Exact per-frame float64->float32 storage only when roundtrip bytes match; otherwise retain float64. uint16 column indices. All computation remains float64.",
+    "native_runtime_lines_added": 8,
+    "regression_tests_passed": 793,
+    "regression_log": ".local-bench/packed-support/tests.log",
+    "benchmark": {
+      "workers": 6,
+      "grain_count": 2103,
+      "shared_bytes": 1898205184,
+      "private_cap_bytes": 917613421,
+      "aggregate_allocation_ceiling_bytes": 8321499131,
+      "prepare_seconds": 21.570047487999545,
+      "fit_seconds": 22.478646075000142,
+      "total_seconds": 44.04869356299969,
+      "threshold_cache_preparation_excluded_seconds": 648.515758115,
+      "peak_parent_rss_bytes": 2441912320,
+      "prototyping_only": true,
+      "single_frames": 3098,
+      "wide_frames": 502,
+      "lossless_value_roundtrip_checked_on_every_frame": true,
+      "full_pixel_archive_not_changed": true
+    },
+    "parity": {
+      "master": "0a041b17",
+      "grains": 2103,
+      "all_fields_bitwise": true,
+      "spot_files_byte_identical": 2103,
+      "logical_dtype": "f8",
+      "per_frame_value_roundtrip_verified": true,
+      "original_source_unmodified": true
+    },
+    "process_launch_environment": {
+      "MALLOC_ARENA_MAX": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "full_science_100hz_proven": false,
+    "production_default_changed": false,
+    "full_raw_pixel_archive_unchanged": true,
+    "source": ".local-bench/packed-support/probe.py",
+    "failed_initial_probe": "Without MALLOC_ARENA_MAX at process launch, pool result-handler allocation failed under the private address-space limit. Workers completed 128 spot files but no result parity was claimed until a successful bounded rerun."
+  },
+  "sven_stream_storage_followup": {
+    "state": "experimental_full_science_100hz_not_proven",
+    "decoder_wire_support": {
+      "borrowed_zmq_buffers": true,
+      "explicit_half_count_scale": true,
+      "raw_archive_kept": true,
+      "compact_support_min_threshold_guard": true,
+      "compact_support_sha256_per_frame": true,
+      "native_bank_mapping": "Opt-in eager access; lazy reads retain bounded per-frame loading."
+    },
+    "short_real_sven_prefix_no_fit_index": {
+      "scope": "24 real Sven frames over localhost ZeroMQ; checksum, bitshuffle decode, scaled maps, lossless compressed archive and ordered commit. Full 3600-frame map capacity. Discovery, fitting, fixture preparation, receiver geometry setup, parity checks and durable disk sync excluded. Finite prefix remains incomplete, not full science 100 Hz.",
+      "frames": 24,
+      "workers": 8,
+      "seconds": 0.19466547000047285,
+      "hz": 123.2884291186398,
+      "maps_bitwise": true,
+      "all_restored_pixels_bitwise": true,
+      "receiver_address_space_limit_mib": 2048,
+      "geometry_setup_limit_mib": 3072,
+      "publisher_address_space_limit_mib": 768,
+      "driver_address_space_limit_mib": 128,
+      "aggregate_guard_bound_mib": 3968,
+      "complete_science_100hz_proven": false,
+      "peak_receiver_rss_bytes": 1833172992
+    },
+    "short_real_sven_prefix_with_fit_index": {
+      "scope": "24 real Sven frames over localhost ZeroMQ; checksum, bitshuffle decode, scaled maps, lossless compressed archive, compact fit index and ordered commit. Full 3600-frame map capacity. Discovery, fitting, fixture preparation, receiver geometry setup, parity checks and durable disk sync excluded. Finite prefix remains incomplete, not full science 100 Hz.",
+      "frames": 24,
+      "workers": 8,
+      "seconds": 0.2576804700001958,
+      "hz": 93.13860689551585,
+      "maps_bitwise": true,
+      "all_restored_pixels_bitwise": true,
+      "fit_support_bitwise": true,
+      "fit_support_bytes": 13194732,
+      "receiver_address_space_limit_mib": 2048,
+      "geometry_setup_limit_mib": 3072,
+      "publisher_address_space_limit_mib": 768,
+      "driver_address_space_limit_mib": 128,
+      "aggregate_guard_bound_mib": 3968,
+      "complete_science_100hz_proven": false,
+      "peak_receiver_rss_bytes": 1834459136
+    },
+    "longer_raw_copy_attempt": {
+      "frames": 600,
+      "seconds": 11.07008792799752,
+      "hz": 54.20011149889165,
+      "includes_original_source_archive_reads": true,
+      "raw_archive_written_again": true,
+      "full_map_capacity": 3600,
+      "parity_validation_complete": false,
+      "reason": "Validation initially stopped against stale legacy saved maps. All 600 map rows now independently match fresh master bitwise; raw/support verification was not completed because snapshot metadata was not saved before the original assertion.",
+      "fresh_master_map_parity": {
+        "master": "0a041b17",
+        "source": "fresh full raw-input master map build",
+        "frames": 600,
+        "maps_bitwise": true,
+        "rings": [
+          {
+            "ring": 0,
+            "bitwise": true,
+            "nan_mask_mismatch": 0,
+            "finite_mismatch": 0
+          },
+          {
+            "ring": 1,
+            "bitwise": true,
+            "nan_mask_mismatch": 0,
+            "finite_mismatch": 0
+          },
+          {
+            "ring": 2,
+            "bitwise": true,
+            "nan_mask_mismatch": 0,
+            "finite_mismatch": 0
+          },
+          {
+            "ring": 3,
+            "bitwise": true,
+            "nan_mask_mismatch": 0,
+            "finite_mismatch": 0
+          },
+          {
+            "ring": 4,
+            "bitwise": true,
+            "nan_mask_mismatch": 0,
+            "finite_mismatch": 0
+          }
+        ]
+      }
+    },
+    "legacy_map_difference": [
+      {
+        "ring": 0,
+        "nan_mask_mismatch": 217800,
+        "finite_mismatch": 0,
+        "max_finite_difference": 0.0,
+        "actual_nan_bits": [
+          "0x7ff8000000000000"
+        ],
+        "archived_nan_bits": [
+          "0x7ff8000000000000"
+        ],
+        "finite_bits_identical": true
+      },
+      {
+        "ring": 1,
+        "nan_mask_mismatch": 106800,
+        "finite_mismatch": 0,
+        "max_finite_difference": 0.0,
+        "actual_nan_bits": [
+          "0x7ff8000000000000"
+        ],
+        "archived_nan_bits": [],
+        "finite_bits_identical": true
+      },
+      {
+        "ring": 2,
+        "nan_mask_mismatch": 96600,
+        "finite_mismatch": 0,
+        "max_finite_difference": 0.0,
+        "actual_nan_bits": [
+          "0x7ff8000000000000"
+        ],
+        "archived_nan_bits": [],
+        "finite_bits_identical": true
+      },
+      {
+        "ring": 3,
+        "nan_mask_mismatch": 91800,
+        "finite_mismatch": 0,
+        "max_finite_difference": 0.0,
+        "actual_nan_bits": [
+          "0x7ff8000000000000"
+        ],
+        "archived_nan_bits": [],
+        "finite_bits_identical": true
+      },
+      {
+        "ring": 4,
+        "nan_mask_mismatch": 195000,
+        "finite_mismatch": 0,
+        "max_finite_difference": 0.0,
+        "actual_nan_bits": [
+          "0x7ff8000000000000"
+        ],
+        "archived_nan_bits": [],
+        "finite_bits_identical": true
+      }
+    ],
+    "coverage_changes_can_affect_scoring": true,
+    "inconel_wire_only": {
+      "wall_seconds": 263.76864192400535,
+      "peak_rss_bytes": 3695869952,
+      "peak_vms_bytes": 5492273152,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "acquisition": {
+        "frames": 1440,
+        "seconds": 15.1947907710055,
+        "frames_per_second": 94.70350870154006
+      },
+      "final": {
+        "frames": 1440,
+        "grains": 1690,
+        "elapsed_seconds": 225.00133829400147,
+        "session_setup_seconds": 1.9570753850057372,
+        "discovery_seconds": 13.247646732001158,
+        "fit_seconds": 209.74141860000236,
+        "archive_wait_seconds": 1.3402997865341604e-05,
+        "session_pid": 188773,
+        "fit_worker_pids": [
+          188816,
+          188819
+        ],
+        "peak_rss_mib": 2078.08203125,
+        "complete": true
+      }
+    },
+    "inconel_wire_only_parity": {
+      "frames": 1440,
+      "all_pixel_buffers_bitwise": true,
+      "omega_bytes_identical": true,
+      "orientations_trials_scores_fits_bitwise": true,
+      "text_files_byte_identical": 1691,
+      "reference": ".local-bench/priority12/after"
+    },
+    "inconel_wire_plus_support": {
+      "wall_seconds": 154.7518115109997,
+      "peak_rss_bytes": 3780378624,
+      "peak_vms_bytes": 5511725056,
+      "exit_codes": [
+        0,
+        0
+      ],
+      "acquisition": {
+        "frames": 1440,
+        "seconds": 10.59370687599585,
+        "frames_per_second": 135.8353612049256
+      },
+      "final": {
+        "frames": 1440,
+        "grains": 1690,
+        "elapsed_seconds": 120.83379746699939,
+        "session_setup_seconds": 1.8285480970007484,
+        "discovery_seconds": 12.959490290006215,
+        "fit_seconds": 105.79944813499606,
+        "archive_wait_seconds": 1.1326999810989946e-05,
+        "session_pid": 191646,
+        "fit_worker_pids": [
+          191683,
+          191686
+        ],
+        "peak_rss_mib": 2077.17578125,
+        "complete": true
+      }
+    },
+    "inconel_wire_plus_support_parity": {
+      "frames": 1440,
+      "all_pixel_buffers_bitwise": true,
+      "omega_bytes_identical": true,
+      "orientations_trials_scores_fits_bitwise": true,
+      "text_files_byte_identical": 1691,
+      "reference": ".local-bench/priority12/after"
+    },
+    "regression": {
+      "passed": 884,
+      "log": ".local-bench/wire-spool/full-regression.log",
+      "scope": "Before subsequent native single-pass/growth, replay generator, native-bank hook and scalar-threshold metadata refinements; these require a fresh full run."
+    },
+    "focused_latest": {
+      "passed": 187,
+      "deselected": 1,
+      "log": ".local-bench/wire-spool/single-support-tests.log",
+      "scope": "Before native-bank protocol hook; allocation-guard test excluded because this focused process had a lower hard ceiling. Normal full-test harness exercises it."
+    },
+    "aggregate_memory_guard_probe": {
+      "user_systemd_memory_scope_effective": false,
+      "dummy_allocation_succeeded_despite_64m_property": true,
+      "system_level_scope_available": false,
+      "reason": "Passwordless sudo unavailable; no host configuration changed. Existing address-space guards remain authoritative."
+    },
+    "master_raw_maps_reference": {
+      "state": "complete",
+      "master": "0a041b17",
+      "frames": 3600,
+      "seconds": 715.9969124530035,
+      "workers": 1,
+      "address_space_limit_mib": 4608,
+      "peak_rss_bytes": 2350620672,
+      "map_algorithm_unchanged": true,
+      "original_raw_source": true,
+      "algorithm_file": "/home/zack/hexrd/.local-bench/master-merge/master/hexrd/hedm/find_orientations.py",
+      "native_binary": "/home/zack/hexrd/.local-bench/master-merge/master/hexrd/core/extensions/transforms.cpython-312-x86_64-linux-gnu.so"
+    },
+    "full_detector_fixture": {
+      "state": "complete",
+      "frames": 3600,
+      "total": 3600,
+      "bytes": 53148714562,
+      "seconds": 713.4549713450033,
+      "resumed": 1589,
+      "all_new_frames_restored_bitwise": true,
+      "publisher_fixture_only": true,
+      "complete": true,
+      "workers": 2,
+      "allocation_limit_mib": 3072,
+      "peak_rss_bytes": 1812910080,
+      "scientific_features_precomputed": false,
+      "source_untouched": true,
+      "encoder": "Bitshuffle C API; three payloads independently match HDF5 encoding byte-for-byte"
+    },
+    "concurrent_background_guard_total_mib": null,
+    "production_default_changed": false,
+    "complete_science_100hz_proven": false,
+    "fresh_master_discovery": {
+      "master": "0a041b17",
+      "raw_source_maps": true,
+      "trials": 79828799,
+      "grains": 15559,
+      "workers": 8,
+      "score_seconds": 13.541463469999144,
+      "cluster_and_score_save_seconds": 211.58593907799514,
+      "address_space_limit_mib": 6144,
+      "peak_rss_bytes": 5263966208,
+      "static_grid_generated_without_images": true,
+      "legacy_map_archive_not_used": true
+    },
+    "fresh_branch_discovery": {
+      "master": "0a041b17",
+      "raw_source_maps": true,
+      "all_scores_bitwise_master": true,
+      "all_orientations_bitwise_master": true,
+      "grains_out_byte_identical_master": true,
+      "trials": 79828799,
+      "grains": 15559,
+      "workers": 8,
+      "score_seconds": 13.424721704002877,
+      "cluster_and_score_save_seconds": 13.667495724999753,
+      "address_space_limit_mib": 6144,
+      "peak_rss_bytes": 5332951040,
+      "static_grid_generated_without_images": true,
+      "legacy_map_archive_not_used": true
+    },
+    "fresh_discovery_scope": "Unmodified master freshly built all maps from original FCH5. Both versions score the same image-independent static grid on those fresh maps. Full fitting, archive publication and map building are excluded from discovery timings.",
+    "fresh_discovery_grain_count": 15559,
+    "legacy_initial_grain_count": 2103,
+    "legacy_initial_grain_scope": "Exact supplied-initial-grain fit diagnostics only. Legacy zero-filled detector gaps change scores; fresh master uses NaN coverage. Do not treat the 2103-grain result as current-master full raw-input discovery.",
+    "native_centroid_merging": {
+      "premerge_grains": 15582,
+      "scope": "Full duplicate merge only, same premerge inputs as fresh master. Runs isolated and sequential, 4096 MiB AS limit each.",
+      "results": [
+        {
+          "mode": "before",
+          "workers": 1,
+          "seconds": 11.4794799529991,
+          "grains": 15559,
+          "orientations_bitwise_master": true
+        },
+        {
+          "mode": "cached",
+          "workers": 1,
+          "seconds": 7.041378867004823,
+          "grains": 15559,
+          "orientations_bitwise_master": true
+        },
+        {
+          "mode": "cached",
+          "workers": 8,
+          "seconds": 2.6402006089992938,
+          "grains": 15559,
+          "orientations_bitwise_master": true
+        },
+        {
+          "mode": "cached",
+          "workers": 16,
+          "seconds": 2.6703043979941867,
+          "grains": 15559,
+          "orientations_bitwise_master": true
+        }
+      ]
+    },
+    "longer_existing_archive_probe": {
+      "scope": "Sustained real Sven prefix over ZeroMQ, source archive reads, verification of existing raw archive and support persistence included; raw bytes are retained in the supplied archive and not written twice. Geometry, fixture preparation, parity checks, scientific discovery/fitting and durable disk sync excluded. Incomplete prefix is never finalized.",
+      "frames": 600,
+      "workers": 8,
+      "seconds": 5.972582094000245,
+      "hz": 100.45906285703963,
+      "full_map_capacity": 3600,
+      "all_pixels_sha256_equal_original": true,
+      "all_support_arrays_independently_verified": true,
+      "raw_maps_equal_fresh_master_bitwise": true,
+      "raw_archive_reused": true,
+      "support_bytes": 321320876,
+      "receiver_address_space_limit_mib": 2048,
+      "aggregate_guard_bound_mib": 3968,
+      "peak_receiver_rss_bytes": 1835687936,
+      "complete_science_100hz_proven": false
+    },
+    "latest_regression": {
+      "passed": 915,
+      "deselected": 2,
+      "warnings": 6,
+      "seconds": 41.13,
+      "log": ".local-bench/wire-spool/full-regression-grid-final.log",
+      "scope": "Before the subsequent SIMD projection experiment, including fused scalar projection, stable grouping and explicit reflection-patch boundary tests."
+    },
+    "latest_example_comparisons": {
+      "master": "0a041b17",
+      "cases": [
+        {
+          "case": "dexelas-roi",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas-roi",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "ruby-0",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-0",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "zirconium",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 3
+        },
+        {
+          "case": "zirconium",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 3
+        }
+      ]
+    },
+    "full_scan_existing_archive_capture": {
+      "scope": "Sustained real Sven prefix over ZeroMQ, source archive reads, verification of existing raw archive and support persistence included; raw bytes are retained in the supplied archive and not written twice. Geometry, fixture preparation, parity checks, scientific discovery/fitting and durable disk sync excluded. Prefixes are never finalized; a full 3600-frame capture is finalized only after the series-end message.",
+      "frames": 3600,
+      "workers": 8,
+      "seconds": 32.30587205300253,
+      "hz": 111.4348498035797,
+      "full_map_capacity": 3600,
+      "all_pixels_sha256_equal_original": true,
+      "all_support_arrays_independently_verified": true,
+      "raw_maps_equal_fresh_master_bitwise": true,
+      "raw_archive_reused": true,
+      "support_bytes": 1898204396,
+      "receiver_address_space_limit_mib": 2048,
+      "aggregate_guard_bound_mib": 3968,
+      "peak_receiver_rss_bytes": 1830723584,
+      "complete_science_100hz_proven": false
+    },
+    "fresh_branch_discovery_grouped": {
+      "master": "0a041b17",
+      "raw_source_maps": true,
+      "all_scores_bitwise_master": true,
+      "all_orientations_bitwise_master": true,
+      "grains_out_byte_identical_master": true,
+      "trials": 79828799,
+      "grains": 15559,
+      "workers": 8,
+      "score_seconds": 13.928654812996683,
+      "cluster_and_score_save_seconds": 6.484798952005804,
+      "address_space_limit_mib": 5632,
+      "peak_rss_bytes": 5334634496,
+      "static_grid_generated_without_images": true,
+      "legacy_map_archive_not_used": true
+    },
+    "cluster_grouping": "Stable grouping visits each candidate once rather than rescanning all labels for every cluster; both centroid passes use the same helper. Member order and arithmetic are unchanged. All fresh scores, orientations and initial text match master exactly."
+  },
+  "static_grid_discovery_probe": {
+    "grid": {
+      "pg": 32,
+      "N": 621,
+      "spacing": 0.25,
+      "trials": 79828799,
+      "seconds": 148.9613543939995,
+      "source": "Unchanged deterministic _sample_slab, using material point group and configured spacing; image sources removed before material setup.",
+      "independent_of_image_content": true,
+      "archive_used_only_for_validation": true,
+      "reference_quaternions_bitwise": true,
+      "first_mismatch": null,
+      "data_sha256": "6021acfce0baa495022b35aed6a2b5e52e5eeaa78eaa283504b3af677b7e4871",
+      "file_bytes": 2554521696,
+      "address_space_limit_mib": 6144,
+      "numba_threads": 8,
+      "peak_rss_bytes": 1112903680
+    },
+    "discovery_on_legacy_maps": {
+      "scope": "Saved-map discovery diagnostic; static grid generation, raw map acquisition and image processing excluded.",
+      "trials": 79828799,
+      "grains": 2103,
+      "workers": 14,
+      "setup_seconds": 1.3154340549990593,
+      "score_seconds": 11.830074662000698,
+      "cluster_seconds": 2.2062429830002657,
+      "discovery_seconds": 15.351751700000023,
+      "archived_score_mismatches": 0,
+      "archived_quaternions_bitwise": true,
+      "address_space_limit_mib": 4608,
+      "peak_cluster_process_rss_bytes": 2071244800,
+      "canonical_grains_file": "/home/zack/hexrd/.local-bench/static-grid/static/grains.out",
+      "complete_science_100hz_proven": false
+    },
+    "scope": "Static grid is image-independent and exact. The legacy saved maps have zero-filled gaps where current master represents missing coverage as NaN. Archived scores/2103 canonical rows are only a saved-map diagnostic, not proof of fresh current-master full-raw discovery.",
+    "current_raw_master_discovery_parity": "All scores, orientations and initial grains byte-exact against fresh raw master; all 15559 final grain fits not yet validated.",
+    "supplied_initial_2103_grain_fit_parity": "independently_proven_against_master_with_same_initial_rows"
+  },
+  "current_acceptance": {
+    "complete_scientific_live_update_deadline_ms": 10,
+    "final_canonical_processing_tail_allowed": true,
+    "goal_met": false,
+    "capture_throughput_not_live_scientific_latency": true,
+    "frame_latency_lower_bound": {
+      "scope": "Arrival of an already available multipart image through verified decode/maps/support/archive commit only; no orientation discovery, live fit or final fit. This is a lower bound, not end-to-end 100 Hz.",
+      "frames": 24,
+      "address_space_limit_mib": 2048,
+      "geometry_setup_limit_mib": 3072,
+      "whole_science_deadline_met": false,
+      "per_frame": [
+        {
+          "frame": 0,
+          "seconds": 0.04768192600749899,
+          "md5": 0.010744358994998038,
+          "decode_including_md5": 0.03363578599237371,
+          "histogram": 0.0007753880054224283,
+          "archive_crc": 0.001706589013338089,
+          "filter_csr": 0.006767102997400798
+        },
+        {
+          "frame": 1,
+          "seconds": 0.04418428200006019,
+          "md5": 0.011180546003743075,
+          "decode_including_md5": 0.03466283199668396,
+          "histogram": 0.0006581740017281845,
+          "archive_crc": 0.0015071680099936202,
+          "filter_csr": 0.005511871990165673
+        },
+        {
+          "frame": 2,
+          "seconds": 0.044642998997005634,
+          "md5": 0.010279046997311525,
+          "decode_including_md5": 0.033917377004399896,
+          "histogram": 0.0006274900079006329,
+          "archive_crc": 0.001536823998321779,
+          "filter_csr": 0.006807129000662826
+        },
+        {
+          "frame": 3,
+          "seconds": 0.04385429200192448,
+          "md5": 0.010252635009237565,
+          "decode_including_md5": 0.0343291580065852,
+          "histogram": 0.0007967889978317544,
+          "archive_crc": 0.0016117919731186703,
+          "filter_csr": 0.005674141997587867
+        },
+        {
+          "frame": 4,
+          "seconds": 0.04287747200578451,
+          "md5": 0.010433866002131253,
+          "decode_including_md5": 0.03385239699855447,
+          "histogram": 0.0006643669912591577,
+          "archive_crc": 0.001420722997863777,
+          "filter_csr": 0.005575873990892433
+        },
+        {
+          "frame": 5,
+          "seconds": 0.0454385039920453,
+          "md5": 0.01038972799142357,
+          "decode_including_md5": 0.03498859600222204,
+          "histogram": 0.0007365290075540543,
+          "archive_crc": 0.0016752299998188391,
+          "filter_csr": 0.006258558001718484
+        },
+        {
+          "frame": 6,
+          "seconds": 0.04284470999846235,
+          "md5": 0.009798660001251847,
+          "decode_including_md5": 0.03294911200646311,
+          "histogram": 0.0006577409949386492,
+          "archive_crc": 0.0013838769955327734,
+          "filter_csr": 0.006328691990347579
+        },
+        {
+          "frame": 7,
+          "seconds": 0.04282698599854484,
+          "md5": 0.009847947003436275,
+          "decode_including_md5": 0.03376625700911973,
+          "histogram": 0.0006388189940480515,
+          "archive_crc": 0.0014050780155230314,
+          "filter_csr": 0.005655986999045126
+        },
+        {
+          "frame": 8,
+          "seconds": 0.042040219996124506,
+          "md5": 0.009959388989955187,
+          "decode_including_md5": 0.033147554990136996,
+          "histogram": 0.0006207450060173869,
+          "archive_crc": 0.0013489630073308945,
+          "filter_csr": 0.0056149519950849935
+        },
+        {
+          "frame": 9,
+          "seconds": 0.04243279300862923,
+          "md5": 0.009413827996468171,
+          "decode_including_md5": 0.03340333500818815,
+          "histogram": 0.0007165150018408895,
+          "archive_crc": 0.0013696760142920539,
+          "filter_csr": 0.005485460002091713
+        },
+        {
+          "frame": 10,
+          "seconds": 0.04184815299231559,
+          "md5": 0.009412594998138957,
+          "decode_including_md5": 0.032628273009322584,
+          "histogram": 0.0007153500046115369,
+          "archive_crc": 0.0013606319989776239,
+          "filter_csr": 0.00557802600087598
+        },
+        {
+          "frame": 11,
+          "seconds": 0.042446997002116404,
+          "md5": 0.009400712006026879,
+          "decode_including_md5": 0.03351015000953339,
+          "histogram": 0.0006282289978116751,
+          "archive_crc": 0.0013622080005006865,
+          "filter_csr": 0.005479158993694
+        },
+        {
+          "frame": 12,
+          "seconds": 0.045923634999780916,
+          "md5": 0.009811882002395578,
+          "decode_including_md5": 0.03385175300354604,
+          "histogram": 0.0007314420072361827,
+          "archive_crc": 0.0013500969798769802,
+          "filter_csr": 0.008136702002957463
+        },
+        {
+          "frame": 13,
+          "seconds": 0.045197946004918776,
+          "md5": 0.009150165991741233,
+          "decode_including_md5": 0.03406827899743803,
+          "histogram": 0.0008278899913420901,
+          "archive_crc": 0.0015699600044172257,
+          "filter_csr": 0.006843634007964283
+        },
+        {
+          "frame": 14,
+          "seconds": 0.04221177799627185,
+          "md5": 0.009148696000920609,
+          "decode_including_md5": 0.032857471000170335,
+          "histogram": 0.0006520850001834333,
+          "archive_crc": 0.0013436650042422116,
+          "filter_csr": 0.005945722994511016
+        },
+        {
+          "frame": 15,
+          "seconds": 0.04227604599145707,
+          "md5": 0.00904545201046858,
+          "decode_including_md5": 0.03335712300031446,
+          "histogram": 0.0006404760060831904,
+          "archive_crc": 0.001363335017231293,
+          "filter_csr": 0.005438466992927715
+        },
+        {
+          "frame": 16,
+          "seconds": 0.04330318799475208,
+          "md5": 0.009899570999550633,
+          "decode_including_md5": 0.033604416996240616,
+          "histogram": 0.0008303270005853847,
+          "archive_crc": 0.0012465319887269288,
+          "filter_csr": 0.0063313190039480105
+        },
+        {
+          "frame": 17,
+          "seconds": 0.041414110994082876,
+          "md5": 0.008907676005037501,
+          "decode_including_md5": 0.03213978200801648,
+          "histogram": 0.0006208330014487728,
+          "archive_crc": 0.0012640180066227913,
+          "filter_csr": 0.005491178992087953
+        },
+        {
+          "frame": 18,
+          "seconds": 0.041985980002209544,
+          "md5": 0.008685081993462518,
+          "decode_including_md5": 0.0329358669987414,
+          "histogram": 0.000785123003879562,
+          "archive_crc": 0.0012481669837143272,
+          "filter_csr": 0.005565025989199057
+        },
+        {
+          "frame": 19,
+          "seconds": 0.04298386500158813,
+          "md5": 0.008965715998783708,
+          "decode_including_md5": 0.03257404100440908,
+          "histogram": 0.0007443479989888147,
+          "archive_crc": 0.0012099080049665645,
+          "filter_csr": 0.007048444007523358
+        },
+        {
+          "frame": 20,
+          "seconds": 0.04374679799366277,
+          "md5": 0.008677361998707056,
+          "decode_including_md5": 0.032771284008049406,
+          "histogram": 0.0008730559929972515,
+          "archive_crc": 0.0014356599713210016,
+          "filter_csr": 0.006747829000232741
+        },
+        {
+          "frame": 21,
+          "seconds": 0.04192885500378907,
+          "md5": 0.008715367992408574,
+          "decode_including_md5": 0.03253125298942905,
+          "histogram": 0.0008928199968067929,
+          "archive_crc": 0.0014652289974037558,
+          "filter_csr": 0.005653267988236621
+        },
+        {
+          "frame": 22,
+          "seconds": 0.043610726002953015,
+          "md5": 0.008574929990572855,
+          "decode_including_md5": 0.03231299400795251,
+          "histogram": 0.0008862359973136336,
+          "archive_crc": 0.0020578639960149303,
+          "filter_csr": 0.006716192001476884
+        },
+        {
+          "frame": 23,
+          "seconds": 0.042563989001791924,
+          "md5": 0.009249338996596634,
+          "decode_including_md5": 0.03297313199436758,
+          "histogram": 0.0007699070119997486,
+          "archive_crc": 0.0015269599971361458,
+          "filter_csr": 0.005910241001402028
+        }
+      ],
+      "latency_ms": {
+        "mean": 43.344427124490416,
+        "p95": 45.85086534862057,
+        "max": 47.68192600749899
+      },
+      "deadline_misses": 24,
+      "peak_rss_bytes": 1824489472
+    },
+    "native_timers_200_grains": {
+      "frames.extract": [
+        5.693916644260753,
+        3753
+      ],
+      "objective.residual": [
+        0.44952615242800675,
+        37416
+      ]
+    },
+    "native_fit_probe": {
+      "grains": 200,
+      "seconds": 11.956036486008088,
+      "source": "Full actual live bank; master initial grains sampled uniformly",
+      "exact_master_fit_unverified": true,
+      "address_space_limit_mib": 3072,
+      "peak_rss_bytes": 2443005952,
+      "scope": "Isolated 200-grain current-master sample fit, from already arrived bank; discovery, receiver, initial bank verification, and fixture preparation excluded; includes spot output"
+    },
+    "live_per_frame_scientific_path_implemented": false,
+    "configured_sven_coordinator_budget_sufficient": false,
+    "full_pipeline_sven_100hz_validated": false,
+    "allocation_arena_experiment": {
+      "scope": "Block decode, exact uint32 threshold and ordered compact support, first 24 real Sven frames. No full image is allocated by the candidate. Checksum, histogram, persistence and all grain fitting excluded; not full science 100 Hz.",
+      "results": [
+        {
+          "workers": 8,
+          "mean_ms": 5.783756333282024,
+          "p95_ms": 6.8481499583867835,
+          "max_ms": 7.601307006552815,
+          "all_kept_values_and_ids_bitwise_dectris": true,
+          "frames": 24
+        }
+      ],
+      "address_space_limit_mib": 1536,
+      "complete_science_100hz_proven": false,
+      "third_party_implementation": "Existing Blosc2 runtime-dispatched bitunshuffle plus LZ4; persistent native block executor"
+    },
+    "experimental_block_codec_integrated": false,
+    "rejected_projection_experiment": "Discarded; no reliable whole-fit speedup. Source restored before typed CSR lower-bound consolidation.",
+    "master_current_grain_sample": {
+      "master": "0a041b17",
+      "grains": 200,
+      "initial_parameters": "200 uniformly spaced rows from fresh 15559-grain master discovery, IDs renumbered identically for both APIs",
+      "all_fit_fields_bitwise": true,
+      "all_spot_files_byte_identical": true,
+      "spot_files": 200,
+      "reference": "Unmodified master scientific pipeline using bounded canonical CSR support; support preparation excluded from timing",
+      "branch_source": "Validated arrived full-Sven wire fitting bank",
+      "complete_science_100hz_proven": false
+    },
+    "csr_row_search_probe": {
+      "grains": 200,
+      "seconds": 11.40653369500069,
+      "source": "Full actual live bank; master initial grains sampled uniformly",
+      "exact_master_fit_unverified": false,
+      "address_space_limit_mib": 3072,
+      "peak_rss_bytes": 2443845632,
+      "scope": "Isolated 200-grain current-master sample fit, from already arrived bank; discovery, receiver, initial bank verification, and fixture preparation excluded; includes spot output",
+      "parity": {
+        "master": "0a041b17",
+        "grains": 200,
+        "initial_parameters": "200 uniformly spaced rows from fresh 15559-grain master discovery, IDs renumbered identically for both APIs",
+        "all_fit_fields_bitwise": true,
+        "all_spot_files_byte_identical": true,
+        "spot_files": 200,
+        "reference": "Unmodified master scientific pipeline using bounded canonical CSR support; support preparation excluded from timing",
+        "branch_source": "Validated arrived full-Sven wire fitting bank",
+        "complete_science_100hz_proven": false
+      },
+      "repeatability_not_established": true
+    },
+    "optional_md5_backends": {
+      "scope": "MD5-only, actual Eiger wire payloads, no science throughput claim",
+      "results": [
+        {
+          "frame": 0,
+          "bytes": 10959486,
+          "library": "hashlib",
+          "median_ms": 10.776405004435219,
+          "min_ms": 10.275726002873853,
+          "max_ms": 16.797610005596653,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 0,
+          "bytes": 10959486,
+          "library": "hacl",
+          "median_ms": 11.445512005593628,
+          "min_ms": 11.108639009762555,
+          "max_ms": 11.931076005566865,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 0,
+          "bytes": 10959486,
+          "library": "gcrypt",
+          "median_ms": 12.077617000613827,
+          "min_ms": 11.228429997572675,
+          "max_ms": 23.010809993138537,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 1800,
+          "bytes": 11645016,
+          "library": "hashlib",
+          "median_ms": 11.510018004628364,
+          "min_ms": 10.771178000140935,
+          "max_ms": 12.57856099982746,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 1800,
+          "bytes": 11645016,
+          "library": "hacl",
+          "median_ms": 12.679104504059069,
+          "min_ms": 11.973952990956604,
+          "max_ms": 17.314294003881514,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 1800,
+          "bytes": 11645016,
+          "library": "gcrypt",
+          "median_ms": 12.878964007541072,
+          "min_ms": 12.159612000687048,
+          "max_ms": 13.750462007010356,
+          "all_checksums_exact": true
+        }
+      ]
+    },
+    "persistent_service_regression_fix": "Retain analysis service handle after a provisional result finishes during collection; now covered by a five-frame multi-checkpoint regression.",
+    "experimental_sparse_bit_selection": {
+      "scope": "Block decode, exact uint32 threshold and ordered compact support, first 24 real Sven frames. No full image is allocated by the candidate. Checksum, histogram, persistence and all grain fitting excluded; not full science 100 Hz.",
+      "results": [
+        {
+          "workers": 1,
+          "mean_ms": 22.209918334435013,
+          "p95_ms": 23.37643969367491,
+          "max_ms": 26.312613001209684,
+          "all_kept_values_and_ids_bitwise_dectris": true,
+          "frames": 24
+        },
+        {
+          "workers": 4,
+          "mean_ms": 6.018496418619179,
+          "p95_ms": 6.323687655822141,
+          "max_ms": 6.591882003704086,
+          "all_kept_values_and_ids_bitwise_dectris": true,
+          "frames": 24
+        },
+        {
+          "workers": 8,
+          "mean_ms": 3.9040482903753095,
+          "p95_ms": 4.460448496683966,
+          "max_ms": 7.674958003917709,
+          "all_kept_values_and_ids_bitwise_dectris": true,
+          "frames": 24
+        }
+      ],
+      "address_space_limit_mib": 1536,
+      "complete_science_100hz_proven": false,
+      "third_party_implementation": "Existing Blosc2 runtime-dispatched bitunshuffle plus LZ4; persistent native block executor",
+      "integrated_into_live_or_offline_hexrd": false,
+      "canonical_grain_fits_validated": false
+    },
+    "latest_full_regression": {
+      "passed": 945,
+      "deselected": 2,
+      "warnings": 6,
+      "seconds": 41.44,
+      "log": ".local-bench/wire-spool/full-regression-checksum.log"
+    },
+    "latest_examples": {
+      "master": "0a041b17",
+      "cases": [
+        {
+          "case": "dexelas-roi",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas-roi",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "dexelas",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 24
+        },
+        {
+          "case": "ruby-0",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-0",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-1",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-2",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-3",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-4",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "ruby-5",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 1
+        },
+        {
+          "case": "zirconium",
+          "mode": "grain",
+          "bitwise": true,
+          "spot_files": 3
+        },
+        {
+          "case": "zirconium",
+          "mode": "staged",
+          "bitwise": true,
+          "spot_files": 3
+        }
+      ],
+      "artifact": ".local-bench/wire-spool/examples-checksum/exact.json",
+      "scope": "Fresh post-integration runs of both grain and staged modes across nine example studies; all fitted fields and every spot text file byte-exact against unmodified master."
+    },
+    "md5_gnutls_probe": {
+      "scope": "MD5-only comparison; overlaps validation tasks, no scientific-latency claim",
+      "results": [
+        {
+          "frame": 0,
+          "library": "gnutls",
+          "bytes": 10959486,
+          "median_ms": 11.39093650272116,
+          "min_ms": 11.033674993086606,
+          "max_ms": 11.874101997818798,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 0,
+          "library": "hashlib",
+          "bytes": 10959486,
+          "median_ms": 10.200772492680699,
+          "min_ms": 9.94023100065533,
+          "max_ms": 11.256822996074334,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 1800,
+          "library": "gnutls",
+          "bytes": 11645016,
+          "median_ms": 12.03417249780614,
+          "min_ms": 11.648917003185488,
+          "max_ms": 12.4848379928153,
+          "all_checksums_exact": true
+        },
+        {
+          "frame": 1800,
+          "library": "hashlib",
+          "bytes": 11645016,
+          "median_ms": 10.764341997855809,
+          "min_ms": 10.318134998669848,
+          "max_ms": 11.702345000230707,
+          "all_checksums_exact": true
+        }
+      ]
+    },
+    "md5_backend_replacement_selected": false,
+    "checksum_gate_policy": {
+      "default": "synchronous verification before preparation",
+      "opt_in_flag": "--defer-checksums",
+      "user_authorized": true,
+      "provisional_status": "pending until verified",
+      "final_gate": "Every checksum must pass before end-of-series and final results",
+      "on_failure": "Run invalidated; failure latched against finalization retries",
+      "checksum_workers": 2,
+      "max_pending_payloads": 4,
+      "regressions": "Blocked verifier permits explicitly pending provisional snapshots, blocks finalization, and permanently rejects corrupted payloads"
+    },
+    "experimental_sparse_bit_selection_full_scan": {
+      "scope": "Full actual Sven block decode and exact fitting-threshold support only. All payload MD5s verified and all support compared against independently source-verified received bank, outside kernel timings. Source reads, checksum, verification, maps, persistence and all scientific discovery/fitting excluded from latency; not a complete 100 Hz result.",
+      "frames": 3600,
+      "entries": 279046070,
+      "workers": 8,
+      "mean_ms": 3.6161576177093795,
+      "p95_ms": 4.569463443476706,
+      "max_ms": 7.640149997314438,
+      "kernel_deadline_misses": 0,
+      "all_support_values_and_pixel_ids_bitwise": true,
+      "first_touch_included": true,
+      "address_space_limit_mib": 1024,
+      "total_verification_wall_seconds": 95.29479771800106,
+      "complete_science_100hz_proven": false,
+      "integrated_into_live_or_offline_hexrd": false,
+      "integration_followup": "Equivalent production-extension kernel integrated in receiver; full-scan timing above belongs to preceding standalone C ABI experiment."
+    },
+    "validation_date": "2026-11-21",
+    "native_sparse_decoder_integration": {
+      "native_source": "hexrd/core/transforms/cpp_sublibrary/src/eiger_decoder.hpp",
+      "live_receiver": true,
+      "offline_frame_reader": false,
+      "existing_lz4_library_reused": true,
+      "full_image_inflation_on_safe_fast_path": false,
+      "reference_fallbacks_retained": true,
+      "correctness_scope": "Exact values and pixel support, unchanged map and fitting arithmetic; complete full-Sven fitting not yet proven"
+    },
+    "experimental_block_codec_note": "The earlier full unshuffle experiment remains unused. Its replacement directly selects retained pixels from bit planes; that kernel is now integrated in the live receiver.",
+    "integrated_sparse_capture_latency": {
+      "scope": "Actual integrated Capture: native sparse decode, exact maps, support bank, raw-archive verification, deferred MD5, ordered commit and status publication; offered at 100 Hz. Source fixture preloading and static setup excluded. NO grain discovery or live fits; not whole science 100 Hz. A prepared raw archive is reused; full new-payload disk persistence is not timed.",
+      "frames": 24,
+      "per_frame": [
+        {
+          "frame": 0,
+          "latency_ms": 12.584843003423885,
+          "work_ms": 12.528731997008435,
+          "checksum_status": "verified",
+          "components_ms": {
+            "decoder.support": 7.12869901326485,
+            "histogram.accumulate_sparse": 0.9848939953371882,
+            "crc": 1.5448549966095015,
+            "file.tell": 0.03345299046486616,
+            "file.write": 0.4902509681414813,
+            "file.flush": 0.00037299469113349915,
+            "map_commit": 0.4160000098636374
+          }
+        },
+        {
+          "frame": 1,
+          "latency_ms": 12.722878003842197,
+          "work_ms": 10.0603089958895,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.966560998582281,
+            "histogram.accumulate_sparse": 0.9667569975135848,
+            "crc": 1.482816005591303,
+            "file.tell": 0.007252005161717534,
+            "file.write": 0.254609010880813,
+            "file.flush": 0.00047800131142139435,
+            "map_commit": 0.3376419917913154
+          }
+        },
+        {
+          "frame": 2,
+          "latency_ms": 11.925707993214019,
+          "work_ms": 9.133618994383141,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.355277007562108,
+            "histogram.accumulate_sparse": 0.9411409992026165,
+            "crc": 1.531595000415109,
+            "file.tell": 0.006900023436173797,
+            "file.write": 0.33277799957431853,
+            "file.flush": 0.0002860033418983221,
+            "map_commit": 0.3681980015244335
+          }
+        },
+        {
+          "frame": 3,
+          "latency_ms": 10.699314996600151,
+          "work_ms": 8.697682002093643,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.294235011911951,
+            "histogram.accumulate_sparse": 0.8965029992396012,
+            "crc": 1.4312189887277782,
+            "file.tell": 0.0074029958341270685,
+            "file.write": 0.3185350069543347,
+            "file.flush": 0.0004920002538710833,
+            "map_commit": 0.25646098947618157
+          }
+        },
+        {
+          "frame": 4,
+          "latency_ms": 9.265991000575013,
+          "work_ms": 8.481746990582906,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.227443001582287,
+            "histogram.accumulate_sparse": 0.9834130032686517,
+            "crc": 1.4730199909536168,
+            "file.tell": 0.013762008165940642,
+            "file.write": 0.2606269990792498,
+            "file.flush": 0.0003519962774589658,
+            "map_commit": 0.2180270093958825
+          }
+        },
+        {
+          "frame": 5,
+          "latency_ms": 8.10563399863895,
+          "work_ms": 7.996226995601319,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.100619000382721,
+            "histogram.accumulate_sparse": 0.8553749939892441,
+            "crc": 1.3609110028482974,
+            "file.tell": 0.005825990228913724,
+            "file.write": 0.259711014223285,
+            "file.flush": 0.00038299185689538717,
+            "map_commit": 0.18030099454335868
+          }
+        },
+        {
+          "frame": 6,
+          "latency_ms": 8.589892997406423,
+          "work_ms": 8.514191998983733,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.107985005248338,
+            "histogram.accumulate_sparse": 0.9956829890143126,
+            "crc": 1.3971580192446709,
+            "file.tell": 0.013679979019798338,
+            "file.write": 0.2672890113899484,
+            "file.flush": 0.0004929897841066122,
+            "map_commit": 0.37248499575071037
+          }
+        },
+        {
+          "frame": 7,
+          "latency_ms": 8.517747992300428,
+          "work_ms": 8.506583995767869,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.339958002674393,
+            "histogram.accumulate_sparse": 0.9197839972330257,
+            "crc": 1.3484460214385763,
+            "file.tell": 0.00643603561911732,
+            "file.write": 0.27244399825576693,
+            "file.flush": 0.0003370078047737479,
+            "map_commit": 0.1789579982869327
+          }
+        },
+        {
+          "frame": 8,
+          "latency_ms": 8.114873999147676,
+          "work_ms": 8.104113003355451,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.117893011425622,
+            "histogram.accumulate_sparse": 0.8613770041847602,
+            "crc": 1.3320660073077306,
+            "file.tell": 0.006372996722348034,
+            "file.write": 0.340211990987882,
+            "file.flush": 0.00038801226764917374,
+            "map_commit": 0.17707800725474954
+          }
+        },
+        {
+          "frame": 9,
+          "latency_ms": 8.436984004219994,
+          "work_ms": 8.361119995242916,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.098014003830031,
+            "histogram.accumulate_sparse": 0.8950650080805644,
+            "crc": 1.4249589876271784,
+            "file.tell": 0.006744026904925704,
+            "file.write": 0.25469198590144515,
+            "file.flush": 0.00043200270738452673,
+            "map_commit": 0.24191899865400046
+          }
+        },
+        {
+          "frame": 10,
+          "latency_ms": 8.43237599474378,
+          "work_ms": 8.368687995243818,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.145086990320124,
+            "histogram.accumulate_sparse": 0.8825950062600896,
+            "crc": 1.4697960141347721,
+            "file.tell": 0.005700989277102053,
+            "file.write": 0.3092849801760167,
+            "file.flush": 0.00039300357457250357,
+            "map_commit": 0.20586399477906525
+          }
+        },
+        {
+          "frame": 11,
+          "latency_ms": 8.189005995518528,
+          "work_ms": 8.100153994746506,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.050428993650712,
+            "histogram.accumulate_sparse": 0.866351998411119,
+            "crc": 1.2994820135645568,
+            "file.tell": 0.0059789890656247735,
+            "file.write": 0.26900199009105563,
+            "file.flush": 0.0004749890649691224,
+            "map_commit": 0.3413719969103113
+          }
+        },
+        {
+          "frame": 12,
+          "latency_ms": 8.731567009817809,
+          "work_ms": 8.698752004420385,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.316234990255907,
+            "histogram.accumulate_sparse": 0.9185559902107343,
+            "crc": 1.456388010410592,
+            "file.tell": 0.007341019227169454,
+            "file.write": 0.3222989762434736,
+            "file.flush": 0.0003929890226572752,
+            "map_commit": 0.1797800068743527
+          }
+        },
+        {
+          "frame": 13,
+          "latency_ms": 8.749725995585322,
+          "work_ms": 8.637595004984178,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.210390994558111,
+            "histogram.accumulate_sparse": 0.8920090040192008,
+            "crc": 1.2876110122306272,
+            "file.tell": 0.007353999535553157,
+            "file.write": 0.3972800186602399,
+            "file.flush": 0.0004619942046701908,
+            "map_commit": 0.26183899899479
+          }
+        },
+        {
+          "frame": 14,
+          "latency_ms": 8.074979996308684,
+          "work_ms": 8.021992995054461,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.129630993702449,
+            "histogram.accumulate_sparse": 0.8876119973137975,
+            "crc": 1.288607993046753,
+            "file.tell": 0.007738999556750059,
+            "file.write": 0.2581120061222464,
+            "file.flush": 0.00028300564736127853,
+            "map_commit": 0.1806799991754815
+          }
+        },
+        {
+          "frame": 15,
+          "latency_ms": 9.801958003663458,
+          "work_ms": 9.782749999430962,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.237885994371027,
+            "histogram.accumulate_sparse": 0.9131260012509301,
+            "crc": 2.265325019834563,
+            "file.tell": 0.008413990144617856,
+            "file.write": 0.2882939879782498,
+            "file.flush": 0.0004360044840723276,
+            "map_commit": 0.4150930035393685
+          }
+        },
+        {
+          "frame": 16,
+          "latency_ms": 8.398660997045226,
+          "work_ms": 8.341344000655226,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.091798007721081,
+            "histogram.accumulate_sparse": 0.955616997089237,
+            "crc": 1.4525959850288928,
+            "file.tell": 0.005572990630753338,
+            "file.write": 0.2718110190471634,
+            "file.flush": 0.0003659952199086547,
+            "map_commit": 0.174757995409891
+          }
+        },
+        {
+          "frame": 17,
+          "latency_ms": 8.858582004904747,
+          "work_ms": 8.848413010127842,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.4108849979238585,
+            "histogram.accumulate_sparse": 0.8887109870556742,
+            "crc": 1.5166249795584008,
+            "file.tell": 0.005540015990845859,
+            "file.write": 0.43302598351147026,
+            "file.flush": 0.00045899651013314724,
+            "map_commit": 0.17194099200423807
+          }
+        },
+        {
+          "frame": 18,
+          "latency_ms": 8.85092600947246,
+          "work_ms": 8.738568998523988,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.23703900014516,
+            "histogram.accumulate_sparse": 0.9975220018532127,
+            "crc": 1.467480993596837,
+            "file.tell": 0.006293004844337702,
+            "file.write": 0.30749800498597324,
+            "file.flush": 0.00045099295675754547,
+            "map_commit": 0.23386499378830194
+          }
+        },
+        {
+          "frame": 19,
+          "latency_ms": 8.30329000018537,
+          "work_ms": 8.25883200741373,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 3.988056007074192,
+            "histogram.accumulate_sparse": 0.9710360027384013,
+            "crc": 1.4214940019883215,
+            "file.tell": 0.006497997674159706,
+            "file.write": 0.30279099883046,
+            "file.flush": 0.00044499756768345833,
+            "map_commit": 0.18708599964156747
+          }
+        },
+        {
+          "frame": 20,
+          "latency_ms": 8.567199998651631,
+          "work_ms": 8.502646000124514,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.128312997636385,
+            "histogram.accumulate_sparse": 0.9438809938728809,
+            "crc": 1.3285939930938184,
+            "file.tell": 0.005752983270213008,
+            "file.write": 0.4024949885206297,
+            "file.flush": 0.00039000588003546,
+            "map_commit": 0.34220000088680536
+          }
+        },
+        {
+          "frame": 21,
+          "latency_ms": 8.816695990390144,
+          "work_ms": 8.735565992537886,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.387563007185236,
+            "histogram.accumulate_sparse": 0.9309830056736246,
+            "crc": 1.4193089882610366,
+            "file.tell": 0.0059140147641301155,
+            "file.write": 0.345681983162649,
+            "file.flush": 0.00037800054997205734,
+            "map_commit": 0.21312700118869543
+          }
+        },
+        {
+          "frame": 22,
+          "latency_ms": 8.45621500047855,
+          "work_ms": 8.402389998082072,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 4.136727002332918,
+            "histogram.accumulate_sparse": 0.9752839978318661,
+            "crc": 1.39316899003461,
+            "file.tell": 0.006604997906833887,
+            "file.write": 0.25519897462800145,
+            "file.flush": 0.00041100429370999336,
+            "map_commit": 0.23890800366643816
+          }
+        },
+        {
+          "frame": 23,
+          "latency_ms": 7.920386997284368,
+          "work_ms": 7.860940997488797,
+          "checksum_status": "pending",
+          "components_ms": {
+            "decoder.support": 3.9998760039452463,
+            "histogram.accumulate_sparse": 0.8875250059645623,
+            "crc": 1.292286004172638,
+            "file.tell": 0.00576997990719974,
+            "file.write": 0.28502299392130226,
+            "file.flush": 0.0004540052032098174,
+            "map_commit": 0.17316199955530465
+          }
+        }
+      ],
+      "mean_ms": 9.129809915975784,
+      "p95_ms": 12.485972751892403,
+      "max_ms": 12.722878003842197,
+      "capture_deadline_misses": 4,
+      "all_sparse_support_buffers_byte_identical": true,
+      "all_maps_bitwise_fresh_master": true,
+      "all_md5_verified_before_snapshot": true,
+      "no_full_image_inflation": true,
+      "publisher_fixture_bytes": 236282707,
+      "receiver_address_space_limit_mib": 2048,
+      "static_setup_address_space_limit_mib": 3072,
+      "complete_science_100hz_proven": false,
+      "artifact": ".local-bench/wire-spool/integrated-latency-components-result.json",
+      "repeated_short_probes": [
+        {
+          "mean_ms": 9.679,
+          "p95_ms": 14.594,
+          "max_ms": 15.677,
+          "deadline_misses": 6
+        },
+        {
+          "mean_ms": 9.702,
+          "p95_ms": 14.657,
+          "max_ms": 15.006,
+          "deadline_misses": 7
+        }
+      ],
+      "repeatability_note": "Three short runs show first-frame/backlog misses; no hard 10 ms bound or full-scan capture latency guarantee has been demonstrated."
+    },
+    "targeted_checksum_and_codec_regressions": {
+      "passed": 3,
+      "deselected": 78,
+      "scope": "Explicit pending provisional status, failed-checksum final gate and retry rejection, unknown codec error; two checksum cases overlap broad suite."
+    },
+    "integrated_sparse_full_sven_correctness": {
+      "frames": 3600,
+      "entries": 279046070,
+      "complete": true,
+      "checksum_status": "verified",
+      "all_support_buffers_byte_identical": true,
+      "all_maps_bitwise_fresh_master": true,
+      "no_full_image_inflation": true,
+      "elapsed_verification_seconds": 62.895155013000476,
+      "receiver_address_space_limit_mib": 2048,
+      "static_setup_address_space_limit_mib": 3072,
+      "source_reads_and_parity_checks_included": true,
+      "performance_benchmark": false,
+      "grain_discovery_or_fitting_included": false,
+      "complete_science_100hz_proven": false,
+      "snapshot": "/home/zack/hexrd/.local-bench/wire-spool/integrated-sparse-full-scan/snapshots/003600-final.json",
+      "artifact": ".local-bench/wire-spool/integrated-sparse-full-scan-result.json"
+    },
+    "synthetic_decoder_warmup_probe": {
+      "scope": "Actual integrated Capture: native sparse decode, exact maps, support bank, raw-archive verification, deferred MD5, ordered commit and status publication; offered at 100 Hz. Source fixture preloading and static setup excluded. NO grain discovery or live fits; not whole science 100 Hz.",
+      "frames": 24,
+      "mean_ms": 8.485680300509557,
+      "p95_ms": 12.128152863442663,
+      "max_ms": 12.437866011168808,
+      "capture_deadline_misses": 4,
+      "all_sparse_support_buffers_byte_identical": true,
+      "all_maps_bitwise_fresh_master": true,
+      "all_md5_verified_before_snapshot": true,
+      "no_full_image_inflation": true,
+      "publisher_fixture_bytes": 236282707,
+      "receiver_address_space_limit_mib": 2048,
+      "static_setup_address_space_limit_mib": 3072,
+      "complete_science_100hz_proven": false,
+      "adopted": false,
+      "reason": "Synthetic image-independent warm-up still missed four capture deadlines; no additional runtime warm-up mechanism added.",
+      "artifact": ".local-bench/wire-spool/integrated-latency-synthetic-warm-result.json"
+    }
+  },
+  "sven_joined_scientific_probe": {
+    "date": "2026-11-23",
+    "target_met": false,
+    "direct_discovery": {
+      "frames": 3600,
+      "elapsed_s": 35.99779232000583,
+      "workers": 4,
+      "deadline_misses": 67,
+      "mean_ms": 8.523584694566024,
+      "p95_ms": 9.306424451642668,
+      "max_ms": 20.044823992066085,
+      "accepted": 1914472,
+      "bitwise_checkpoints": [],
+      "reference_comparison": false,
+      "scope": "Full configured grid visited once across scan. Incremental discovery only."
+    },
+    "direct_scoring_parity": [
+      1,
+      5,
+      32,
+      128,
+      480,
+      900,
+      1800,
+      1801,
+      2700,
+      3600
+    ],
+    "joined": {
+      "scope": "Wire file read, decode, support, maps, discovery across full configured grid, one causally selected trial tracked after frame 900 with first-pass fits, per-frame publication. Other candidates, clustering and canonical tail excluded.",
+      "frames": 3600,
+      "elapsed_seconds": 95.11495264197583,
+      "offered_hz": 100,
+      "late": 3600,
+      "max_latency_ms": 59124.952641985146,
+      "p95_latency_ms": 56441.396667287336,
+      "mean_service_ms": [
+        8.423938354058514,
+        8.444244169012462,
+        9.045812078070917,
+        0.479836175695204
+      ],
+      "stage_names": [
+        "wire_fixture",
+        "capture",
+        "discovery",
+        "fit_and_publish"
+      ],
+      "selected": 19935120,
+      "accepted": 1914472,
+      "fit_updates": 152,
+      "first_pass_exact": true,
+      "checksums": "verified",
+      "address_space_limit_mib": 4096
+    },
+    "joined_hz": 37.84893857384164,
+    "validation": "First tolerance pass for one candidate from frame 900. All 12 fitted parameters byte-exact against offline first pass. Full canonical fit parity still requires a separate complete run.",
+    "tracking": {
+      "scope": "One discovered orientation, first tolerance pass. Exact windows and standard optimizer, no capture/discovery timing.",
+      "candidate_trial": 19935120,
+      "first_observed": 900,
+      "windows": 209,
+      "planning_ms": 29.19971599476412,
+      "initial_backfill_ms": 998.2710369222332,
+      "subsequent_max_ms": 3.8771189865656197,
+      "subsequent_mean_ms": 0.5192267549487211,
+      "completed": 3600
+    },
+    "selected_regression_tests": 1014,
+    "deselected_tests": 2,
+    "timing_limits": "In-process Eiger replay from pre-existing wire files. A build overlapped the later portion of the joined run. The single tracked candidate and omitted clustering underestimate production scientific work. Fixture disk reads are charged in this run.",
+    "bounded_prefetch": {
+      "scope": "Bounded prefetch of 4 wire messages, 12 image-independent geometry blocks; six geometry workers, six decode workers, two MD5 workers, coordinator and emulator. Wire file read, decode, support, maps, discovery across full configured grid, one causally selected trial tracked after frame 900 with first-pass fits, per-frame publication. Other candidates, clustering and canonical tail excluded.",
+      "frames": 3600,
+      "elapsed_seconds": 56.43267202802235,
+      "offered_hz": 100,
+      "late": 3600,
+      "max_latency_ms": 20442.672028031666,
+      "p95_latency_ms": 19616.101418656763,
+      "mean_service_ms": [
+        0.2562207017520753,
+        10.069354191129808,
+        4.688806639088499,
+        0.6330473779477567
+      ],
+      "stage_names": [
+        "wire_fixture",
+        "capture",
+        "discovery",
+        "fit_and_publish"
+      ],
+      "selected": 19935120,
+      "accepted": 1914472,
+      "fit_updates": 152,
+      "first_pass_exact": true,
+      "checksums": "verified",
+      "address_space_limit_mib": 4096
+    },
+    "prefetch_source_parity": {
+      "maps.npy": "2eefa39ec73947d9f861d4b869ca3717cfca93e28ccfcd9b6f4249f2b59daae9",
+      "fit-support.bin": "feb1e96bc010ea245f672c618a67171151771544ef82cd50b65a74c02c66fe37",
+      "ordered_frames_verified": 3600
+    },
+    "all_trials_two_prefixes": {
+      "scope": "All configured Sven trials on each of the first two arrived frames. Thresholded candidates before clustering, not distinct grains.",
+      "trials": 79828799,
+      "prefix1_pass": 1257041,
+      "prefix2_pass": 3226487,
+      "entered": 2020018,
+      "left": 50572,
+      "entered_in_scheduled_block": 1018,
+      "seconds": 30.02694531198358,
+      "as_limit_mib": 2048
+    },
+    "inverse_shard": {
+      "scope": "All 32768 trials in one shard retained and updated at every image. Timing covers only applying changed map rows to trial counters. Full grid and clustering/fitting excluded.",
+      "trials": 32768,
+      "frames": 3600,
+      "checked": [
+        1,
+        2,
+        6,
+        31,
+        100,
+        401,
+        900,
+        1800,
+        1801,
+        2700,
+        3600
+      ],
+      "above_threshold": [
+        1005,
+        2540,
+        9709,
+        16255,
+        6908,
+        1571,
+        87,
+        0,
+        1,
+        1,
+        1
+      ],
+      "entries": 3989716,
+      "bytes_per_trial": 487.02587890625,
+      "projected_full_grid_index_gib": 36.20860259514802,
+      "counter_update_mean_ms": 0.035570542350120034,
+      "counter_update_p95_ms": 0.07464920636266467,
+      "max_ms_excluding_compile": 0.3578560135792941,
+      "as_limit_mib": 2048
+    },
+    "required_live_coverage": "All provisionally discoverable grains, with changes published when their measured reflections change. Neither joined probe covers all grains.",
+    "complete_prefix_clustering": [
+      {
+        "prefix": 1,
+        "trials": 79828799,
+        "accepted": 1257041,
+        "clusters": 33701,
+        "cluster_s": 39.069045302981976,
+        "peak_rss_mib": 2853.5859375,
+        "as_limit_mib": 4096
+      },
+      {
+        "prefix": 2,
+        "trials": 79828799,
+        "accepted": 3226487,
+        "clusters": 8249,
+        "cluster_s": 25.53311262599891,
+        "peak_rss_mib": 2092.453125,
+        "as_limit_mib": 4096
+      }
+    ],
+    "immutable_index_first_32_frames": {
+      "trials": 79828799,
+      "shards": 2437,
+      "rows": 32,
+      "entries": 174995480,
+      "seconds": 28.381363396008965,
+      "scope": "Static image-independent calibration for first 32 omega bins only",
+      "as_cap_mib": 2048
+    },
+    "all_candidate_update_experiments": [
+      {
+        "experiment": "all-index-query",
+        "scope": "All trials, discovery membership only; first 32 frames",
+        "mean_ms": 34.23370349992183,
+        "p95_ms": 38.719374405627605,
+        "max_ms": 39.57592399092391,
+        "threads": 8,
+        "first_two_masks_exact": true
+      },
+      {
+        "experiment": "all-index-fast-query",
+        "scope": "All trials, discovery membership only; first 32 frames",
+        "mean_ms": 37.304581155694905,
+        "p95_ms": 40.25736505718669,
+        "max_ms": 40.95665400382131,
+        "threads": 8,
+        "first_two_masks_exact": true
+      },
+      {
+        "experiment": "all-index-buckets",
+        "scope": "All trials, discovery membership only; first 32 frames",
+        "mean_ms": 13.574526906253048,
+        "p95_ms": 15.811601250004514,
+        "max_ms": 17.50482599999259,
+        "threads": 8,
+        "first_two_masks_exact": true
+      },
+      {
+        "experiment": "all-index-buckets2",
+        "scope": "All trials, discovery membership only; first 32 frames",
+        "mean_ms": 12.538421312503267,
+        "p95_ms": 14.128572250002946,
+        "max_ms": 14.630269000008411,
+        "threads": 8,
+        "first_two_masks_exact": true
+      },
+      {
+        "experiment": "all-index-flip",
+        "scope": "All trials, discovery membership only; first 32 frames",
+        "mean_ms": 11.858685999998286,
+        "p95_ms": 13.768974150022473,
+        "max_ms": 14.262857000005624,
+        "threads": 8,
+        "first_two_masks_exact": true
+      }
+    ],
+    "rotation_tests": 58,
+    "examples_exact_offline_comparisons": 18,
+    "delta_map_tests_after_word_update": 50,
+    "canonical_complete_scan_branch_fit": {
+      "grains": 15559,
+      "fitting_seconds": 139.349762338,
+      "workers": 6,
+      "aggregate_allocation_ceiling_bytes": 8321499131,
+      "scope": "All fresh initial orientations fit from arrived support, with spot files. Excludes discovery and capture. Full comparison with unmodified master in progress."
+    }
+  }
+}

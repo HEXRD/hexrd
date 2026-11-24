@@ -6,6 +6,9 @@
 #include <array>
 #include <cstdint>
 #include <vector>
+#include <mutex>
+#include <numeric>
+#include <shared_mutex>
 #include <string>
 #include <cstring>
 #include <pybind11/numpy.h>
@@ -1083,38 +1086,41 @@ static py::array_t<double> histogramPrefix(CArray<double> weights, CArray<Index>
   return output;
 }
 
-// First hit or NaN in row-major window order, in two linear scans per ring.
+// First event in eta order; the byte records hit, NaN, or no event.
+static void orientationHitRow(const double *data, int8_t *out, Index width,
+                              Index de, double threshold) {
+  Index next = 0;
+  for (Index col = 0; col < width; ++col) {
+    Index right = de < width - 1 - col ? col + de + 1 : width;
+    next = std::max(next, col > de ? col - de : Index(0));
+    while (next < width && !(data[next] > threshold || std::isnan(data[next]))) ++next;
+    out[col] = next < right ? (data[next] > threshold ? 1 : -1) : 0;
+  }
+}
+
+// Preserve first-hit/NaN order with one byte of temporary state per cell.
 static py::array_t<int8_t> orientationHitStatus(CArray<double> maps,
                                                Index de, Index dome, double threshold) {
   checkShape(maps, {-1, -1, -1});
   Index height = maps.shape(1), width = maps.shape(2);
   if (de < 0 || dome < 0 || height < 1 || width < 1 || height > INT32_MAX/width)
     throw py::value_error("unsupported ring shape or negative tolerance");
-  Index size = height*width;
+  Index size = height * width;
   py::array_t<int8_t> output(maps.request().shape);
-  std::vector<int32_t> scratch(size);
+  std::vector<int8_t> scratch(size);
   const double *input = maps.data(); auto status = output.mutable_data();
   py::gil_scoped_release release;
   for (Index ring = 0; ring < maps.shape(0); ++ring) {
-    const double *data = input+ring*size; auto out = status+ring*size;
-    for (Index row = 0; row < height; ++row) {
-      Index next = 0;
-      for (Index col = 0; col < width; ++col) {
-        Index right = de < width-1-col ? col+de+1 : width;
-        next = std::max(next, col > de ? col-de : Index(0));
-        while (next < width && !(data[row*width+next] > threshold ||
-                                 std::isnan(data[row*width+next]))) ++next;
-        scratch[row*width+col] = next < right ? int32_t(row*width+next) : INT32_MAX;
-      }
-    }
+    const double *data = input + ring * size; auto out = status + ring * size;
+    for (Index row = 0; row < height; ++row)
+      orientationHitRow(data + row * width, scratch.data() + row * width, width, de, threshold);
     for (Index col = 0; col < width; ++col) {
       Index next = 0;
       for (Index row = 0; row < height; ++row) {
         Index bottom = dome < height-1-row ? row+dome+1 : height;
         next = std::max(next, row > dome ? row-dome : Index(0));
-        while (next < height && scratch[next*width+col] == INT32_MAX) ++next;
-        int32_t first = next < bottom ? scratch[next*width+col] : INT32_MAX;
-        out[row*width+col] = first == INT32_MAX ? 0 : (data[first] > threshold ? 1 : -1);
+        while (next < height && scratch[next*width+col] == 0) ++next;
+        out[row*width+col] = next < bottom ? scratch[next*width+col] : 0;
       }
     }
   }
@@ -1135,13 +1141,59 @@ static double orientationMod(double value, double offset) {
   return result < 0 ? result+2.*pi+offset : result+offset;
 }
 
-static py::array_t<double> scoreOrientationBins(
+#ifdef HEXRD_AVX2
+HEXRD_AVX2 static void scorePackedBins(const char *input, const int8_t *status,
+                                      Index n, Index count, Index size, double *out) {
+  const auto zero = _mm256_setzero_si256(), one = _mm256_set1_epi32(1);
+  const auto last = _mm256_set1_epi32(int32_t(size-1));
+  for (Index q = 0; q < n; ++q) {
+    auto hits = zero, total = zero;
+    Index h = 0;
+    for (; h+8 <= count; h += 8) {
+      auto cells = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(input+4*(q*count+h)));
+      auto outside = _mm256_cmpgt_epi32(cells, last);
+      if (!_mm256_testz_si256(outside, outside)) throw py::value_error("reflection bin is out of bounds");
+      auto valid = _mm256_cmpgt_epi32(cells, _mm256_set1_epi32(-1));
+      auto words = _mm256_srli_epi32(cells, 4);
+      auto shift = _mm256_slli_epi32(_mm256_and_si256(cells, _mm256_set1_epi32(15)), 1);
+      auto values = _mm256_mask_i32gather_epi32(zero, reinterpret_cast<const int *>(status), words, valid, 4);
+      auto codes = _mm256_and_si256(_mm256_srlv_epi32(values, shift), _mm256_set1_epi32(3));
+      total = _mm256_add_epi32(total, _mm256_and_si256(codes, one));
+      hits = _mm256_add_epi32(hits, _mm256_srli_epi32(codes, 1));
+    }
+    int32_t hv[8], tv[8];
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(hv), hits);
+    _mm256_storeu_si256(reinterpret_cast<__m256i *>(tv), total);
+    Index sum_h = 0, sum_t = 0;
+    for (int j = 0; j < 8; ++j) { sum_h += hv[j]; sum_t += tv[j]; }
+    for (; h < count; ++h) {
+      int32_t cell; std::memcpy(&cell, input+4*(q*count+h), 4);
+      if (cell < 0) continue;
+      if (cell >= size) throw py::value_error("reflection bin is out of bounds");
+      unsigned code = (uint8_t(status[cell/4]) >> (2*(cell%4))) & 3u;
+      sum_t += code & 1u; sum_h += code >> 1;
+    }
+    out[q] = sum_t ? double(sum_h)/sum_t : 0.;
+  }
+}
+#endif
+
+template <bool Packed>
+static py::array_t<double> scoreOrientationBinsTyped(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> bins, CArray<int8_t> status) {
-  checkShape(bins, {-1, 2, -1}); checkShape(status, {-1, -1, -1});
-  Index n = bins.shape(0), count = 2*bins.shape(2), size = status.size();
+  checkShape(bins, {-1, 2, -1});
+  if (Packed) checkShape(status, {-1}); else checkShape(status, {-1, -1, -1});
+  Index n = bins.shape(0), count = 2*bins.shape(2), size = status.size()*(Packed ? 4 : 1);
   py::array_t<double> scores(n); auto out = scores.mutable_data();
   const auto *indices = static_cast<const char *>(bins.request().ptr);
+  const auto *data = status.data();
   py::gil_scoped_release release;
+#ifdef HEXRD_AVX2
+  if (Packed && size <= INT32_MAX && count <= INT32_MAX && __builtin_cpu_supports("avx2")) {
+    scorePackedBins(indices, data, n, count, size, out);
+    return scores;
+  }
+#endif
   for (Index q = 0; q < n; ++q) {
     Index hits = 0, total = 0;
     for (Index h = 0; h < count; ++h) {
@@ -1149,13 +1201,128 @@ static py::array_t<double> scoreOrientationBins(
       std::memcpy(&cell, indices+sizeof(cell)*(q*count+h), sizeof(cell));
       if (cell < 0) continue;
       if (cell >= size) throw py::value_error("reflection bin is out of bounds");
-      int hit = status.data()[cell];
-      total += hit >= 0; hits += std::max(hit, 0);
+      if (Packed) {
+        unsigned code = (uint8_t(status.data()[cell/4]) >> (2*(cell%4))) & 3u;
+        total += code & 1u; hits += code >> 1;
+      } else {
+        int hit = status.data()[cell];
+        total += hit >= 0; hits += std::max(hit, 0);
+      }
     }
     out[q] = total ? double(hits)/total : 0.;
   }
   return scores;
 }
+
+static py::array_t<double> scoreOrientationBins(
+    py::array_t<int32_t, py::array::c_style | py::array::forcecast> bins, CArray<int8_t> status) {
+  return scoreOrientationBinsTyped<false>(bins, status);
+}
+
+class OrientationHits {
+  Index rings, height, width, de, dome, span, rows, cols, count = 0;
+  double threshold;
+  py::array_t<int8_t> lookup;
+  std::vector<uint16_t> recent;
+  std::vector<int8_t> row, visible;
+
+  // Two bits per eta bin: 1 is still looking, 0 and 3 are final NaN/hit.
+  static uint16_t firstEvent(uint16_t before, uint16_t after) {
+    unsigned pending = 3u * (before & ~(before >> 1) & 0x5555u);
+    return uint16_t((before & ~pending) | (after & pending));
+  }
+  mutable std::shared_timed_mutex gate;
+public:
+  OrientationHits(Index nr, Index h, Index w, Index e, Index o, double t)
+      : rings(nr), height(h), width(w), de(e), dome(o), threshold(t) {
+    if (nr < 1 || h < 1 || w < 1 || e < 0 || o < 0 || h > INT32_MAX/w || nr > INT32_MAX/(h*w))
+      throw py::value_error("invalid incremental hit-map geometry");
+    rows = (h+7)/8; cols = (w+7)/8;
+    if (nr*rows*cols > INT32_MAX/64)
+      throw py::value_error("incremental hit-map index exceeds int32");
+    de = std::min(e, w-1); dome = std::min(o, h-1); span = dome+1;
+    lookup = py::array_t<int8_t>(nr*rows*cols*16);
+    std::fill(lookup.mutable_data(), lookup.mutable_data()+lookup.size(), 0);
+    recent.resize(span*nr*cols); row.resize(w); visible.resize(nr*w);
+  }
+  py::object append(CArray<double> input, bool changes) {
+    checkShape(input, {rings, width});
+    std::unique_lock<std::shared_timed_mutex> lock(gate, std::try_to_lock);
+    if (!lock) throw py::value_error("hit map is in use");
+    if (count >= height) throw py::value_error("too many hit-map rows");
+    Index first = std::max(Index(0), count-dome);
+    py::array_t<uint32_t> delta;
+    uint32_t *records = nullptr;
+    if (changes) {
+      delta = py::array_t<uint32_t>({count-first+1, rings, cols});
+      records = delta.mutable_data();
+    }
+    auto packed = reinterpret_cast<uint8_t *>(lookup.mutable_data());
+    {
+      py::gil_scoped_release release;
+      for (Index ring = 0; ring < rings; ++ring) {
+        orientationHitRow(input.data()+ring*width, row.data(), width, de, threshold);
+        for (Index tile = 0; tile < cols; ++tile) {
+          uint16_t newest = 0;
+          for (Index e = 8*tile; e < std::min(width,8*tile+8); ++e) {
+            unsigned code = row[e] < 0 ? 0u : (row[e] > 0 ? 3u : 1u);
+            visible[ring*width+e] |= int8_t(code & 1u);
+            newest |= uint16_t(code << (2*(e%8)));
+          }
+          recent[((count%span)*rings+ring)*cols+tile] = newest;
+          uint16_t centerRow = 0x5555;
+          for (Index center = first; center <= count; ++center) {
+            centerRow = firstEvent(centerRow, recent[((center%span)*rings+ring)*cols+tile]);
+            Index byte = ((ring*rows+center/8)*cols+tile)*16+(center%8)*2;
+            uint16_t before = uint16_t(packed[byte] | (packed[byte+1] << 8));
+            uint16_t after = center == count ? centerRow : firstEvent(before,newest);
+            packed[byte] = uint8_t(after);
+            packed[byte+1] = uint8_t(after >> 8);
+            if (records)
+              records[((center-first)*rings+ring)*cols+tile] = before | (uint32_t(after) << 16);
+          }
+        }
+      }
+      ++count;
+    }
+    if (changes) return delta;
+    return py::none();
+  }
+  std::shared_lock<std::shared_timed_mutex> readLock() const {
+    std::shared_lock<std::shared_timed_mutex> lock(gate, std::try_to_lock);
+    if (!lock) throw py::value_error("hit map update in progress");
+    return lock;
+  }
+  const py::array_t<int8_t> &packedData() const { return lookup; }
+  py::array status() const {
+    auto lock = readLock();
+    auto view = py::cast<py::array>(lookup.attr("copy")());
+    view.attr("setflags")(false);
+    return view;
+  }
+  py::array_t<int32_t> encode(CArray<int32_t> input) const {
+    checkShape(input, {-1, 2, -1});
+    py::array_t<int32_t> output(input.request().shape);
+    py::gil_scoped_release release;
+    for (Index i = 0; i < input.size(); ++i) {
+      Index cell = input.data()[i];
+      if (cell >= rings*height*width) throw py::value_error("reflection bin is out of bounds");
+      if (cell >= 0) {
+        Index ring = cell/(height*width), omega = (cell/width)%height, e = cell%width;
+        cell = ((ring*rows+omega/8)*cols+e/8)*64+(omega%8)*8+e%8;
+      }
+      output.mutable_data()[i] = int32_t(cell);
+    }
+    return output;
+  }
+  py::array_t<double> score(CArray<int32_t> bins) const {
+    auto lock = readLock();
+    return scoreOrientationBinsTyped<true>(bins, lookup);
+  }
+  const int8_t *coverage() const { return visible.data(); }
+  bool matches(Index r, Index h, Index w) const { return rings == r && height == h && width == w; }
+  Index received() const { auto lock = readLock(); return count; }
+};
 
 static Index orientationBin(double value, const double *edges, Index count, double scale) {
   if (!(value >= edges[0] && value < edges[count])) return -1;
@@ -1189,7 +1356,7 @@ struct VectorScorer {
   double etaScale, omeScale, offset, wavelength;
   const OscillationGeometry *geometry;
 
-  HEXRD_AVX2 unsigned score(const double *q, Index stride, Index step, double *output) const {
+  HEXRD_AVX2 unsigned score(const double *q, Index stride, Index step, double *output, int32_t *cells, bool geometryOnly) const {
     using B = scoring_simd::Batch;
     using namespace scoring_simd;
     auto load = [&](const double *p) HEXRD_AVX2 HEXRD_FORCEINLINE {
@@ -1227,6 +1394,8 @@ struct VectorScorer {
         Index oi = orientationBin(o, omeEdges, nome, omeScale);
         if (ei < 0 || oi < 0 || !(rangeIndex(e, validEta, nvalidEta)&1) ||
             !(rangeIndex(o, validOme, nvalidOme)&1)) continue;
+        if (cells) cells[(2*j+solution)*nhkl+reflection] = int32_t((rings[reflection]*nome+oi)*neta+ei);
+        if (geometryOnly) continue;
         int hit = packedHitStatus(lookup, rings[reflection], oi, ei, nome, neta);
         tv[j] = hit >= 0; hv[j] = hit > 0;
       }
@@ -1275,6 +1444,18 @@ struct VectorScorer {
       auto word = _mm_add_epi32(_mm_slli_epi32(tile, 2), _mm_srli_epi32(_mm_and_si128(oi, set(7)), 1));
       auto shift = _mm_add_epi32(_mm_slli_epi32(_mm_and_si128(oi, set(1)), 4),
                                  _mm_slli_epi32(_mm_and_si128(ei, set(7)), 1));
+      if (cells) {
+        int32_t ev[4], ov[4], acceptedv[4];
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(ev), ei);
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(ov), oi);
+        _mm_storeu_si128(reinterpret_cast<__m128i *>(acceptedv), accepted);
+        unsigned negative = _mm256_movemask_pd(opposite.value);
+        for (int j = 0; j < 4; ++j) if (acceptedv[j]) {
+          Index reflection = negative & (1u << j) ? mates[h] : h;
+          cells[(2*j+solution)*nhkl+reflection] = int32_t((rings[reflection]*nome+ov[j])*neta+ev[j]);
+        }
+      }
+      if (geometryOnly) return;
       auto bits = _mm_mask_i32gather_epi32(zero, reinterpret_cast<const int *>(lookup), word, accepted, 4);
       auto codes = _mm_and_si128(_mm_srlv_epi32(bits, shift), set(3));
       total = _mm_sub_epi32(total, _mm_cmpgt_epi32(codes, zero));
@@ -1324,7 +1505,7 @@ struct VectorScorer {
     _mm_storeu_si128(reinterpret_cast<__m128i *>(tv), total);
     unsigned ready = _mm256_movemask_pd(active.value);
     for (int j = 0; j < 4; ++j) if (ready & (1u << j))
-      output[j] = tv[j] ? double(hv[j])/tv[j] : 0.;
+      output[j] = geometryOnly ? NAN : (tv[j] ? double(hv[j])/tv[j] : 0.);
     return ready;
   }
 };
@@ -1336,7 +1517,8 @@ static py::array_t<double> scoreOrientations(
     CArray<double> bmat, double wavelength, CArray<double> beam,
     CArray<double> etaEdges, CArray<double> omeEdges, CArray<double> validEta,
     CArray<double> validOme, double offset, StridedArray<double> maps, CArray<Index> rings,
-    Index de, Index dome, double threshold, py::object statusObject, py::object binsObject) {
+    Index de, Index dome, double threshold, py::object statusObject, py::object binsObject, bool geometryOnly) {
+  if (geometryOnly && binsObject.is_none()) throw py::value_error("static prediction requires an output bin array");
   bool quaternions = rmats.ndim() == 2;
   if (quaternions) checkShape(rmats, {4, -1});
   else { checkShape(rmats, {-1, 3, 3}); rmats = CArray<double>::ensure(rmats); }
@@ -1360,8 +1542,17 @@ static py::array_t<double> scoreOrientations(
     throw py::value_error("reflection ring index is out of bounds");
   CArray<int8_t> status;
   bool packed = false;
+  const int8_t *coverage = nullptr;
+  std::shared_lock<std::shared_timed_mutex> stateLock;
   if (!statusObject.is_none()) {
-    status = CArray<int8_t>::ensure(statusObject);
+    if (py::isinstance<OrientationHits>(statusObject)) {
+      auto &state = statusObject.cast<OrientationHits &>();
+      if (!state.matches(maps.shape(0), nome, neta))
+        throw py::value_error("incremental hit map shape mismatch");
+      stateLock = state.readLock();
+      coverage = state.coverage();
+      status = CArray<int8_t>::ensure(state.packedData());
+    } else status = CArray<int8_t>::ensure(statusObject);
     if (!status) throw py::value_error("invalid hit status map");
     packed = status.ndim() == 1;
     if (packed) checkShape(status, {maps.shape(0)*((nome+7)/8)*((neta+7)/8)*16});
@@ -1400,7 +1591,9 @@ static py::array_t<double> scoreOrientations(
   for (Index i = 0; i <= nome && pairedBins; ++i)
     pairedBins &= std::abs(omeEdges.data()[i]-(omeEdges.data()[0]+2.*pi*i/nome)) < 1e-12;
 #ifdef HEXRD_AVX2
-  bool vectorScores = nominal && quaternions && packed && binsObject.is_none() &&
+  bool vectorScores = nominal && quaternions && packed &&
+      (binsObject.is_none() || ((offset == 0. || offset == -pi) && omeEdges.data()[0] == 0. &&
+                                std::abs(omeEdges.data()[nome]-2.*pi) < 1e-12)) &&
       __builtin_cpu_supports("avx2") && status.size()/4 <= INT32_MAX && nhkl < INT32_MAX/2 &&
       neta < INT32_MAX && nome < INT32_MAX && etaScale > 0 && omeScale > 0 &&
       etaScale < 1e6 && omeScale < 1e6;
@@ -1442,14 +1635,17 @@ static py::array_t<double> scoreOrientations(
   // |g_y| = |g| cos(theta) |sin(eta)|; prune by coverage, not intensity.
   // Expand angular and vector bounds to retain boundary cases.
   std::vector<double> visibility(2*nhkl);
+  if (cells) for (Index h = 0; h < nhkl; ++h) {
+    visibility[2*h] = -INFINITY; visibility[2*h+1] = INFINITY;
+  }
   if (lookup && !cells && nominal) {
     std::vector<double> limits(2*maps.shape(0));
     for (Index ring = 0; ring < maps.shape(0); ++ring) {
       double lower = 1., upper = 0.;
       for (Index e = 0; e < neta; ++e) {
         if (etaValid[e] == 0) continue;
-        bool visible = false;
-        for (Index o = 0; o < nome && !visible; ++o)
+        bool visible = coverage && coverage[ring*neta+e];
+        for (Index o = 0; !coverage && o < nome && !visible; ++o)
           visible = omeValid[o] != 0 && statusAt(ring, o, e) >= 0;
         if (!visible) continue;
         double lo = etaEdges.data()[e]-1e-7, hi = etaEdges.data()[e+1]+1e-7;
@@ -1479,7 +1675,7 @@ static py::array_t<double> scoreOrientations(
 #ifdef HEXRD_AVX2
     if (vectorScores) {
       if (q >= vectorEnd && q+4 <= n) {
-        vectorReady = vectorScorer.score(rmats.data()+q*trialStride, componentStride, trialStride, output+q);
+        vectorReady = vectorScorer.score(rmats.data()+q*trialStride, componentStride, trialStride, output+q, cells ? cells+2*q*nhkl : nullptr, geometryOnly);
         vectorEnd = q+4;
         if (vectorReady == 15) { q += 3; continue; }
       }
@@ -1489,6 +1685,7 @@ static py::array_t<double> scoreOrientations(
       }
     }
 #endif
+    if (cells) std::fill(cells+2*q*nhkl, cells+2*(q+1)*nhkl, -1);
     double rotation[9];
     const double *rmat = rotation;
     if (quaternions) {
@@ -1553,6 +1750,7 @@ static py::array_t<double> scoreOrientations(
       if (ei < 0 || oi < 0 || ei >= neta || oi >= nome) continue;
       Index cell = (rings.data()[h]*nome+oi)*neta+ei;
       if (cells) cells[(2*q+solution)*nhkl+h] = int32_t(cell);
+      if (geometryOnly) continue;
       int hit = lookup ? statusAt(rings.data()[h], oi, ei) : 0;
       if (!lookup) {
         Index ostop = dome < nome-1-oi ? oi+dome+1 : nome;
@@ -1567,33 +1765,168 @@ static py::array_t<double> scoreOrientations(
       }
       if (hit >= 0) { ++total; hits += hit; }
     }
-    output[q] = total ? double(hits)/total : 0.;
+    output[q] = geometryOnly ? NAN : (total ? double(hits)/total : 0.);
   }
   return scores;
 }
 
-static double quatDistance(CArray<double> q1, CArray<double> q2, CArray<double> sym) {
-  checkShape(q1, {4}); checkShape(q2, {4}); checkShape(sym, {-1, 4});
-  const double *a = q1.data(), *b = q2.data(); double maximum = 0;
-  py::gil_scoped_release release;
-  for (Index i = 0; i < sym.shape(0); ++i) {
-    const double *s = sym.data()+4*i;
-    double r[4] = {b[0]*s[0]-b[1]*s[1]-b[2]*s[2]-b[3]*s[3],
-                   b[1]*s[0]+b[0]*s[1]-b[3]*s[2]+b[2]*s[3],
-                   b[2]*s[0]+b[3]*s[1]+b[0]*s[2]-b[1]*s[3],
-                   b[3]*s[0]-b[2]*s[1]+b[1]*s[2]+b[0]*s[3]};
+static void quatImage(const double *b, const double *s, double *r) {
+  r[0] = b[0]*s[0]-b[1]*s[1]-b[2]*s[2]-b[3]*s[3];
+  r[1] = b[1]*s[0]+b[0]*s[1]-b[3]*s[2]+b[2]*s[3];
+  r[2] = b[2]*s[0]+b[3]*s[1]+b[0]*s[2]-b[1]*s[3];
+  r[3] = b[3]*s[0]-b[2]*s[1]+b[1]*s[2]+b[0]*s[3];
+}
+
+template<class Image> static double quatDistanceValue(const double *a, Index count,
+                                                     Image image) {
+  double maximum = 0;
+  for (Index i = 0; i < count; ++i) {
+    double r[4]; image(i, r);
     double value = std::abs(a[0]*r[0]+a[1]*r[1]+a[2]*r[2]+a[3]*r[3]);
     if (value > maximum) maximum = value;
   }
   return maximum <= 1. ? 2.*std::acos(maximum) : (maximum-1. < 1e-12 ? 0. : NAN);
 }
 
+static double quatDistance(CArray<double> q1, CArray<double> q2, CArray<double> sym) {
+  checkShape(q1, {4}); checkShape(q2, {4}); checkShape(sym, {-1, 4});
+  py::gil_scoped_release release;
+  return quatDistanceValue(q1.data(), sym.shape(0), [&](Index i, double *r) {
+    quatImage(q2.data(), sym.data()+4*i, r);
+  });
+}
+
+#include "quaternion_linkage.hpp"
+
+class QuaternionDistances {
+  std::vector<double> quats, images, symmetryScalars;
+  Index n, count;
+
+public:
+  QuaternionDistances(CArray<double> points, CArray<double> sym) {
+    checkShape(points, {-1, 4}); checkShape(sym, {-1, 4});
+    n = points.shape(0); count = sym.shape(0);
+    if ((n > 1 && n > PY_SSIZE_T_MAX / (n-1)) ||
+        (n && count > PY_SSIZE_T_MAX / (4*n)))
+      throw py::value_error("too many quaternion pairs");
+    quats.assign(points.data(), points.data()+4*n);
+    symmetryScalars.resize(count);
+    for (Index s = 0; s < count; ++s) symmetryScalars[s] = sym.data()[4*s];
+    images.resize(4*n*count);
+    py::gil_scoped_release release;
+    for (Index j = 0; j < n; ++j)
+      for (Index s = 0; s < count; ++s)
+        quatImage(quats.data()+4*j, sym.data()+4*s, images.data()+4*(j*count+s));
+  }
+
+  // Prim's visitation and stable edge order match scipy's single linkage.
+  // Compute each condensed distance on demand, with the smaller index on the
+  // left to retain the reference's floating-point order under symmetry.
+  py::array_t<double> linkage(py::object check) const {
+    if (n < 2) throw py::value_error("single linkage requires two points");
+    struct Edge { Index a, b; double distance; };
+    std::vector<Edge> edges;
+    edges.reserve(n-1);
+    py::array_t<double> tree({n-1, Index(4)});
+    auto output = tree.mutable_data();
+    py::gil_scoped_release release;
+    auto poll = [&] {
+      py::gil_scoped_acquire acquire;
+      if (PyErr_CheckSignals() < 0) throw py::error_already_set();
+      if (!check.is_none()) check();
+    };
+    auto weight = [&](Index i, Index j) { return pair(i,j); };
+    auto append = [&](Index i, Index j, double cost) { edges.push_back({i,j,cost}); };
+    if (n < 512 || n > std::numeric_limits<int>::max() ||
+        count > std::numeric_limits<int>::max() ||
+        !sparsePrim(quats.data(), images.data(), symmetryScalars, int(n), int(count),
+                    weight, append, poll)) {
+      edges.clear();
+      std::vector<double> nearest(n, INFINITY);
+      std::vector<bool> merged(n);
+      Index x = 0;
+      for (Index k = 0; k < n-1; ++k) {
+        if (k % 16 == 0) poll();
+        merged[x] = true;
+        Index y = -1;
+        double best = INFINITY;
+        for (Index i = 0; i < n; ++i) if (!merged[i]) {
+          double distance = pair(std::min(i,x), std::max(i,x));
+          if (!std::isfinite(distance)) throw py::value_error("nonfinite quaternion distance");
+          nearest[i] = std::min(nearest[i], distance);
+          if (nearest[i] < best) { best = nearest[i]; y = i; }
+        }
+        edges.push_back({x, y, best});
+        x = y;
+      }
+    }
+    std::stable_sort(edges.begin(), edges.end(),
+                     [](const Edge &a, const Edge &b) { return a.distance < b.distance; });
+    std::vector<Index> parent(2*n-1), size(2*n-1,1);
+    std::iota(parent.begin(), parent.end(), Index(0));
+    auto root = [&](Index i) {
+      while (i != parent[i]) { parent[i] = parent[parent[i]]; i = parent[i]; }
+      return i;
+    };
+    for (Index k = 0; k < n-1; ++k) {
+      Index a = root(edges[k].a), b = root(edges[k].b);
+      parent[a] = parent[b] = n+k;
+      size[n+k] = size[a]+size[b];
+      output[4*k] = std::min(a,b); output[4*k+1] = std::max(a,b);
+      output[4*k+2] = edges[k].distance; output[4*k+3] = size[n+k];
+    }
+    return tree;
+  }
+
+  double pair(Index i, Index j) const {
+    return quatDistanceValue(quats.data()+4*i, count, [&](Index s, double *r) {
+      std::copy_n(images.data()+4*(j*count+s), 4, r);
+    });
+  }
+
+  py::array fill(Index first, Index stop, py::object target, py::object check) const {
+    if (stop == -1) stop = n;
+    if (first < 0 || stop < first || stop > n)
+      throw py::value_error("invalid quaternion row range");
+    Index size = (stop*(2*n-stop-1)-first*(2*n-first-1))/2;
+    py::array result = target.is_none() ? py::array(py::array_t<double>(size))
+                                       : py::cast<py::array>(target);
+    checkShape(result, {size});
+    if (!result.dtype().equal(py::dtype::of<double>()) ||
+        !(result.flags() & py::array::c_style) || !result.writeable())
+      throw py::value_error("expected writable contiguous float64 distances");
+    auto output = static_cast<double *>(result.mutable_data());
+    py::gil_scoped_release release;
+    for (Index i = first; i < stop; ++i) {
+      if (i == first || i % 64 == 0) {
+        py::gil_scoped_acquire acquire;
+        if (PyErr_CheckSignals() < 0) throw py::error_already_set();
+        if (!check.is_none()) check();
+      }
+      for (Index j = i+1; j < n; ++j)
+        *output++ = pair(i,j);
+    }
+    return result;
+  }
+};
+
+static py::array quatDistances(CArray<double> quats, CArray<double> sym, py::object check) {
+  return QuaternionDistances(quats, sym).fill(0, -1, py::none(), check);
+}
+
+#include "histogram.hpp"
+#include "radius_components.hpp"
+#include "sparse.hpp"
 #include "spot_extraction.hpp"
+#include "eiger_decoder.hpp"
 #include "grain_objective.hpp"
 
 PYBIND11_MODULE(transforms, m) {
   if (_import_array() < 0) throw py::error_already_set();
   spot_extraction::bind(m);
+#ifndef _WIN32
+  eiger_decoder::bind(m);
+#endif
   grain_objective::bind(m);
   m.def("_reduceFiber", &reduceFiber);
   m.doc() = "HEXRD transforms plugin";
@@ -1608,16 +1941,57 @@ PYBIND11_MODULE(transforms, m) {
   m.def("makeEtaFrameRotMat", &makeEtaFrameRotMat);
   m.def("rotate_vecs_about_axis", &rotateVectors);
   m.def("quat_distance", &quatDistance);
+  m.def("_radiusComponents", [](CArray<double> points, double radius, py::object check) -> py::object {
+    if (points.ndim() != 2 || points.shape(0) > std::numeric_limits<int>::max() ||
+        (points.shape(1) != 3 && points.shape(1) != 4)) return py::none();
+    py::array_t<int> labels(points.shape(0));
+    bool done;
+    {
+      py::gil_scoped_release release;
+      done = radiusComponents(points.data(), int(points.shape(0)), int(points.shape(1)),
+                              radius, labels.mutable_data(), [&] {
+        py::gil_scoped_acquire acquire;
+        if (PyErr_CheckSignals() < 0) throw py::error_already_set();
+        if (!check.is_none()) check();
+      });
+    }
+    if (done) return labels;
+    return py::none();
+  }, py::arg("points"), py::arg("radius"), py::arg("check") = py::none());
+  m.def("_quatDistances", &quatDistances, py::arg("quats"), py::arg("sym"),
+        py::arg("check") = py::none());
+  py::class_<QuaternionDistances>(m, "_QuaternionDistances")
+      .def(py::init<CArray<double>, CArray<double>>())
+      .def("linkage", &QuaternionDistances::linkage, py::arg("check") = py::none())
+      .def("fill", &QuaternionDistances::fill, py::arg("first"), py::arg("stop"),
+           py::arg("output") = py::none(), py::arg("check") = py::none());
   m.def("quaternionRotations", &quaternionRotations);
   m.def("_npzIndex", &npzIndex);
   m.def("_csrPixelIds", &csrPixelIds, py::arg("offsets"), py::arg("columns"),
         py::arg("width"), py::arg("output").noconvert());
   m.def("_ringMasks", &ringMasks);
   m.def("_histogramPrefix", &histogramPrefix);
+  m.def("_denseToCSR", &denseCsr, py::arg("input"), py::arg("threshold") = -1.);
+  py::class_<HistogramPlan>(m, "_HistogramPlan")
+      .def(py::init<py::list, std::pair<Index, Index>, Index>())
+      .def_property_readonly("max_pixels", &HistogramPlan::maxPixels)
+      .def("accumulate", &HistogramPlan::accumulate, py::arg("frame"),
+           py::arg("threshold"), py::arg("scale") = 1.)
+      .def("sparse_bins", &HistogramPlan::sparseBins)
+      .def("accumulate_sparse", &HistogramPlan::accumulateSparse,
+           py::arg("pixels").noconvert(), py::arg("values").noconvert(),
+           py::arg("threshold"), py::arg("scale") = 1.);
   m.def("_binPixels", &binPixels, py::arg("offsets"), py::arg("ids"), py::arg("values"),
         py::arg("rows"), py::arg("masks"), py::arg("eta"), py::arg("threshold"),
         py::arg("output").noconvert());
   m.def("orientationHitStatus", &orientationHitStatus);
+  py::class_<OrientationHits>(m, "_OrientationHits")
+      .def(py::init<Index, Index, Index, Index, Index, double>())
+      .def("append", &OrientationHits::append, py::arg("histogram"), py::arg("changes") = false)
+      .def("encode_bins", &OrientationHits::encode)
+      .def("score", &OrientationHits::score)
+      .def_property_readonly("status", &OrientationHits::status)
+      .def_property_readonly("count", &OrientationHits::received);
   m.def("_scoreOrientationBins", &scoreOrientationBins);
   m.def("scoreOrientations", &scoreOrientations,
         py::arg("rmats"), py::arg("hkls"), py::arg("bmat"), py::arg("wavelength"),
@@ -1625,7 +1999,7 @@ PYBIND11_MODULE(transforms, m) {
         py::arg("valid_eta"), py::arg("valid_omega"), py::arg("omega_offset"),
         py::arg("ring_maps"), py::arg("ring_for_hkl"), py::arg("dpix_eta"),
         py::arg("dpix_omega"), py::arg("threshold"), py::arg("hit_status") = py::none(),
-        py::arg("bin_indices") = py::none());
+        py::arg("bin_indices") = py::none(), py::arg("_geometry_only") = false);
 
   m.def("make_binary_rot_mat", &makeBinaryRotMat,
         "Function that computes a rotation matrix from a binary vector");

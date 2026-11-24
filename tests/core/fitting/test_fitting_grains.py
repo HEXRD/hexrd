@@ -158,7 +158,7 @@ def test_match_omegas_two_branch_selection_keeps_sort_ties_and_nans(monkeypatch)
     'hexrd.hedm.fitting.grains.matchOmegas',
     return_value=(None, np.array([0.0])),
 )
-@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains._detector_transform')
 @patch(
     'hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy',
     return_value=np.array([[1.0, 1.0]]),
@@ -202,7 +202,7 @@ def test_objFunc_evaluation(mock_g2xy, mock_ext, mock_match, mode, env):
 
 
 @patch('hexrd.hedm.fitting.grains.matchOmegas')
-@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains._detector_transform')
 @patch('hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy')
 def test_objFunc_empty_data(mock_g2xy, mock_ext, mock_match, env):
     det2 = MagicMock()
@@ -231,7 +231,7 @@ def test_objFunc_empty_data(mock_g2xy, mock_ext, mock_match, env):
 
 
 @patch('hexrd.hedm.fitting.grains.matchOmegas')
-@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains._detector_transform')
 @patch('hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy')
 def test_objFunc_mixed_empty(mock_g2xy, mock_ext, mock_mat, env):
     mock_ext.return_value = (np.eye(3), np.zeros(3), 0.0, np.zeros(3))
@@ -257,7 +257,7 @@ def test_objFunc_mixed_empty(mock_g2xy, mock_ext, mock_mat, env):
 
 
 @patch('hexrd.hedm.fitting.grains.matchOmegas', return_value=(None, np.array([0])))
-@patch('hexrd.hedm.fitting.grains.extract_detector_transformation')
+@patch('hexrd.hedm.fitting.grains._detector_transform')
 @patch(
     'hexrd.hedm.fitting.grains.xfcapi.gvec_to_xy',
     return_value=np.array([[np.nan, np.nan]]),

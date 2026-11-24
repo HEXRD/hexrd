@@ -427,9 +427,32 @@ def quatOfRotMat(r_mat):
     return _scipy_rotation_to_quat(R.from_matrix(r_mat))
 
 
+def _large_cluster_mean(source, qsym, indices=None, check=None):
+    """Gather and transform bounded batches, preserving the ordered NumPy mean."""
+    count = source.shape[1] if indices is None else len(indices)
+    for first in range(0, count, 16384):
+        if check is not None:
+            check()
+        region = slice(first, min(first + 16384, count))
+        points = unitVector(source[:, region if indices is None else indices[region]])
+        if first == 0:
+            anchor = points[:, :1].copy()
+            left = quatProductMatrix(invertQuat(anchor), mult='left')
+        centered = np.dot(left, points).reshape(4, -1)
+        batch = toFundamentalRegion(centered, qsym)
+        if first == 0:
+            representatives = np.empty((4, count), dtype=batch.dtype, order='F')
+        representatives[:, region] = batch
+    mean = unitVector(np.average(representatives, axis=1).reshape(4, 1))
+    return toFundamentalRegion(np.dot(quatProductMatrix(anchor, mult='left'), mean), qsym)
+
+
 def quatAverageCluster(q_in, qsym):
     """ """
     assert q_in.ndim == 2, 'input must be 2-s hstacked quats'
+
+    if q_in.shape[1] > 16384:
+        return _large_cluster_mean(q_in, qsym)
 
     # renormalize
     q_in = unitVector(q_in)
@@ -453,7 +476,8 @@ def quatAverageCluster(q_in, qsym):
         qrot = np.dot(quatProductMatrix(invertQuat(q0), mult='left'), q_in)
 
         # second, re-cast to FR
-        qrot = toFundamentalRegion(qrot.squeeze(), crysSym=qsym)
+        qrot = qrot.reshape(4, -1)
+        qrot = toFundamentalRegion(qrot, crysSym=qsym)
 
         # compute arithmetic average
         q_bar = unitVector(np.average(qrot, axis=1).reshape(4, 1))
@@ -464,6 +488,38 @@ def quatAverageCluster(q_in, qsym):
         # re-map
         q_bar = toFundamentalRegion(q_bar, crysSym=qsym)
     return q_bar
+
+
+def _average_cluster_batch(points, sym):
+    """Apply the cluster mean to equal-length groups, retaining member order."""
+    n, k, _ = points.shape
+    if k == 2 and sym.shape[1] == 1:
+        # A single symmetry reduces the reference 2-D product to matrix-vector.
+        return None
+    q = unitVector(points.reshape(-1, 4).T).T.reshape(points.shape)
+    anchors = q[:, 0].T
+    inverse = invertQuat(anchors)
+    if k == 2:
+        # misorientation() uses a matrix product after expanding the second
+        # member's symmetry orbit. Keep that product for each pair.
+        right = quatProductMatrix(sym, 'right')
+        identity = quatProductMatrix(np.eye(4)[:, :1], 'left')
+        orbit = np.dot(right, q[:, 1].T).transpose(2, 0, 1).reshape(-1, 4).T
+        orbit = np.dot(identity, orbit).transpose(2, 0, 1).reshape(n, -1, 4)
+        relative = (quatProductMatrix(inverse, 'right') @ orbit.transpose(0, 2, 1))
+        images = fixQuat(relative.transpose(0, 2, 1).reshape(-1, 4).T).T.reshape(n, -1, 4)
+        scalar = images[..., 0]
+        best = scalar.max(axis=1)
+        if np.any((scalar == best[:, None]).sum(axis=1) != 1):
+            return None  # Preserve misorientation's handling of tied images.
+        selected = images[np.arange(n), scalar.argmax(axis=1)].T
+        return quatProduct(anchors, quatOfExpMap(arccosSafe(best) * unitVector(selected[1:])))
+    # np.dot with a stack of 4x4 matrices computes four-element vector dots.
+    centered = np.vecdot(quatProductMatrix(inverse, 'left')[:, None], q[:, :, None])
+    representatives = toFundamentalRegion(centered.reshape(-1, 4).T, sym)
+    means = unitVector(representatives.T.reshape(n, k, 4).mean(axis=1).T)
+    restored = np.vecdot(quatProductMatrix(anchors, 'left'), means.T[:, None]).T
+    return toFundamentalRegion(restored, sym)
 
 
 def quatAverage(q_in, qsym):
@@ -1218,6 +1274,42 @@ def applySym(vec, qsym, csFlag=False, cullPM=False, tol=cnst.sqrt_epsf):
 # =============================================================================
 
 
+def _fundamental_columns(q, operators):
+    """Choose the first symmetry image with the largest normalized scalar."""
+    m, n = len(operators), q.shape[1]
+
+    def exhaustive(columns):
+        images = fixQuat(np.dot(operators, columns).transpose(2, 0, 1).reshape(-1, 4).T)
+        best = images[0].reshape(-1, m).argmax(axis=1)
+        return images[:, best + m * np.arange(len(best))]
+
+    if not (512 <= n <= 16384 and m > 1 and q.dtype == operators.dtype == np.float64):
+        return exhaustive(q)
+    # A unit symmetry preserves the input norm. For near-unit operands the
+    # normalizations and four-term dot products can change scalar rankings
+    # only very close to a tie. Resolve those columns with the original rule.
+    norms = np.sum(q*q, axis=0)
+    if not (np.all((norms >= .25) & (norms <= 4.)) and
+            np.all(np.abs(np.sum(operators[:, 0]**2, axis=1) - 1.) < 1e-14)):
+        return exhaustive(q)
+    scores = np.abs(operators[:, 0] @ q)
+    best = scores.argmax(axis=0)
+    idx = np.arange(n)
+    maximum = scores[best, idx]
+    scores[best, idx] = -np.inf
+    separated = maximum - scores.max(axis=0) > 1e-10
+    if not separated.any():
+        return exhaustive(q)
+    out = np.empty((4, n), order='F')
+    for i in np.unique(best[separated]):
+        cols = np.flatnonzero(separated & (best == i))
+        image = np.dot(operators[i:i+1], q[:, cols])[0]
+        out[:, cols] = fixQuat(np.asfortranarray(image))
+    if not separated.all():
+        out[:, ~separated] = exhaustive(q[:, ~separated])
+    return out
+
+
 def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
     """
     Map quaternions to fundamental region.
@@ -1256,26 +1348,10 @@ def toFundamentalRegion(q, crysSym='Oh', sampSym=None):
     n = q.shape[1]  # total number of quats
     m = qsym_c.shape[0]  # number of symmetry operations
 
-    #
-    # MAKE EQUIVALENCE CLASS
-    #
-    # Do R * Gc, store as
-    # [q[:, 0] * Gc[:, 0:m], ..., 2[:, n-1] * Gc[:, 0:m]]
-    qeqv = np.dot(qsym_c, q).transpose(2, 0, 1).reshape(m * n, 4).T
-
     if sampSym is None:
-        # need to fix quats to sort
-        qeqv = fixQuat(qeqv)
-
-        # Reshape scalar comp columnwise by point in qeqv
-        q0 = qeqv[0, :].reshape(n, m).T
-
-        # Find q0 closest to origin for each n equivalence classes
-        q0maxColInd = np.argmax(q0, 0) + [x * m for x in range(n)]
-
-        # store representatives in qr
-        qr = qeqv[:, q0maxColInd]
+        qr = _fundamental_columns(q, qsym_c)
     else:
+        qeqv = np.dot(qsym_c, q).transpose(2, 0, 1).reshape(m * n, 4).T
         if isinstance(sampSym, str):
             qsym_s = quatProductMatrix(
                 quatOfLaueGroup(sampSym), 'left'

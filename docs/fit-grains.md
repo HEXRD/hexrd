@@ -16,6 +16,16 @@ any grain finishes; they reset between batches and are not overall progress.
 Shared scans belong to a group. The dashboard layout and controls are unchanged;
 no separate Fit Activity panel is added.
 
+The isolated [live fit-grains sandbox](live-fit-grains.md) replays Eiger ZeroMQ
+images and analyzes acquired prefixes without changing the production CLI.
+Its native map kernel also serves ordinary offline orientation discovery:
+decoded frames bypass full-image sparse conversion, and safe integer sparse
+sources use exact scatter accumulation. The [validation and timings](live-fit-grains.md#integrated-native-maps-and-offline-benefit)
+separate map-stage gains from grain fitting, whose algorithms are unchanged.
+Generic dense image adapters and lazy fitting views also share the native CSR
+packer, preserving sorted pixel buffers while avoiding full-image coordinate
+arrays. Existing sparse inputs and unsupported dtypes/layouts retain their paths.
+
 ## Configuration
 
 Keep the experiment's existing threshold, tolerances, refit and material

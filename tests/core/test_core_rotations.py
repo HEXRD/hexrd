@@ -500,3 +500,30 @@ def test_RotMatEuler_class():
         rme.angles = [1, 2]
     with pytest.raises(RuntimeError):
         rme.extrinsic = 1
+
+
+def test_large_cluster_average_preserves_reference_reduction():
+    rng = np.random.default_rng(5173)
+    points = rng.normal(size=(4, 16385))
+    sym = rotations.quatOfLaueGroup('Oh')
+    normalized = rotations.unitVector(points)
+    q0 = normalized[:, :1]
+    rotation = rotations.quatProductMatrix(rotations.invertQuat(q0), mult='left')
+    full = rotations.toFundamentalRegion(np.dot(rotation, normalized).squeeze(), sym)
+    average = rotations.unitVector(np.average(full, axis=1).reshape(4, 1))
+    expected = rotations.toFundamentalRegion(
+        np.dot(rotations.quatProductMatrix(q0, mult='left'), average), sym)
+    assert rotations.quatAverageCluster(points, sym).tobytes() == expected.tobytes()
+
+
+@pytest.mark.parametrize('order', ['C', 'F'])
+def test_fundamental_region_unique_and_tied_symmetry_images(order):
+    sym = rotations.quatOfLaueGroup('Oh')
+    pts = np.array(rotations.unitVector(np.random.default_rng(11).normal(size=(4, 2051))),
+                   order=order)
+    pts[:, ::7] = rotations.unitVector(sym[:, [0]] + sym[:, [1]])
+    matrices = rotations.quatProductMatrix(sym, 'right')
+    images = rotations.fixQuat(np.dot(matrices, pts).transpose(2, 0, 1).reshape(-1, 4).T)
+    width = len(matrices)
+    indices = images[0].reshape(-1, width).argmax(axis=1) + width * np.arange(pts.shape[1])
+    assert rotations.toFundamentalRegion(pts, sym).tobytes() == images[:, indices].tobytes()
