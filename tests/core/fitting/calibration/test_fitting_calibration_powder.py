@@ -210,3 +210,69 @@ def test_fixed_pink_asymmetry_defaults_to_none(pc: PowderCalibrator) -> None:
     # Default behavior is unchanged: no asymmetry is forwarded.
     assert pc.fixed_pink_asymmetry is None
     assert pc.spectrum_kwargs['fixed_pink_asymmetry'] is None
+
+
+# --- Fit report ---
+
+
+class ConstantTThShift:
+    """A tth distortion that shifts every point by the same amount"""
+
+    def __init__(self, shift: float):
+        self.shift = shift
+        self.panel = None
+
+    def apply(self, xy: np.ndarray, return_nominal: bool = True) -> np.ndarray:
+        return np.column_stack([np.full(len(xy), self.shift), np.zeros(len(xy))])
+
+
+def test_fit_report() -> None:
+    from hexrd.core.instrument import HEDMInstrument
+    from hexrd.core.material import Material
+
+    instr = HEDMInstrument()
+    det_key, panel = next(iter(instr.detectors.items()))
+    material = Material()
+    bmat = material.planeData.latVecOps['B']
+
+    # Pick the Ni (113) and (200) rings, out of 2-theta order
+    etas = np.radians(np.linspace(-170, 170, 20))
+    rng = np.random.default_rng(0)
+    picks = {}
+    picked_tths = []
+    ring_tths = []
+    for hkl in [(1, 1, 3), (2, 0, 0)]:
+        dsp = 1 / np.linalg.norm(bmat @ hkl)
+        ring_tth = 2 * np.arcsin(instr.beam_wavelength / (2 * dsp))
+        tth = ring_tth + rng.normal(0, np.radians(0.01), len(etas))
+        xy = panel.angles_to_cart(np.column_stack([tth, etas]))
+        picks['%d %d %d' % hkl] = xy.tolist()
+        picked_tths.insert(0, tth)
+        ring_tths.insert(0, ring_tth)
+
+    # Invalid points should be dropped
+    picks['2 0 0'].append([np.nan, np.nan])
+
+    shift = np.radians(0.2)
+    calibrator = PowderCalibrator(
+        instr,
+        material,
+        {det_key: None},
+        tth_distortion={det_key: ConstantTThShift(shift)},
+        calibration_picks={det_key: picks},
+    )
+
+    rings = calibrator.fit_report()
+    assert [r.hkl.tolist() for r in rings] == [[2, 0, 0], [1, 1, 3]]
+    for ring, tth, ring_tth in zip(rings, picked_tths, ring_tths):
+        assert np.allclose(ring.tth, np.degrees(tth - shift), atol=1e-6)
+        assert np.allclose(ring.eta, np.degrees(etas), atol=1e-6)
+        assert np.all(ring.detectors == det_key)
+        assert np.isclose(ring.material_tth, np.degrees(ring_tth))
+        assert ring.index is None and ring.fit_tth is None
+
+    # The report should describe exactly what the calibration minimizes
+    report_residual = np.hstack([r.tth - r.material_tth for r in rings])
+    residual = np.degrees(calibrator.residual())
+    residual = residual[np.isfinite(residual)]
+    assert np.allclose(np.sort(report_residual), np.sort(residual))

@@ -8,6 +8,7 @@ from hexrd.core.instrument import calc_angles_from_beam_vec, switch_xray_source
 from hexrd.core.utils.hkl import hkl_to_str, str_to_hkl
 
 from .calibrator import Calibrator
+from .fit_report import make_ring_report, RingReport
 from .lmfit_param_handling import (
     create_material_params,
     update_material_from_params,
@@ -390,3 +391,66 @@ class PowderCalibrator(Calibrator):
         # This does nothing for single x-ray sources.
         with switch_xray_source(self.instr, self.xray_source):
             return self._evaluate(output='model')
+
+    def fit_report(self) -> list[RingReport]:
+        """Get the measured angles of each picked hkl for a fit report
+
+        This uses the current instrument and material, so call it after
+        calibration to describe the result of the fit. As in the residual,
+        the 2-theta of each hkl is computed from the current lattice
+        parameters and the wavelength of this calibrator's x-ray source.
+
+        The rings are sorted by 2-theta.
+        """
+        with switch_xray_source(self.instr, self.xray_source):
+            return self._fit_report()
+
+    def _fit_report(self) -> list[RingReport]:
+        if not self.data_dict:
+            return []
+
+        # Gather the points of each hkl from every detector
+        points: dict[tuple[int, ...], dict[str, list]] = {}
+        for det_key, data in self.data_dict.items():
+            if len(data) == 0:
+                continue
+
+            panel = self.instr.detectors[det_key]
+            pdata = np.vstack(data)
+            meas_xy = pdata[:, :2]
+            angles, _ = panel.cart_to_angles(
+                meas_xy, tvec_s=self.instr.tvec, apply_distortion=True
+            )
+            tth = angles[:, 0]
+            if self.tth_distortion is not None:
+                sd = self.tth_distortion[det_key]
+                tth = tth - sd.apply(meas_xy, return_nominal=False)[:, 0]
+
+            # One set of picks may contain several hkls
+            hkls = pdata[:, 3:6].astype(int)
+            for hkl in np.unique(hkls, axis=0):
+                mask = np.all(hkls == hkl, axis=1)
+                ring = points.setdefault(
+                    tuple(hkl), {'tth': [], 'eta': [], 'detectors': []}
+                )
+                ring['tth'].append(tth[mask])
+                ring['eta'].append(angles[mask, 1])
+                ring['detectors'] += [det_key] * mask.sum()
+
+        bmat = self.plane_data.latVecOps['B']
+        wlen = self.instr.beam_wavelength
+        rings = []
+        for hkl, ring_points in points.items():
+            dsp0 = 1.0 / np.linalg.norm(np.dot(hkl, bmat.T))
+            ring = make_ring_report(
+                self.instr.active_beam_name,
+                np.hstack(ring_points['tth']),
+                np.hstack(ring_points['eta']),
+                np.array(ring_points['detectors']),
+                hkl=np.array(hkl),
+                material_tth=float(np.degrees(2.0 * np.arcsin(0.5 * wlen / dsp0))),
+            )
+            if ring is not None:
+                rings.append(ring)
+
+        return sorted(rings, key=lambda x: x.material_tth)
