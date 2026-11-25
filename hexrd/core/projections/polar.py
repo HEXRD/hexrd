@@ -502,7 +502,8 @@ def bin_polar_view(
     eta_mi = np.degrees(polar_obj.eta_min)
     eta_ma = np.degrees(polar_obj.eta_max)
 
-    nspec = int((eta_ma - eta_mi) / azimuthal_interval) - 1
+    # floor with a tolerance, so round-off does not drop a row
+    nspec = int(np.floor((eta_ma - eta_mi) / azimuthal_interval + 1e-8)) - 1
 
     pv_binned = np.zeros((nspec, pv.shape[1]))
 

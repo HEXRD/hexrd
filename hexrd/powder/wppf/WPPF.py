@@ -2240,7 +2240,8 @@ class Rietveld(AbstractWPPF):
         x = self.tthfull
         y = np.zeros(x.shape)
 
-        nspec = round((self.eta_max - self.eta_min) / self.eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((self.eta_max - self.eta_min) / self.eta_step + 1e-8)) - 1
         azimuth = self.eta_min + self.eta_step * np.arange(1, nspec + 1)
 
         Icomputed = self.compute_intensities()
