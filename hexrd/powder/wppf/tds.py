@@ -1,33 +1,34 @@
+import logging
+
 import numpy as np
-import warnings
-from hexrd.powder.wppf.phase import (
-    Phases_Rietveld,
-    Material_Rietveld,
-)
-from hexrd.core.material.utils import calculate_incoherent_scattering_factor
-from hexrd.wppf.xtal import _calcxrayformfactor, _calcanomalousformfactor
+from scipy.ndimage import gaussian_filter1d
+
 from hexrd.constants import (
-    ptableinverse,
+    ATOM_WEIGHTS_DICT,
     fNT,
     frel,
-    scatfac,
-    cPlanck,
-    cBoltzmann,
-    cAvogadro,
-    ATOM_WEIGHTS_DICT,
     fwhm_to_sigma,
+    ptableinverse,
+    scatfac,
 )
-from scipy.ndimage import gaussian_filter1d
+from hexrd.core.material.utils import calculate_incoherent_scattering_factor
+from hexrd.powder.wppf.phase import (
+    Material_Rietveld,
+    Phases_Rietveld,
+)
+from hexrd.wppf.xtal import _calcxrayformfactor
 
 TDS_MODEL_TYPES = ['warren', 'experimental']
 
 # These are the space group numbers we currently support
 VALID_SGNUMS = [225, 229]
 
+logger = logging.getLogger(__name__)
+
 
 def check_model_type(model: str):
     if not model in TDS_MODEL_TYPES:
-        msg = f'unknown TDS model type'
+        msg = 'unknown TDS model type'
         raise ValueError(msg)
 
 
@@ -106,33 +107,39 @@ class TDS_material:
         self.scale = 1.0 if scale is None else scale
         self.shift = 0.0 if shift is None else shift
         self.smoothing = smoothing
+        self.only_compton = False
 
-        self.validate()
         self.include_compton = include_compton
+        self.validate()
 
     def validate(self):
         if self.model_type == 'warren':
             if self.mat is None:
-                msg = f'material has to be specified for warren model'
+                msg = 'material has to be specified for warren model'
                 raise ValueError(msg)
             if not isinstance(self.mat, Material_Rietveld):
-                msg = f'specify material as Material_Rietveld class'
+                msg = 'specify material as Material_Rietveld class'
                 raise ValueError(msg)
             if self.mat.sgnum not in VALID_SGNUMS:
-                msg = f'only FCC and BCC crystals are supported at the moment.'
-                raise ValueError(msg)
+                # msg = (
+                #     'only FCC and BCC crystals are supported at the moment. '
+                #     'Only incoherent scattering will be computed.'
+                # )
+                # logger.warning(msg)
+                self.include_compton = True
+                self.only_compton = True
 
             if self.wavelength is None:
-                msg = f'wavelength has to be specified for warren model'
+                msg = 'wavelength has to be specified for warren model'
                 raise ValueError(msg)
 
             if self.tth is None:
-                msg = f'tth has to be specified for warren model'
+                msg = 'tth has to be specified for warren model'
                 raise ValueError(msg)
 
         if self.model_type == 'experimental':
             if self.model_data is None or not isinstance(self.model_data, np.ndarray):
-                msg = f'model_data needs to be nx2 numpy array'
+                msg = 'model_data needs to be nx2 numpy array'
                 raise ValueError(msg)
 
     def WarrenFunctionalForm(self, x: np.ndarray, xhkl: float) -> np.ndarray:
@@ -255,7 +262,7 @@ class TDS_material:
 
         thermal_diffuse = np.zeros_like(self.tth)
         for k, v in formfact.items():
-            thermal_diffuse = v * (
+            thermal_diffuse += v * (
                 (1 - exp2M[k]) + exp2M[k] * (2 * Ms[k] + Ms[k] ** 2) * (C - 1)
             )
 
@@ -272,8 +279,8 @@ class TDS_material:
                 self._Mdict[key] = 8.0 * np.pi**2 * U
         else:
             msg = (
-                f'at least one atom has an anisotropic debye-waller factor.'
-                f' That model is in development'
+                'at least one atom has an anisotropic debye-waller factor.'
+                ' That model is in development'
             )
             raise ValueError(msg)
         return self._Mdict
@@ -313,7 +320,10 @@ class TDS_material:
                 right=0.0,
             )
         else:
-            lo = self.calcTDS()
+            if not self.only_compton:
+                lo = self.calcTDS()
+            else:
+                lo = np.zeros_like(self.q)
             if self.include_compton:
                 lo += self.compton_scattering_intensity
         if self.smoothing is not None:
@@ -396,7 +406,7 @@ class TDS:
     @phases.setter
     def phases(self, phases: Phases_Rietveld | None):
         if not isinstance(phases, Phases_Rietveld):
-            msg = f'input phase as Phases_Rietveld class'
+            msg = 'input phase as Phases_Rietveld class'
             raise ValueError(msg)
         self._phases = phases
         kwargs = {
@@ -411,9 +421,9 @@ class TDS:
         for pname in self.phases:
             for wavn, lam in self.phases.wavelength.items():
                 matr = self.phases[pname][wavn]
-                if matr.sgnum not in VALID_SGNUMS:
-                    # Skip over materials we can't model yet.
-                    continue
+                # if matr.sgnum not in VALID_SGNUMS:
+                #     # Skip over materials we can't model yet.
+                #     continue
 
                 kwargs = {
                     **kwargs,
