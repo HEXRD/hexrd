@@ -2282,7 +2282,8 @@ class PhaseTransitionTextureModel:
         present in params, the current kernel width is retained.
         '''
 
-        nspec = int((eta_max - eta_min) / eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((eta_max - eta_min) / eta_step + 1e-8)) - 1
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
         self.eta_grid = eta_grid
 
@@ -2755,7 +2756,8 @@ class PhaseTransitionTextureView:
             msg = 'unknown type of grid for computing pole figures on rings'
             raise ValueError(msg)
 
-        nspec = int((eta_max - eta_min) / eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((eta_max - eta_min) / eta_step + 1e-8)) - 1
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
         self.eta_grid = eta_grid
 

@@ -86,7 +86,9 @@ def test_phase_transition_texture_model(
     params = model.get_parameters(vary=True)
     for key, view in model._views.items():
         truth_view = truth._views[key]
-        truth_view.calc_pf_rings(true_params, eta_step=np.radians(2.0))
+        # 3 degrees gave one row too few before (int rounded 119.99 down)
+        truth_view.calc_pf_rings(true_params, eta_step=np.radians(3.0))
+        assert len(truth_view.eta_grid) == 119
         pfdata = {}
         for hkl, ratio in truth_view.intensities_rings.items():
             if np.all(np.isfinite(ratio)):
