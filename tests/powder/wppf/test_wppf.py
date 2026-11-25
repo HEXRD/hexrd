@@ -602,6 +602,13 @@ def test_texture_data_matches_intensities_by_hkl(
     for hkl in map(tuple, hkls):
         np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
 
+    # A harmonic model left with no data is an error, not an empty result
+    model.calculate_harmonic_coefficients = None
+    with pytest.raises(RuntimeError, match='No texture data'):
+        ceo2_rietveld.compute_texture_data(
+            np.tile(expt_spectrum[:, 1], (2, 1)), min_relative_intensity=np.inf
+        )
+
 
 def test_simulated_2d_matches_binned_rows(ceo2_rietveld: Rietveld) -> None:
     polar_obj = SimpleNamespace(

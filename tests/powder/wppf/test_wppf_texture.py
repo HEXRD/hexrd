@@ -215,6 +215,21 @@ def test_wppf_texture(texture_instrument, texture_img_dict, test_data_dir):
         for key in d1:
             assert np.allclose(d1[key], d2[key], equal_nan=True, rtol=2e-2)
 
+    # A peak width that starts at its lower bound is not a collapsed fit,
+    # so it must not drop any eta rows
+    def num_texture_points(W: float) -> int:
+        R.params['W'].value = W
+        R.compute_texture_data(
+            pv_binned,
+            bvec=instr.beam_vector,
+            evec=instr.eta_vector,
+            azimuthal_interval=azimuthal_interval,
+        )
+        return sum(len(v) for v in hm.pfdata.values())
+
+    W = R.params['W'].value
+    assert num_texture_points(W) == num_texture_points(0)
+
 
 def test_wppf_march_dollase_texture(texture_instrument, texture_img_dict):
     instr = texture_instrument

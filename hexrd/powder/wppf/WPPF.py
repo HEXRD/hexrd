@@ -2808,6 +2808,10 @@ class Rietveld(AbstractWPPF):
             # Now set the texture data on the texture model
             model.pfdata = pfdata
 
+            # the GUI waits for pfdata, so an empty result must be an error
+            if not pfdata and hasattr(model, 'calculate_harmonic_coefficients'):
+                raise RuntimeError(f'No texture data extracted for "{mat_key}"')
+
         return results[4]
 
 
@@ -3008,6 +3012,7 @@ def single_azimuthal_extraction(
         "amorphous_model": amorphous_model,
     }
     L = LeBail(**kwargs)
+    W_start = L.params["W"].value
 
     # seed by hkl: this row's hkl list is trimmed to its unmasked 2theta range
     if intensity_init is not None:
@@ -3035,8 +3040,10 @@ def single_azimuthal_extraction(
         niter += 1
 
     # a collapsed fit pins the peak width at its lower bound; flag it as failed
+    # (only if it moved there, since W may already start at its bound)
     W = L.params["W"]
-    rwp = np.inf if W.vary and np.isclose(W.value, W.min) else L.Rwp
+    collapsed = np.isclose(W.value, W.min) and not np.isclose(W_start, W.min)
+    rwp = np.inf if W.vary and collapsed else L.Rwp
 
     res = (L.spectrum_sim._x, L.spectrum_sim._y, rwp, L.Iobs, L.hkls, L.tth)
     return res
