@@ -23,7 +23,7 @@ from hexrd.phase_transition.texture import (
     unimodal_odf,
 )
 from hexrd.powder.wppf.phase import Material_Rietveld
-from hexrd.rotations import rotMatOfExpMap
+from hexrd.core.rotations import rotMatOfExpMap
 
 """
 ===============================================================================
@@ -2182,7 +2182,7 @@ class PhaseTransitionTextureModel:
         self._kernels_dirty = False
         self._odfs_dirty = True
 
-    def compute_odfs(self):
+    def compute_odfs(self) -> None:
         '''build the ODFs of both phases from the kernels, the parent
         orientations, the variants and the parent misorientation'''
         odfs = dict.fromkeys(["parent", "daughter"])
@@ -2193,7 +2193,14 @@ class PhaseTransitionTextureModel:
             self.parent_kernel,
         )
 
-        rmat_variants = [prmat @ r for r in self.OR.rmat_variants_rotated]
+        # a variant is improper (det = -1) when it comes from an improper
+        # operation of the parent point group. -r gives identical pole
+        # figures with the centrosymmetric (Laue) kernels, and the ODF
+        # needs proper rotations
+        rmat_variants = [
+            prmat @ r * np.sign(np.linalg.det(r))
+            for r in self.OR.rmat_variants_rotated
+        ]
         odfs["daughter"] = unimodal_odf.UnimodalODF(
             rmat_variants,
             self.daughter_kernel,
