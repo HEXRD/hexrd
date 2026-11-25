@@ -271,3 +271,65 @@ def test_residual_property(mock_update, calibrator):
 
     res = calibrator.residual
     assert isinstance(res, np.ndarray)
+
+
+# --- Fit report ---
+
+
+class ConstantTThShift:
+    """A tth distortion that shifts every point by the same amount"""
+
+    def __init__(self, shift: float):
+        self.shift = shift
+        self.panel = None
+
+    def apply(self, xy: np.ndarray, return_nominal: bool = True) -> np.ndarray:
+        return np.column_stack([np.full(len(xy), self.shift), np.zeros(len(xy))])
+
+
+def test_fit_report() -> None:
+    from hexrd.core.instrument import HEDMInstrument
+    from hexrd.core.material import Material
+
+    instr = HEDMInstrument()
+    det_key, panel = next(iter(instr.detectors.items()))
+    plane_data = Material().planeData
+
+    # Put picks on the (111) and (220) rings of Ni at the *instrument*
+    # wavelength, which differs from the plane data wavelength.
+    d_spacings = np.asarray(plane_data.getPlaneSpacings())
+    ring_tths = 2 * np.arcsin(instr.beam_wavelength / (2 * d_spacings[[0, 2]]))
+    etas = np.radians(np.linspace(-170, 170, 30))
+    noise = np.random.default_rng(0).normal(0, np.radians(0.01), (2, 30))
+    picks = []
+    for tth, tth_noise in zip(ring_tths, noise):
+        angles = np.column_stack([tth + tth_noise, etas])
+        picks.append({det_key: panel.angles_to_cart(angles)})
+
+    shift = np.radians(0.2)
+    calibrator = StructurelessCalibrator(
+        instr,
+        {'XRS1': picks},
+        tth_distortion={det_key: ConstantTThShift(shift)},
+    )
+
+    # Only fit the ring means, so we can check the report against them
+    for name, param in calibrator.params.items():
+        param.vary = name.startswith('DS_ring_')
+    calibrator.run_calibration(odict={'verbose': 0})
+
+    rings = calibrator.fit_report()
+    assert [r.index for r in rings] == [0, 1]
+    for ring, tth, tth_noise in zip(rings, ring_tths, noise):
+        expected = np.degrees(tth + tth_noise - shift)
+        assert np.allclose(ring.tth, expected, atol=1e-6)
+        assert np.allclose(ring.eta, np.degrees(etas), atol=1e-6)
+        assert np.all(ring.detectors == det_key)
+        assert np.isclose(ring.fit_tth, ring.tth.mean(), atol=1e-6)
+        assert ring.hkl is None and ring.material_tth is None
+
+    rings = calibrator.fit_report(plane_data)
+    assert rings[0].hkl.tolist() == [1, 1, 1]
+    assert rings[1].hkl.tolist() == [2, 2, 0]
+    for ring, tth in zip(rings, ring_tths):
+        assert np.isclose(ring.material_tth, np.degrees(tth))

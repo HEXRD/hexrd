@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import copy
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import lmfit
 import numpy as np
 
 from hexrd.core.instrument import switch_xray_source
 
+from .fit_report import make_ring_report, RingReport
 from .lmfit_param_handling import (
     add_engineering_constraints,
     create_instr_params,
@@ -19,6 +22,9 @@ from .relative_constraints import (
     RelativeConstraints,
     RelativeConstraintsType,
 )
+
+if TYPE_CHECKING:
+    from hexrd.core.material.crystallography import PlaneData
 
 
 class StructurelessCalibrator:
@@ -148,6 +154,80 @@ class StructurelessCalibrator:
         self.params = self.res.params
         # res = self.fitter.least_squares(**fdict)
         return self.res
+
+    def fit_report(self, plane_data: PlaneData | None = None) -> list[RingReport]:
+        """Get the measured angles of each ring for a fit report
+
+        This uses the current instrument and parameters, so call it after
+        `run_calibration()` to describe the result of the fit.
+
+        If `plane_data` is provided, each ring is matched to the allowed
+        hkl whose 2-theta is nearest to the mean measured 2-theta of the
+        ring. The hkl 2-theta values are computed with the wavelength of
+        the ring's x-ray source, rather than the plane data's wavelength.
+        """
+        meas_angles = self.meas_angles
+        tth_correction = self.tth_correction
+        prefixes = tth_parameter_prefixes(self.instr)
+
+        rings = []
+        for xray_source, angles_list in meas_angles.items():
+            prefix = prefixes[xray_source]
+            corrections_list = tth_correction[xray_source]
+            for ii, (angles, corrections) in enumerate(
+                zip(angles_list, corrections_list)
+            ):
+                tth = []
+                eta = []
+                detectors = []
+                for det_key, det_angles in angles.items():
+                    if det_angles is None or det_angles.size == 0:
+                        continue
+
+                    det_tth = det_angles[:, 0]
+                    if corrections[det_key] is not None:
+                        det_tth = det_tth - corrections[det_key]
+
+                    tth.append(det_tth)
+                    eta.append(det_angles[:, 1])
+                    detectors += [det_key] * len(det_tth)
+
+                if not tth:
+                    # There are no points on this ring
+                    continue
+
+                ring = make_ring_report(
+                    xray_source,
+                    np.hstack(tth),
+                    np.hstack(eta),
+                    np.array(detectors),
+                    index=ii,
+                    fit_tth=self.params[f'{prefix}{ii}'].value,
+                )
+                if ring is not None:
+                    rings.append(ring)
+
+        if plane_data is None:
+            return rings
+
+        hkls = np.asarray(plane_data.getHKLs())
+        d_spacings = np.asarray(plane_data.getPlaneSpacings())
+        for ring in rings:
+            with switch_xray_source(self.instr, ring.xray_source):
+                wavelength = self.instr.beam_wavelength
+
+            # Reflections that cannot diffract at this wavelength are nan
+            with np.errstate(invalid='ignore'):
+                material_tths = np.degrees(2 * np.arcsin(wavelength / (2 * d_spacings)))
+
+            if np.all(np.isnan(material_tths)):
+                continue
+
+            idx = np.nanargmin(np.abs(material_tths - ring.tth.mean()))
+            ring.hkl = hkls[idx]
+            ring.material_tth = float(material_tths[idx])
+
+        return rings
 
     @property
     def tth_distortion(self):
