@@ -1205,8 +1205,8 @@ class LeBail(AbstractWPPF):
         x = self.tth_list
         y = np.zeros(x.shape)
         tth_list = np.ascontiguousarray(self.tth_list)
-        if not hasattr(self, 'phase_spectrum'):
-            self.phase_spectrum = {}
+
+        self.phase_spectrum = {}
 
         for iph, p in enumerate(self.phases):
             self.phase_spectrum[p] = {}
@@ -2195,8 +2195,8 @@ class Rietveld(AbstractWPPF):
         x = self.tth_list
         y = np.zeros(x.shape)
         Icomputed = self.compute_intensities()
-        if not hasattr(self, 'phase_spectrum'):
-            self.phase_spectrum = {}
+
+        self.phase_spectrum = {}
         for iph, p in enumerate(self.phases):
             self.phase_spectrum[p] = {}
             for k, l in self.phases.wavelength.items():
@@ -2256,10 +2256,12 @@ class Rietveld(AbstractWPPF):
         azimuth = self.eta_min + self.eta_step * np.arange(1, nspec + 1)
 
         Icomputed = self.compute_intensities()
-        if not hasattr(self, 'phase_spectrum_2D'):
-            self.phase_spectrum_2D = {}
 
-        if self.texture_model is None:
+        self.phase_spectrum_2D = {}
+
+        # the texture_model setter fills phases without a model with None,
+        # so it is never None itself
+        if all(model is None for model in self.texture_model.values()):
             for iph, p in enumerate(self.phases):
                 self.phase_spectrum_2D[p] = {}
                 for k, l in self.phases.wavelength.items():
