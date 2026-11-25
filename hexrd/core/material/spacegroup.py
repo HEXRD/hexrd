@@ -377,7 +377,9 @@ _rqpDict = {
 }
 
 
-def get_symmetry_directions(mat: Material | Material_Rietveld) -> NDArray[np.int32]:
+def get_symmetry_directions(
+    mat: 'Material | Material_Rietveld',
+) -> NDArray[np.int32]:
     """
     helper function to get a list of primary,
     secondary and tertiary directions of the
