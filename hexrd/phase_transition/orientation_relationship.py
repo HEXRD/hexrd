@@ -10,7 +10,6 @@ import numpy as np
 
 # hexrd imports
 # -------------
-from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
 from hexrd.phase_transition.variants import getPhaseTransformationVariants
 from hexrd.powder.wppf.phase import Material_Rietveld
@@ -30,30 +29,30 @@ class OrientationRelationship:
     Parameters
     -----------
 
-    material_parent: float
-        minimum azimuthal angle
-    eta_max: float
-        maximum azimuthal angle
-    eta_step: float
-        step size in azimuth. this determines the
-        dimensions in the azimuthal direction
-
-    Returns
-    --------
-    simulated_2d: np.ndarray
-        simulated 2D diffraction pattern
+    material_parent: Material_Rietveld
+        material of the parent phase
+    material_daughter: Material_Rietveld
+        material of the daughter phase
+    parallel_planes: dict
+        {"parent": hkl, "daughter": hkl} of the parallel planes
+    parallel_directions: dict
+        {"parent": uvw, "daughter": uvw} of the parallel directions
+    rmat_parent: list
+        orientations of the parent crystal(s). default is [np.eye(3)]
+    verbose: bool
+        log the number of variants
 
     """
 
     def __init__(
         self,
-        material_parent: Material | Material_Rietveld,
-        material_daughter: Material | Material_Rietveld,
+        material_parent: Material_Rietveld,
+        material_daughter: Material_Rietveld,
         parallel_planes: dict[str, np.ndarray],
         parallel_directions: dict[str, np.ndarray],
         rmat_parent: list[np.ndarray] | None = None,
         verbose: bool = False,
-    ):
+    ) -> None:
 
         self.material_parent = material_parent
         self.material_daughter = material_daughter
@@ -63,12 +62,12 @@ class OrientationRelationship:
         self.compute_variant_rmats()
         self.rmat_parent = rmat_parent
 
-    def compute_variant_rmats(self):
+    def compute_variant_rmats(self) -> None:
         self._rmat_variants, _ = getPhaseTransformationVariants(
             self.material_parent,
             self.material_daughter,
-            [pp for pp in self.parallel_planes.values()],
-            [pd for pd in self.parallel_directions.values()],
+            [self.plane_parent, self.plane_daughter],
+            [self.direction_parent, self.direction_daughter],
             rmat_parent=[np.eye(3)],
             apply_parent_rotation_to_variants=False,
             plot=False,
@@ -220,7 +219,7 @@ class OrientationRelationship:
     @material_daughter.setter
     def material_daughter(self, mat):
         if not isinstance(mat, Material_Rietveld):
-            msg = "incorrect material class of parent phase"
+            msg = "incorrect material class of daughter phase"
             raise TypeError(msg)
         self._material_daughter = mat
 
@@ -230,7 +229,7 @@ class OrientationRelationship:
             msg = "incorrect shape of list defining parallel planes"
             raise ValueError(msg)
 
-        if not ("parent" in pp or "daughter" in pp):
+        if not ("parent" in pp and "daughter" in pp):
             msg = "incorrect keys in parallel planes"
             raise ValueError(msg)
 
@@ -270,7 +269,7 @@ class OrientationRelationship:
             msg = "incorrect shape of list defining parallel directions"
             raise ValueError(msg)
 
-        if not ("parent" in pd or "daughter" in pd):
+        if not ("parent" in pd and "daughter" in pd):
             msg = "incorrect keys in parallel directions"
             raise ValueError(msg)
 
@@ -304,10 +303,9 @@ class OrientationRelationship:
             logger.info(msg)
 
     @rmat_parent.setter
-    def rmat_parent(self, rmat_p):
+    def rmat_parent(self, rmat_p: list[np.ndarray] | None) -> None:
         if rmat_p is None:
-            self._rmat_parent = [np.eye(3)]
-            return
+            rmat_p = [np.eye(3)]
         if not isinstance(rmat_p, list):
             msg = "rmat_parent not list type"
             raise TypeError(msg)

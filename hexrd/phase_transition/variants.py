@@ -6,7 +6,7 @@ from matplotlib.figure import Figure
 
 from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
-from hexrd.wppf.phase import Material_Rietveld
+from hexrd.powder.wppf.phase import Material_Rietveld
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +240,7 @@ def getPhaseTransformationVariants(
         plot the data in stereographic projection if true
     """
     if rmat_parent is None:
-        rmat_parent = [np.array([np.eye(3)])]
+        rmat_parent = [np.eye(3)]
 
     (p1, p2), (d1, d2) = prepare_data(mat1, mat2, parallel_planes, parallel_directions)
 
