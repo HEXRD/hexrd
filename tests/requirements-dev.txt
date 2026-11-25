@@ -1,4 +1,5 @@
 pytest
 coloredlogs
-coverage
+# numba < 0.68.2 JIT coverage breaks with coverage 7.17.5 (numba#11013)
+coverage<7.17.5
 dectris-compression

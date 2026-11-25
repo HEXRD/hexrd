@@ -694,7 +694,8 @@ class MarchDollaseModel:
         '''
         pname = f'{self.material.name}_p_md'
         self.P_MD = params[pname].value
-        nspec = int((eta_max - eta_min) / eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((eta_max - eta_min) / eta_step + 1e-8)) - 1
 
         if calc_type != 'spectrum_2d':
             msg = 'calc_type parameter set incorrectly'
@@ -1045,7 +1046,8 @@ class HarmonicModel:
         the calculations
         '''
 
-        nspec = int((eta_max - eta_min) / eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((eta_max - eta_min) / eta_step + 1e-8)) - 1
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
         self.eta_grid = eta_grid
 
@@ -1176,7 +1178,8 @@ class HarmonicModel:
         Default value is 0.1 degrees for eta_step
         '''
 
-        nspec = int((eta_max - eta_min) / eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((eta_max - eta_min) / eta_step + 1e-8)) - 1
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:

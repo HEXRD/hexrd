@@ -11,6 +11,7 @@ import pytest
 
 import hexrd.core.resources
 from hexrd.core.material import _angstroms, load_materials_hdf5, Material
+from hexrd.core.projections.polar import bin_polar_view
 from hexrd.powder.wppf import LeBail, Rietveld
 from hexrd.powder.wppf.peakfunctions import calc_rwp
 
@@ -593,11 +594,35 @@ def test_texture_data_matches_intensities_by_hkl(
     monkeypatch.setattr(
         'hexrd.powder.wppf.WPPF.extract_intensities', extract_intensities
     )
-    ceo2_rietveld.compute_texture_data(np.tile(expt_spectrum[:, 1], (2, 1)))
+    ceo2_rietveld.compute_texture_data(
+        np.tile(expt_spectrum[:, 1], (2, 1)), min_relative_intensity=0
+    )
 
     # Each point should be I_lebail(hkl) / I_rietveld(hkl), which is 2 here
     for hkl in map(tuple, hkls):
         np.testing.assert_allclose(model.pfdata[hkl][:, 3], 2.0)
+
+    # A harmonic model left with no data is an error, not an empty result
+    model.calculate_harmonic_coefficients = None
+    with pytest.raises(RuntimeError, match='No texture data'):
+        ceo2_rietveld.compute_texture_data(
+            np.tile(expt_spectrum[:, 1], (2, 1)), min_relative_intensity=np.inf
+        )
+
+
+def test_simulated_2d_matches_binned_rows(ceo2_rietveld: Rietveld) -> None:
+    polar_obj = SimpleNamespace(
+        eta_min=-np.pi, eta_max=np.pi, tth_pixel_size=0.1, eta_pixel_size=0.5
+    )
+    pv = np.ones((720, len(ceo2_rietveld.tthfull)))
+
+    # 3 degrees divides 360 but not exactly in radians; 11 does not divide it
+    for step in (3, 11):
+        pv_binned = bin_polar_view(polar_obj, pv, step, 1)
+        ceo2_rietveld.eta_step = step
+        ceo2_rietveld.mask_2d = np.isnan(pv_binned)
+        ceo2_rietveld.computespectrum_2D()
+        assert ceo2_rietveld.simulated_2d.shape == pv_binned.shape
 
 
 def test_lp_factor_follows_lattice_and_ph(ceo2_rietveld: Rietveld) -> None:

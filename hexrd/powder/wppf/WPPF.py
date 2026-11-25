@@ -517,12 +517,8 @@ class AbstractWPPF(ABC):
             03/08/2021 SS everything is a list now
             """
             num_pixels = self.num_averaged_pixels
-            if num_pixels is not None and len(num_pixels) != len(
-                self._tth_list_global
-            ):
-                raise ValueError(
-                    "num_averaged_pixels and expt_spectrum lengths differ"
-                )
+            if num_pixels is not None and len(num_pixels) != len(self._tth_list_global):
+                raise ValueError("num_averaged_pixels and expt_spectrum lengths differ")
 
             self._weights = []
             for s, (i0, i1) in zip(self._spectrum_expt, self.global_index):
@@ -2244,7 +2240,8 @@ class Rietveld(AbstractWPPF):
         x = self.tthfull
         y = np.zeros(x.shape)
 
-        nspec = int((self.eta_max - self.eta_min) / self.eta_step) - 1
+        # floor with a tolerance, to match bin_polar_view
+        nspec = int(np.floor((self.eta_max - self.eta_min) / self.eta_step + 1e-8)) - 1
         azimuth = self.eta_min + self.eta_step * np.arange(1, nspec + 1)
 
         Icomputed = self.compute_intensities()
@@ -2673,6 +2670,7 @@ class Rietveld(AbstractWPPF):
         bvec: np.ndarray | None = None,
         evec: np.ndarray | None = None,
         azimuthal_interval: float = 5,
+        min_relative_intensity: float = 1e-3,
     ):
         """Compute texture data to use in texture refinement
 
@@ -2681,6 +2679,10 @@ class Rietveld(AbstractWPPF):
         compute a dictionary of texture contributions. These texture
         contributions are automatically set on the `pfdata` of the texture
         models.
+
+        Reflections whose computed (untextured) intensity is below
+        `min_relative_intensity` times the strongest reflection are left out
+        of `pfdata`, since their extracted intensities are in the noise.
 
         A simulated spectrum is returned.
         """
@@ -2736,17 +2738,27 @@ class Rietveld(AbstractWPPF):
             phases=mats,
             wavelength=self.wavelength,
             bkgmethod=bkg_method,
-            intensity_init=ints_computed,
+            # keyed by hkl, since each eta row has its own hkls in range
+            intensity_init={
+                p: {k: dict(zip(map(tuple, self.hkls[p][k]), v)) for k, v in d.items()}
+                for p, d in ints_computed.items()
+            },
             termination_condition={
                 "rwp_perct_change": 0.01,
-                "max_iter": 20,
+                "max_iter": 100,
             },
-            peakshape="pvtch",
+            peakshape=self.peakshape,
             amorphous_model=self.amorphous_model,
         )
 
         # we have to divide by the computed instensites
         # to get the texture contribution
+        # reflections weaker than this (over all phases and wavelengths)
+        # are in the noise
+        min_intensity = min_relative_intensity * max(
+            (v.max() for d in ints_computed.values() for v in d.values() if v.size),
+            default=0.0,
+        )
         for mat_key, model in self.texture_model.items():
             if model is None:
                 continue
@@ -2756,12 +2768,14 @@ class Rietveld(AbstractWPPF):
 
             # Each eta row may have a different set of hkls in range, so
             # we must match the computed intensities by hkl, not by index
-            ints_comp = dict(
-                zip(
+            ints_comp = {
+                h: I
+                for h, I in zip(
                     map(tuple, self.hkls[mat_key][lambda_key]),
                     ints_computed[mat_key][lambda_key],
                 )
-            )
+                if I >= min_intensity
+            }
 
             pfdata = {}
             for ii, nnz in enumerate(results[3]):
@@ -2793,6 +2807,10 @@ class Rietveld(AbstractWPPF):
 
             # Now set the texture data on the texture model
             model.pfdata = pfdata
+
+            # the GUI waits for pfdata, so an empty result must be an error
+            if not pfdata and hasattr(model, 'calculate_harmonic_coefficients'):
+                raise RuntimeError(f'No texture data extracted for "{mat_key}"')
 
         return results[4]
 
@@ -2873,7 +2891,8 @@ def extract_intensities(
                              computation
                  bkgmethod: "spline" or "chebyshev" or "snip"
                              default is chebyshev
-                 intensity_init: initial intensities for each reflection.
+                 intensity_init: initial intensities keyed by hkl,
+                                 {phase: {wavelength: {hkl tuple: I}}}.
                                  If none, then it is specified to some power
                                  of 10 depending on maximum intensity in
                                  spectrum (only used for powder simulator)
@@ -2908,6 +2927,7 @@ def extract_intensities(
         "termination_condition": termination_condition,
         "peakshape": peakshape,
         "amorphous_model": amorphous_model,
+        "intensity_init": intensity_init,
     }
     func = partial(single_azimuthal_extraction, **kwargs)
 
@@ -2935,6 +2955,11 @@ def extract_intensities(
     extracted_intensities = []
     hkls = []
     tths = []
+    # skip rows whose fit failed: collapsed, or Rwp far above the other rows
+    rwps = np.array([r[2] for r in results])
+    finite = rwps[np.isfinite(rwps)]
+    rwp_limit = 5.0 * np.median(finite) if finite.size else np.inf
+    kept_index = []
     for i in range(len(non_zeros_index)):
         idx = non_zeros_index[i]
         xp, yp, rwp, Icalc, hkl, tth = results[i]
@@ -2943,9 +2968,17 @@ def extract_intensities(
 
         pv_simulated[idx, :] = intp_int
 
+        if not (np.isfinite(rwp) and rwp <= rwp_limit):
+            logger.warning(
+                f"extract_intensities: skipping eta row {idx}, "
+                f"LeBail fit failed (Rwp={rwp:.3g})"
+            )
+            continue
+
         extracted_intensities.append(Icalc)
         hkls.append(hkl)
         tths.append(tth)
+        kept_index.append(idx)
 
     """
     make the values outside detector NaNs and convert to masked array
@@ -2953,7 +2986,7 @@ def extract_intensities(
     pv_simulated[polar_view.mask] = np.nan
     pv_simulated = np.ma.masked_array(pv_simulated, mask=np.isnan(pv_simulated))
 
-    return extracted_intensities, hkls, tths, non_zeros_index, pv_simulated
+    return extracted_intensities, hkls, tths, kept_index, pv_simulated
 
 
 def single_azimuthal_extraction(
@@ -2975,10 +3008,21 @@ def single_azimuthal_extraction(
         "wavelength": wavelength,
         "bkgmethod": bkgmethod,
         "peakshape": peakshape,
-        "intensity_init": intensity_init,
+        "intensity_init": None,
         "amorphous_model": amorphous_model,
     }
     L = LeBail(**kwargs)
+    W_start = L.params["W"].value
+
+    # seed by hkl: this row's hkl list is trimmed to its unmasked 2theta range
+    if intensity_init is not None:
+        for p in L.Icalc:
+            for k in L.Icalc[p]:
+                init = intensity_init[p][k]
+                L.Icalc[p][k] = np.array(
+                    [init.get(tuple(h), 0.0) for h in L.hkls[p][k]]
+                )
+        L.computespectrum()
 
     # get termination conditions for the LeBail refinement
     del_rwp = termination_condition["rwp_perct_change"]
@@ -2995,7 +3039,13 @@ def single_azimuthal_extraction(
         init_error = L.Rwp
         niter += 1
 
-    res = (L.spectrum_sim._x, L.spectrum_sim._y, L.Rwp, L.Iobs, L.hkls, L.tth)
+    # a collapsed fit pins the peak width at its lower bound; flag it as failed
+    # (only if it moved there, since W may already start at its bound)
+    W = L.params["W"]
+    collapsed = np.isclose(W.value, W.min) and not np.isclose(W_start, W.min)
+    rwp = np.inf if W.vary and collapsed else L.Rwp
+
+    res = (L.spectrum_sim._x, L.spectrum_sim._y, rwp, L.Iobs, L.hkls, L.tth)
     return res
 
 
