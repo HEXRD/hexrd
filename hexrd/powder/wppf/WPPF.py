@@ -1057,6 +1057,7 @@ class LeBail(AbstractWPPF):
         self.amorphous_model = amorphous_model
 
         self.params = params
+        self._update_shkl(self.params)
 
         self.initialize_Icalc()
 
@@ -1525,6 +1526,10 @@ class LeBail(AbstractWPPF):
         self._update_shkl(self.params)
         self._update_bkg(self.params)
 
+        # CalcIobs partitions against spectrum_sim, so recompute it with
+        # the current parameters
+        self.computespectrum()
+
         self.CalcIobs()
         self.Icalc = self.Iobs
 
@@ -1729,6 +1734,7 @@ class Rietveld(AbstractWPPF):
         self.texture_model = texture_model
 
         self.params = params
+        self._update_shkl(self.params)
 
         self.PolarizationFactor()
         self.computespectrum()
