@@ -1206,8 +1206,12 @@ class LeBail(AbstractWPPF):
         y = np.zeros(x.shape)
         tth_list = np.ascontiguousarray(self.tth_list)
 
+        self.phase_spectrum = {}
+
         for iph, p in enumerate(self.phases):
+            self.phase_spectrum[p] = {}
             for k, l in self.phases.wavelength.items():
+                self.phase_spectrum[p][k] = None
                 name = self.phases[p].name
                 lam = l[0].getVal("nm")
                 Ic = self.Icalc[p][k]
@@ -1332,8 +1336,9 @@ class LeBail(AbstractWPPF):
                         tth_list,
                         Ic,
                     )
-
-                y += self.computespectrum_fcn(*args)
+                y_phase = self.computespectrum_fcn(*args)
+                self.phase_spectrum[p][k] = Spectrum(x=x, y=y_phase)
+                y += y_phase
 
         if self.amorphous_model is not None:
             y += self.amorphous_model.amorphous_lineout
@@ -2190,12 +2195,18 @@ class Rietveld(AbstractWPPF):
         x = self.tth_list
         y = np.zeros(x.shape)
         Icomputed = self.compute_intensities()
+
+        self.phase_spectrum = {}
         for iph, p in enumerate(self.phases):
+            self.phase_spectrum[p] = {}
             for k, l in self.phases.wavelength.items():
+                self.phase_spectrum[p][k] = None
                 texture_factor = self.phase_texture_factors(p, k)
-                y += self.computespectrum_phase(
+                y_phase = self.computespectrum_phase(
                     p, k, Icomputed[p][k], texture_factor=texture_factor
                 )
+                self.phase_spectrum[p][k] = Spectrum(x=x, y=y_phase)
+                y += y_phase
 
                 if self._has_tds_model(p, k):
                     y += self.calculate_scaled_tds_signal(p, k)
@@ -2246,16 +2257,34 @@ class Rietveld(AbstractWPPF):
 
         Icomputed = self.compute_intensities()
 
-        if self.texture_model is None:
+        self.phase_spectrum_2D = {}
+
+        # the texture_model setter fills phases without a model with None,
+        # so it is never None itself
+        if all(model is None for model in self.texture_model.values()):
             for iph, p in enumerate(self.phases):
+                self.phase_spectrum_2D[p] = {}
                 for k, l in self.phases.wavelength.items():
-                    y += self.computespectrum_phase(
+                    self.phase_spectrum_2D[p][k] = None
+                    y_phase = self.computespectrum_phase(
                         p,
                         k,
                         Icomputed[p][k],
                         texture_factor=None,
                         fullrange=True,
                     )
+
+                    self.phase_spectrum_2D[p][k] = np.tile(y_phase, (nspec, 1))
+                    mask = self.mask_2d
+                    mask = (
+                        mask
+                        if mask is not None
+                        else np.isnan(self.phase_spectrum_2D[p][k])
+                    )
+                    self.phase_spectrum_2D[p][k] = np.ma.masked_array(
+                        self.phase_spectrum_2D[p][k], mask=mask
+                    )
+                    y += y_phase
 
                     if self._has_tds_model(p, k):
                         y += self.calculate_scaled_tds_signal(p, k)
@@ -2275,6 +2304,7 @@ class Rietveld(AbstractWPPF):
             simulated_2d = np.empty([nspec, x.shape[0]])
             azimuth_texture_factor = {}
             for iph, p in enumerate(self.phases):
+                self.phase_spectrum_2D[p] = {}
                 if self.texture_model.get(p) is not None:
                     self.texture_model[p].calc_pf_rings(
                         self.params,
@@ -2288,6 +2318,8 @@ class Rietveld(AbstractWPPF):
                     ].intensities_rings_2d
                 else:
                     azimuth_texture_factor[p] = None
+                for k in self.phases.wavelength:
+                    self.phase_spectrum_2D[p][k] = np.empty([nspec, x.shape[0]])
 
             for irow in range(nspec):
                 y = np.zeros(x.shape)
@@ -2307,14 +2339,15 @@ class Rietveld(AbstractWPPF):
                                 texture_factor[ii] = azimuth_texture_factor[p][hkey][
                                     irow
                                 ]
-
-                        y += self.computespectrum_phase(
+                        y_phase = self.computespectrum_phase(
                             p,
                             k,
                             Icomputed[p][k],
                             texture_factor=texture_factor,
                             fullrange=True,
                         )
+                        self.phase_spectrum_2D[p][k][irow, :] = y_phase
+                        y += y_phase
 
                         if self._has_tds_model(p, k):
                             y += self.calculate_scaled_tds_signal(p, k)
