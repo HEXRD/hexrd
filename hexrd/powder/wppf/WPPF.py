@@ -1734,6 +1734,7 @@ class Rietveld(AbstractWPPF):
         self.texture_model = texture_model
 
         self.params = params
+        self._update_shkl(self.params)
 
         self.PolarizationFactor()
         self.computespectrum()

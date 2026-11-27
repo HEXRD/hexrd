@@ -663,3 +663,27 @@ def test_shkl_terms_do_not_leak_between_phases(
     # s103 is the 8th term
     assert lebail.phases['U6Nb'].shkl[7] == 0.5
     assert lebail.phases['CeO2'].shkl[7] == 0.0
+
+
+def test_init_applies_shkl_params(
+    expt_spectrum: np.ndarray, ceo2_material: Material
+) -> None:
+    def create(cls: type, **kwargs: Any) -> LeBail | Rietveld:
+        return cls(
+            expt_spectrum=expt_spectrum,
+            phases=[ceo2_material],
+            wavelength={'synchrotron': [_angstroms(0.15358835358711712), 1.0]},
+            bkgmethod={'chebyshev': 3},
+            **kwargs,
+        )
+
+    for cls in (LeBail, Rietveld):
+        params = create(cls).params
+        params['CeO2_s400'].value = 0.5
+        obj = create(cls, params=params)
+
+        # The initial spectrum should already use the shkl params
+        y_init = obj.spectrum_sim.y.copy()
+        obj._update_shkl(obj.params)
+        obj.computespectrum()
+        np.testing.assert_allclose(y_init, obj.spectrum_sim.y)
