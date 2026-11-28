@@ -58,6 +58,21 @@ def test_orientation_relationship(orientation_relationship: OrientationRelations
     OR.rmat_parent = [np.eye(3), np.diag([1.0, -1.0, -1.0])]
     assert len(OR.rmat_variants_rotated) == 2 * OR.num_variants
 
+    # Changing the relationship recomputes the variants
+    old_variants = OR.rmat_variants
+    OR.parallel_directions = {
+        'parent': OR.direction_parent,
+        'daughter': np.array([1.0, 0.0, 0.0]),
+    }
+    expected, _ = variants.getPhaseTransformationVariants(
+        OR.material_parent,
+        OR.material_daughter,
+        [OR.plane_parent, OR.plane_daughter],
+        [OR.direction_parent, OR.direction_daughter],
+    )
+    assert not np.allclose(OR.rmat_variants, old_variants)
+    assert np.allclose(OR.rmat_variants, expected)
+
     with pytest.raises(ValueError):
         OR.parallel_planes = {'parent': OR.plane_parent, 'foo': OR.plane_daughter}
 
