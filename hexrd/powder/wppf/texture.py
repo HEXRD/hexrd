@@ -1890,6 +1890,29 @@ class HarmonicModel:
         return dg
 
 
+def _masked_ring_means(
+    rings: dict[tuple, np.ndarray],
+    eta_mask: dict[tuple, np.ndarray] | None,
+) -> np.ndarray:
+    '''mean of each ring of rings (in its order) over the azimuths where
+    eta_mask is False. hkls missing from eta_mask are not masked
+    '''
+    tf = np.zeros(len(rings))
+    for ii, (k, v) in enumerate(rings.items()):
+        if eta_mask is None or k not in eta_mask:
+            tf[ii] = np.mean(v)
+            continue
+
+        mask = eta_mask[k]
+        if np.all(mask):
+            # The ring is not observed at all. Use the full ring,
+            # rather than a NaN that would poison the spectrum.
+            tf[ii] = np.mean(v)
+        else:
+            tf[ii] = np.mean(v[~mask])
+    return tf
+
+
 class PhaseTransitionTextureModel:
     """
     this is a special case of dynamic compression of
@@ -2111,8 +2134,8 @@ class PhaseTransitionTextureModel:
     def _phase_ring_pole_densities(self, key, eta_grid):
         '''pole density (m.r.d.) of every hkl of one phase ("parent" or
         "daughter") on its debye-scherrer ring sampled at eta_grid.
-        same computation as the inner loop of calc_pf_rings, but for a
-        single phase and without touching the kernel widths.
+        used by calc_pf_rings of this model and of the views. it does not
+        touch the kernel widths, so the caller syncs them with params.
 
         Returns
         -------
@@ -2287,72 +2310,24 @@ class PhaseTransitionTextureModel:
             msg = 'unknown type of grid for computing pole figures on rings'
             raise ValueError(msg)
 
-        if calc_type == 'texture_factor':
-            self.intensities_rings = {}
-            self.gvecs_rings = {}
-            intensities = self.intensities_rings
-            gvecs = self.gvecs_rings
-        elif calc_type == 'spectrum_2d':
-            self.intensities_rings_2d = {}
-            self.gvecs_rings_2d = {}
-            intensities = self.intensities_rings_2d
-            gvecs = self.gvecs_rings_2d
-
-        phases = {
-            'parent': self.OR.material_parent,
-            'daughter': self.OR.material_daughter,
-        }
-
-        '''make sure the ODFs are consistent with the kernel widths and
-        the parent misorientation in params. only rebuilds if something
-        changed since building the kernels is not free
-        '''
+        # make sure the ODFs are consistent with the kernel widths and
+        # the parent misorientation in params
         self._sync_kernel_widths(params)
 
-        '''loop over both the phases and compute the pole
-        density of every hkl on its debye-scherrer ring
-        '''
-        for key, mat in phases.items():
-            odf = self.odfs[key]
-            intensities[mat.name] = {}
-            gvecs[mat.name] = {}
+        intensities = {}
+        gvecs = {}
+        for key in ('parent', 'daughter'):
+            name = self._material(key).name
+            intensities[name], gvecs[name] = self._phase_ring_pole_densities(
+                key, eta_grid
+            )
 
-            hkls = mat.hkls
-            tth = np.radians(mat.getTTh(mat.wavelength))
-
-            for t, h in zip(tth, hkls):
-                hkey = tuple(h)
-
-                if np.isnan(t):
-                    # reflection not accessible at this wavelength
-                    intensities[mat.name][hkey] = np.full(eta_grid.shape, np.nan)
-                    gvecs[mat.name][hkey] = np.full((eta_grid.shape[0], 3), np.nan)
-                    continue
-
-                angs = np.vstack(
-                    (
-                        np.full(eta_grid.shape, t),
-                        eta_grid,
-                        np.zeros_like(eta_grid),
-                    )
-                ).T
-
-                # unit scattering vectors on the ring in the
-                # sample frame (omega = chi = 0)
-                pfgrid = angles_to_gvec(
-                    angs,
-                    beam_vec=self.beam_vector,
-                    eta_vec=self.eta_vector,
-                )
-
-                # pole in the cartesian crystal frame. the
-                # normalization is done inside pole_density
-                hc = mat.TransSpace(h, 'r', 'c')
-
-                intensities[mat.name][hkey] = np.atleast_1d(
-                    odf.pole_density(hc, pfgrid, antipodal=True)
-                )
-                gvecs[mat.name][hkey] = pfgrid
+        if calc_type == 'texture_factor':
+            self.intensities_rings = intensities
+            self.gvecs_rings = gvecs
+        elif calc_type == 'spectrum_2d':
+            self.intensities_rings_2d = intensities
+            self.gvecs_rings_2d = gvecs
 
     def calc_texture_factor(
         self,
@@ -2406,26 +2381,7 @@ class PhaseTransitionTextureModel:
             if eta_mask is not None:
                 phase_mask = eta_mask.get(name)
 
-            tf[name] = np.zeros(
-                [
-                    len(rings),
-                ]
-            )
-            for ii, (k, v) in enumerate(rings.items()):
-                if phase_mask is None:
-                    tf[name][ii] = np.mean(v)
-                else:
-                    if k in phase_mask:
-                        mask = phase_mask[k]
-                    else:
-                        mask = np.zeros_like(v, dtype=bool)
-
-                    if np.all(mask):
-                        # The ring is not observed at all. Use the full ring,
-                        # rather than a NaN that would poison the spectrum.
-                        mask = np.zeros_like(v, dtype=bool)
-
-                    tf[name][ii] = np.mean(v[~mask])
+            tf[name] = _masked_ring_means(rings, phase_mask)
         return tf
 
     def J(self, params):
@@ -2459,14 +2415,9 @@ class PhaseTransitionTextureModel:
             texture index keyed by material name
         '''
         self._sync_kernel_widths(params)
-
-        phases = {
-            'parent': self.OR.material_parent,
-            'daughter': self.OR.material_daughter,
-        }
         return {
-            mat.name: self._odf_texture_index(self.odfs[key])
-            for key, mat in phases.items()
+            self._material(key).name: self._odf_texture_index(self.odfs[key])
+            for key in ('parent', 'daughter')
         }
 
     def texture_index(self, params: Parameters) -> dict:
@@ -2510,12 +2461,8 @@ class PhaseTransitionTextureModel:
         value changes and they are rebuilt on the next access (see the
         odfs property). used by calc_pf_rings, J and the per-phase views
         '''
-        phases = {
-            'parent': self.OR.material_parent,
-            'daughter': self.OR.material_daughter,
-        }
-        for key, mat in phases.items():
-            pname = f'{mat.name}_kernel_width'
+        for key in ('parent', 'daughter'):
+            pname = f'{self._material(key).name}_kernel_width'
             if pname in params:
                 setattr(self, f'{key}_kernel_width', float(params[pname].value))
 
@@ -2790,27 +2737,7 @@ class PhaseTransitionTextureView:
             eta_step=eta_step,
             calc_type='texture_factor',
         )
-        tf = np.zeros(
-            [
-                len(self.intensities_rings),
-            ]
-        )
-        for ii, (k, v) in enumerate(self.intensities_rings.items()):
-            if eta_mask is None:
-                tf[ii] = np.mean(v)
-            else:
-                if k in eta_mask:
-                    mask = eta_mask[k]
-                else:
-                    mask = np.zeros_like(v, dtype=bool)
-
-                if np.all(mask):
-                    # The ring is not observed at all. Use the full ring,
-                    # rather than a NaN that would poison the spectrum.
-                    mask = np.zeros_like(v, dtype=bool)
-
-                tf[ii] = np.mean(v[~mask])
-        return tf
+        return _masked_ring_means(self.intensities_rings, eta_mask)
 
     def J(self, params):
         '''texture index J = <f^2> of the ODF of this phase. A value of 1
