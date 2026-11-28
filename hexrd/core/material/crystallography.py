@@ -1124,6 +1124,12 @@ class PlaneData(object):
 
         powderI = hedm_intensity * multiplicity
 
+        '''we need the powder intensity on an absolute scale in case
+        multiple phases need to be shown together in the sam plot.
+        so save a copy before rescaling
+        '''
+        self._powder_intensity_absolute = powderI.copy()
+
         # Now scale them
         hedm_intensity = 100.0 * hedm_intensity / np.nanmax(hedm_intensity)
         powderI = 100.0 * powderI / np.nanmax(powderI)
@@ -1139,6 +1145,15 @@ class PlaneData(object):
         self._compute_sf_if_needed()
         assert self._powder_intensity is not None
         return self._powder_intensity[~self.exclusions]
+
+    @property
+    def powder_intensity_absolute(self) -> np.ndarray:
+        """
+        Absolute powder intensity for each hkl in atomic units.
+        """
+        self._compute_sf_if_needed()
+        assert self._powder_intensity_absolute is not None
+        return self._powder_intensity_absolute[~self.exclusions]
 
     @property
     def hedm_intensity(self) -> np.ndarray:

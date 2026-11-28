@@ -81,6 +81,7 @@ from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from hexrd.core.material import Material
+    from hexrd.powder.wppf.phase import Material_Rietveld
 
 #
 __all__ = ['SpaceGroup']
@@ -377,7 +378,9 @@ _rqpDict = {
 }
 
 
-def get_symmetry_directions(mat: 'Material') -> NDArray[np.int32]:
+def get_symmetry_directions(
+    mat: 'Material | Material_Rietveld',
+) -> NDArray[np.int32]:
     """
     helper function to get a list of primary,
     secondary and tertiary directions of the
