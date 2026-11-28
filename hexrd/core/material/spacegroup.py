@@ -70,19 +70,20 @@ the HKL evaluation.
 """
 
 from collections import OrderedDict
-from math import floor, sqrt
+from math import sqrt, floor
 from typing import TYPE_CHECKING
-
-import numpy as np
-from numpy.typing import NDArray
 
 from hexrd.core import constants
 from hexrd.core.material import symbols, symmetry
+
+import numpy as np
+from numpy.typing import NDArray
 
 if TYPE_CHECKING:
     from hexrd.core.material import Material
     from hexrd.powder.wppf.phase import Material_Rietveld
 
+#
 __all__ = ['SpaceGroup']
 
 
@@ -498,6 +499,7 @@ def omitscrewaxisabsences(sgnum, hkllist, ax, iax):
         """
         no systematic absences for the triclinic crystals
         """
+        pass
 
     elif latticeType == 'monoclinic':
         if ax != '2_1':

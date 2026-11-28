@@ -37,16 +37,23 @@ import copy
 import warnings
 
 import lmfit
-import numpy as np
 
-import hexrd
-import hexrd.core
-from hexrd import constants
-from hexrd.core import constants
-from hexrd.core.material import Material
 from hexrd.core.material.symbols import pstr_spacegroup
-from hexrd.core.material.unitcell import _rqpDict
 from hexrd.powder.wppf.phase import Phases_LeBail, Phases_Rietveld
+from hexrd.core.material import Material
+from hexrd.core.material.unitcell import _rqpDict
+import hexrd
+import numpy as np
+from hexrd import constants
+from hexrd.core.material.symbols import pstr_spacegroup
+from lmfit import Parameters as Parameters_lmfit
+from hexrd.powder.wppf.phase import Phases_LeBail, Phases_Rietveld
+from hexrd.core.material import Material
+from hexrd.core.material.unitcell import _rqpDict
+import hexrd.core
+import numpy as np
+from hexrd.core import constants
+import warnings
 
 
 def _generate_default_parameters_pseudovoight(params):
@@ -413,9 +420,9 @@ def _generate_default_parameters_LeBail(
         if not (init_val is None):
             if len(init_val) < deg + 1:
                 msg = (
-                    "size of init_val and degree "
-                    "of polynomial are not consistent. "
-                    "setting initial guess to zero."
+                    f"size of init_val and degree "
+                    f"of polynomial are not consistent. "
+                    f"setting initial guess to zero."
                 )
                 warnings.warn(msg)
                 init_val = np.zeros([deg + 1])
@@ -600,14 +607,7 @@ _rqd_shkl = {
     "cubic": [(0, 3), ((0, 1, 1.0), (0, 2, 1.0), (3, 4, 1.0), (3, 5, 1.0))],
     "hexagonal": [
         (0, 2, 4),
-        (
-            (0, 1, 1.0),
-            (0, 6, 1.0),
-            (0, 9, 1.0),
-            (0, 3, 1.0),
-            (4, 5, 1.0),
-            (4, 14, 0.75),
-        ),
+        ((0, 1, 1.0), (0, 6, 1.0), (0, 9, 1.0), (0, 3, 1.0), (4, 5, 1.0), (4, 14, 0.75)),
     ],
     "trigonal": [
         (0, 2, 4, 10),

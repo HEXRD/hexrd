@@ -2,28 +2,24 @@
 # ---------
 import copy
 from warnings import warn
-
-import numba
-import numpy as np
-
-# 3rd party imports
-# -----------------
-from lmfit import Minimizer, Parameters
-from matplotlib import pyplot as plt
-from scipy.special import sph_harm_y
-
-from hexrd.core import constants
+from typing import Tuple
 
 # hexrd imports
 # -------------
 from hexrd.core.transforms.xfcapi import angles_to_gvec
-from hexrd.phase_transition.orientation_relationship import OrientationRelationship
-from hexrd.phase_transition.texture import (
-    kernels,
-    unimodal_odf,
-)
-from hexrd.powder.wppf.phase import Material_Rietveld
+from hexrd.core import constants
 from hexrd.core.rotations import rotMatOfExpMap
+from hexrd.phase_transition.orientation_relationship import OrientationRelationship
+from hexrd.phase_transition.texture import kernels, unimodal_odf
+from hexrd.powder.wppf.phase import Material_Rietveld
+
+# 3rd party imports
+# -----------------
+from lmfit import Parameters, Minimizer
+import numba
+import numpy as np
+from scipy.special import sph_harm_y
+from matplotlib import pyplot as plt
 
 """
 ===============================================================================
@@ -450,14 +446,14 @@ def check_symmetry(sym, symtype='either'):
 
 def check_degrees(ell, sym):
     if ell < 0:
-        msg = 'the degree is negative'
+        msg = f'the degree is negative'
         raise ValueError(msg)
     if np.mod(ell, 2) != 0:
-        msg = 'only even degrees allowed due toinversion symmetry'
+        msg = f'only even degrees allowed due to' f'inversion symmetry'
         raise ValueError(msg)
     if sym in ['td', 'oh']:
         if ell > 16:
-            msg = 'maximum degree available is 16'
+            msg = f'maximum degree available is 16'
             raise ValueError(msg)
     return True
 
@@ -551,7 +547,7 @@ def calc_sym_sph_harm(deg, theta, phi, sym='oh'):
         '''
         num_sym = n + 1
         Intensity = np.zeros((theta.shape[0], num_sym))
-        for ii in range(n + 1):
+        for ii in range(0, n + 1):
             if ii == 0:
                 Intensity[:, ii] = np.real(sph_harm_y(deg, nfold * ii, theta, phi))
             else:
@@ -676,7 +672,7 @@ class MarchDollaseModel:
 
         return pre * texture_factor
 
-    def calc_cos_sin_alpha(self, g: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def calc_cos_sin_alpha(self, g: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         g_mag = self.material.CalcLength(g, 'r')
         gdotHKL = self.material.CalcDot(g, self.HKL, 'r')
         cos2_alpha = (gdotHKL / g_mag / self.HKL_length) ** 2
@@ -797,7 +793,7 @@ class MarchDollaseModel:
         return self._P_MD
 
     @P_MD.setter
-    def P_MD(self, val: float):
+    def P_MD(self, val: float | int):
         if isinstance(val, (float, int)):
             self._P_MD = float(val)
         else:
@@ -880,7 +876,7 @@ class HarmonicModel:
         if check_symmetry(val, symtype='sample'):
             self._ssym = val
         else:
-            msg = 'unknown sample symmetry'
+            msg = f'unknown sample symmetry'
             raise ValueError(msg)
 
     @csym.setter
@@ -888,7 +884,7 @@ class HarmonicModel:
         if check_symmetry(val, symtype='crystal'):
             self._csym = val
         else:
-            msg = 'unknown sample symmetry'
+            msg = f'unknown sample symmetry'
             raise ValueError(msg)
 
     @property
@@ -1190,7 +1186,7 @@ class HarmonicModel:
         eta_grid = eta_min + eta_step * np.arange(1, nspec + 1)
 
         if not calc_type in ['texture_factor', 'spectrum_2d']:
-            msg = 'unknown type of grid for precomputingspherical harmonics'
+            msg = f'unknown type of grid for precomputing' f'spherical harmonics'
             raise ValueError(msg)
 
         if calc_type == 'texture_factor':
@@ -3155,7 +3151,7 @@ class InversePoleFigures:
                 self._sample_dir = np.atleast_2d([0.0, 0.0, 1.0])
                 self._sample_dir_name = "ND"
             else:
-                msg = "unknown direction."
+                msg = f"unknown direction."
                 raise ValueError(msg)
         elif isinstance(val, np.array):
             v = np.atleast_2d(val)
@@ -3176,8 +3172,8 @@ class InversePoleFigures:
     def resolution(self, val):
         if val < 1.0:
             msg = (
-                "the resolution appears to be very fine.\n"
-                "Are you sure the value is in degrees?"
+                f"the resolution appears to be very fine.\n"
+                f"Are you sure the value is in degrees?"
             )
             warn(msg)
         self._resolution = val

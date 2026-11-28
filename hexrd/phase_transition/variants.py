@@ -1,8 +1,8 @@
 import logging
 
-import numpy as np
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
+import numpy as np
 
 from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
