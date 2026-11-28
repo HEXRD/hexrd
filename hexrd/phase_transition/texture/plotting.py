@@ -11,6 +11,7 @@ from collections.abc import Sequence
 
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.axes import Axes
 
 DEFAULT_CMAP = 'jet'
 DEFAULT_COLORBAR_LABEL = 'm.r.d.'
@@ -259,7 +260,9 @@ def draw(
     return contours
 
 
-def draw_observable_ring(ax, dir_3d: np.ndarray, kwargs: dict | None = None):
+def draw_observable_ring(
+    ax: Axes, dir_3d: np.ndarray, kwargs: dict | None = None
+) -> None:
     '''for each pole figure, we need a way to draw the set of points that
     are observable in a diffraction experiment. This ring is at an angle of
     pi - theta around the x-ray beam

@@ -2431,7 +2431,7 @@ class Rietveld(AbstractWPPF):
                 f"Rwp: {self.Rwp * 100.0:.2f} % Rwpb: {self.Rwpb * 100.0:.2f} % and S (goodness-of-fit): {self.gofF:.2f}\n"
             )
 
-    def update_texture_data_intensities(self):
+    def update_texture_data_intensities(self) -> None:
         '''recompute the untextured intensities U in the pfdata of the
         texture models from the current parameters.
 

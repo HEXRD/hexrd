@@ -39,7 +39,9 @@ def orientation_relationship(test_data_dir: Path) -> OrientationRelationship:
     )
 
 
-def test_orientation_relationship(orientation_relationship: OrientationRelationship):
+def test_orientation_relationship(
+    orientation_relationship: OrientationRelationship,
+) -> None:
     OR = orientation_relationship
     expected, _ = variants.getPhaseTransformationVariants(
         OR.material_parent,
@@ -79,7 +81,7 @@ def test_orientation_relationship(orientation_relationship: OrientationRelations
 
 def test_phase_transition_texture_model(
     orientation_relationship: OrientationRelationship,
-):
+) -> None:
     OR = orientation_relationship
     truth = PhaseTransitionTextureModel(
         OR,

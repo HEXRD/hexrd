@@ -6,6 +6,7 @@ import numpy as np
 
 from hexrd.core.material import Material
 from hexrd.core.material.spacegroup import get_symmetry_directions
+from hexrd.core.material.unitcell import unitcell
 from hexrd.powder.wppf.phase import Material_Rietveld
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ define some helper functions
 """
 
 
-def geometry(mat):
+def geometry(mat: Material | Material_Rietveld) -> unitcell | Material_Rietveld:
     if isinstance(mat, Material):
         return mat.unitcell
     if isinstance(mat, Material_Rietveld):
@@ -23,13 +24,15 @@ def geometry(mat):
     raise TypeError("Expected Material or Material_Rietveld")
 
 
-def normalized_cartesian(mat, vector, space):
+def normalized_cartesian(
+    mat: Material | Material_Rietveld, vector: np.ndarray, space: str
+) -> np.ndarray:
     geom = geometry(mat)
     vector = geom.TransSpace(vector, space, "c")
     return vector / geom.CalcLength(vector, "c")
 
 
-def cartesian_point_group(mat):
+def cartesian_point_group(mat: Material | Material_Rietveld) -> np.ndarray:
     geom = geometry(mat)
     if hasattr(geom, "SYM_PG_c"):
         return geom.SYM_PG_c
@@ -188,7 +191,7 @@ def plot_OR(
     mat2: Material | Material_Rietveld,
     fig: Figure | None = None,
     ax: Axes | None = None,
-):
+) -> None:
     try:
         import mplstereonet
     except ImportError:

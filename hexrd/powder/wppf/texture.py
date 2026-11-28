@@ -16,6 +16,7 @@ from hexrd.powder.wppf.phase import Material_Rietveld
 # 3rd party imports
 # -----------------
 from lmfit import Parameters, Minimizer
+from lmfit.minimizer import MinimizerResult
 import numba
 import numpy as np
 from scipy.special import sph_harm_y
@@ -1981,7 +1982,7 @@ class PhaseTransitionTextureModel:
         bvec: np.ndarray = bvec_ref,
         evec: np.ndarray = eta_ref,
         sample_symmetry: str = "ci",
-    ):
+    ) -> None:
 
         self.OR = OR
         self.beam_vector = bvec
@@ -2013,22 +2014,22 @@ class PhaseTransitionTextureModel:
         }
 
     @property
-    def parent_kernel_width(self):
+    def parent_kernel_width(self) -> float:
         return self._parent_kernel_width
 
     @parent_kernel_width.setter
-    def parent_kernel_width(self, val):
+    def parent_kernel_width(self, val: float) -> None:
         if not isinstance(val, (float, int)):
             msg = "kernel width has to be int or flaot"
             raise TypeError(msg)
         self._parent_kernel_width = val
 
     @property
-    def daughter_kernel_width(self):
+    def daughter_kernel_width(self) -> float:
         return self._daughter_kernel_width
 
     @daughter_kernel_width.setter
-    def daughter_kernel_width(self, val):
+    def daughter_kernel_width(self, val: float) -> None:
         if not isinstance(val, (float, int)):
             msg = "kernel width has to be int or flaot"
             raise TypeError(msg)
@@ -2044,7 +2045,7 @@ class PhaseTransitionTextureModel:
     MISORIENTATION_COMPONENTS = ('x', 'y', 'z')
 
     @property
-    def misorientation_parameter_names(self) -> list:
+    def misorientation_parameter_names(self) -> list[str]:
         '''names of the three parent misorientation parameters'''
         root = self.MISORIENTATION_ROOT
         return [f"{root}{d}" for d in self.MISORIENTATION_COMPONENTS]
@@ -2062,7 +2063,7 @@ class PhaseTransitionTextureModel:
         return rotMatOfExpMap(np.radians(self.parent_misorientation))
 
     @parent_misorientation.setter
-    def parent_misorientation(self, val):
+    def parent_misorientation(self, val: np.ndarray | list[float]) -> None:
         '''val is the misorientation in rotation vector
         representation
         '''
@@ -2073,7 +2074,7 @@ class PhaseTransitionTextureModel:
         self._parent_misorientation = val
 
     @property
-    def texture_models(self) -> dict:
+    def texture_models(self) -> dict[str, 'PhaseTransitionTextureView']:
         '''per-phase models with the same interface as HarmonicModel,
         keyed by material name. intended to be passed directly to the
         Rietveld class, i.e.
@@ -2086,14 +2087,16 @@ class PhaseTransitionTextureModel:
         return {view.material.name: view for view in self._views.values()}
 
     @property
-    def parameter_names(self) -> list:
+    def parameter_names(self) -> list[str]:
         '''names of the refinable parameters of both phases'''
         names = []
         for view in self._views.values():
             names.extend(view.parameter_names)
         return names
 
-    def get_parameters(self, params=None, vary=True):
+    def get_parameters(
+        self, params: Parameters | None = None, vary: bool = True
+    ) -> Parameters:
         '''add the refinable parameters of both phases to params
         (a new lmfit.Parameters if None) and return it
         '''
@@ -2105,7 +2108,7 @@ class PhaseTransitionTextureModel:
 
         return params
 
-    def _material(self, key):
+    def _material(self, key: str) -> Material_Rietveld:
         '''parent or daughter material'''
         if key == 'parent':
             return self.OR.material_parent
@@ -2115,7 +2118,9 @@ class PhaseTransitionTextureModel:
         msg = f'unknown phase "{key}", must be "parent" or "daughter"'
         raise ValueError(msg)
 
-    def _phase_ring_pole_densities(self, key, eta_grid):
+    def _phase_ring_pole_densities(
+        self, key: str, eta_grid: np.ndarray
+    ) -> tuple[dict[tuple, np.ndarray], dict[tuple, np.ndarray]]:
         '''pole density (m.r.d.) of every hkl of one phase ("parent" or
         "daughter") on its debye-scherrer ring sampled at eta_grid.
         used by calc_pf_rings of this model and of the views. it does not
@@ -2168,7 +2173,7 @@ class PhaseTransitionTextureModel:
 
         return intensities, gvecs
 
-    def init_kernels(self):
+    def init_kernels(self) -> None:
         '''build the kernels of both phases from the kernel widths'''
         self._parent_kernel = kernels.DeLaValleePoussinKernel(
             np.radians(self.parent_kernel_width),
@@ -2226,21 +2231,21 @@ class PhaseTransitionTextureModel:
             self.init_kernels()
 
     @property
-    def parent_kernel(self):
+    def parent_kernel(self) -> kernels.DeLaValleePoussinKernel:
         '''kernel of the parent phase, rebuilt if the kernel widths
         changed since it was built'''
         self._update_kernels()
         return self._parent_kernel
 
     @property
-    def daughter_kernel(self):
+    def daughter_kernel(self) -> kernels.DeLaValleePoussinKernel:
         '''kernel of the daughter phase, rebuilt if the kernel widths
         changed since it was built'''
         self._update_kernels()
         return self._daughter_kernel
 
     @property
-    def odfs(self):
+    def odfs(self) -> dict[str, unimodal_odf.UnimodalODF]:
         '''ODFs of the parent and the daughter phase, {"parent": ODF,
         "daughter": ODF}. rebuilt on access if the kernel widths or the
         parent misorientation changed since they were built, so they
@@ -2251,12 +2256,12 @@ class PhaseTransitionTextureModel:
 
     def calc_pf_rings(
         self,
-        params,
-        eta_min=-np.pi,
-        eta_max=np.pi,
-        eta_step=np.radians(0.1),
-        calc_type='texture_factor',
-    ):
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(0.1),
+        calc_type: str = 'texture_factor',
+    ) -> None:
         '''this function computes the intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
@@ -2322,12 +2327,12 @@ class PhaseTransitionTextureModel:
 
     def calc_texture_factor(
         self,
-        params,
-        eta_min=-np.pi,
-        eta_max=np.pi,
-        eta_step=np.radians(1),
-        eta_mask=None,
-    ):
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(1),
+        eta_mask: dict[str, dict[tuple, np.ndarray]] | None = None,
+    ) -> dict[str, np.ndarray]:
         '''compute the texture factor of every hkl of the parent and the
         daughter phase. same interface as HarmonicModel.calc_texture_factor:
         the texture factor of a reflection is the mean of the pole density
@@ -2375,7 +2380,7 @@ class PhaseTransitionTextureModel:
             tf[name] = _masked_ring_means(rings, phase_mask)
         return tf
 
-    def J(self, params):
+    def J(self, params: Parameters) -> dict[str, float]:
         '''this is the texture index J = <f^2> of the parent and the
         daughter ODFs, the same quantity HarmonicModel.J returns. A value
         of 1 is a random texture and any value > 1 is preferred
@@ -2411,11 +2416,13 @@ class PhaseTransitionTextureModel:
             for key in ('parent', 'daughter')
         }
 
-    def texture_index(self, params: Parameters) -> dict:
+    def texture_index(self, params: Parameters) -> dict[str, float]:
         """Return the texture index, matching the HarmonicModel interface."""
         return self.J(params)
 
-    def joint_residual(self, params, weighting=None):
+    def joint_residual(
+        self, params: Parameters, weighting: str | None = None
+    ) -> np.ndarray:
         '''weighted pole figure residual of both phases together, used by
         the joint fit in PhaseTransitionTextureView.
         calculate_harmonic_coefficients. the parent misorientation moves
@@ -2445,7 +2452,7 @@ class PhaseTransitionTextureModel:
             return np.array([1e10])
         return np.concatenate(parts)
 
-    def _sync_kernel_widths(self, params):
+    def _sync_kernel_widths(self, params: Parameters) -> None:
         '''update the kernel widths and the parent misorientation from
         params. keys that are not in params leave the current value
         untouched. the kernels and the ODFs are rebuilt on the next access
@@ -2469,7 +2476,7 @@ class PhaseTransitionTextureModel:
         )
 
     @staticmethod
-    def _odf_texture_index(odf):
+    def _odf_texture_index(odf: unimodal_odf.UnimodalODF) -> float:
         '''exact texture index of a UnimodalODF built on a de la Vallee
         Poussin kernel (see J for the formula)
         '''
@@ -2499,7 +2506,9 @@ class PhaseTransitionTextureModel:
         return float(J / (sample_ops.shape[0] * crystal_ops.shape[0]))
 
     @staticmethod
-    def _kernel_overlap(kernel, cos_half):
+    def _kernel_overlap(
+        kernel: kernels.DeLaValleePoussinKernel, cos_half: np.ndarray | float
+    ) -> np.ndarray:
         '''overlap integral P = <K(g, a) K(g, b)> over SO(3) (normalized
         Haar measure) of two de la Vallee Poussin kernels with the same
         shape parameter kappa, centered at a and b. cos_half is
@@ -2578,7 +2587,12 @@ class PhaseTransitionTextureView:
         pole figure data, see the pfdata property
     """
 
-    def __init__(self, model, phase, pfdata=None):
+    def __init__(
+        self,
+        model: PhaseTransitionTextureModel,
+        phase: str,
+        pfdata: dict[tuple, np.ndarray] | None = None,
+    ) -> None:
         if phase not in ('parent', 'daughter'):
             msg = f'unknown phase "{phase}", must be "parent" or "daughter"'
             raise ValueError(msg)
@@ -2587,7 +2601,7 @@ class PhaseTransitionTextureView:
         self._phase = phase
         self.pfdata = pfdata
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f'{type(self).__name__}(phase={self.phase!r}, '
             f'material={self.material.name!r}, '
@@ -2595,38 +2609,38 @@ class PhaseTransitionTextureView:
         )
 
     @property
-    def model(self):
+    def model(self) -> PhaseTransitionTextureModel:
         '''the PhaseTransitionTextureModel this view belongs to'''
         return self._model
 
     @property
-    def phase(self):
+    def phase(self) -> str:
         '''"parent" or "daughter" (read only)'''
         return self._phase
 
     @property
-    def material(self):
+    def material(self) -> Material_Rietveld:
         '''Material_Rietveld of this phase (read only)'''
         return self._model._material(self._phase)
 
     @property
-    def odf(self):
+    def odf(self) -> unimodal_odf.UnimodalODF:
         '''ODF of this phase (read only)'''
         return self._model.odfs[self._phase]
 
     @property
-    def kernel_width(self):
+    def kernel_width(self) -> float:
         '''current kernel half width in degrees (read only, set through
         params)'''
         return float(getattr(self._model, f'{self._phase}_kernel_width'))
 
     @property
-    def parameter_name(self):
+    def parameter_name(self) -> str:
         '''name of the kernel width parameter of this phase'''
         return f'{self.material.name}_kernel_width'
 
     @property
-    def parameter_names(self):
+    def parameter_names(self) -> list[str]:
         '''refinable parameters of this view: the kernel width and, for
         the parent view, the three components of the parent
         misorientation. the misorientation also rotates the daughter
@@ -2638,7 +2652,9 @@ class PhaseTransitionTextureView:
             names.extend(self._model.misorientation_parameter_names)
         return names
 
-    def get_parameters(self, params=None, vary=True):
+    def get_parameters(
+        self, params: Parameters | None = None, vary: bool = True
+    ) -> Parameters:
         '''
         make lmfit parameter class for refinement. the kernel half width
         is in degrees and starts at the current value of the model. the
@@ -2666,12 +2682,12 @@ class PhaseTransitionTextureView:
 
     def calc_pf_rings(
         self,
-        params,
-        eta_min=-np.pi,
-        eta_max=np.pi,
-        eta_step=np.radians(0.1),
-        calc_type='texture_factor',
-    ):
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(0.1),
+        calc_type: str = 'texture_factor',
+    ) -> None:
         '''this function computes the intensity variation
         along the debye-scherrer rings for each hkl in the material.
         the intensity variation around the ring is computed between
@@ -2709,12 +2725,12 @@ class PhaseTransitionTextureView:
 
     def calc_texture_factor(
         self,
-        params,
-        eta_min=-np.pi,
-        eta_max=np.pi,
-        eta_step=np.radians(1),
-        eta_mask=None,
-    ):
+        params: Parameters,
+        eta_min: float = -np.pi,
+        eta_max: float = np.pi,
+        eta_step: float = np.radians(1),
+        eta_mask: dict[tuple, np.ndarray] | None = None,
+    ) -> np.ndarray:
         '''texture factor of every hkl of this phase, i.e. the mean pole
         density around its debye-scherrer ring. same interface and return
         value as HarmonicModel.calc_texture_factor: an array in the order
@@ -2730,7 +2746,7 @@ class PhaseTransitionTextureView:
         )
         return _masked_ring_means(self.intensities_rings, eta_mask)
 
-    def J(self, params):
+    def J(self, params: Parameters) -> float:
         '''texture index J = <f^2> of the ODF of this phase. A value of 1
         is a random texture and any value > 1 is preferred orientation.
         see PhaseTransitionTextureModel.J for the method
@@ -2742,7 +2758,9 @@ class PhaseTransitionTextureView:
         """Return the texture index, matching the HarmonicModel interface."""
         return self.J(params)
 
-    def calc_residual(self, params, weighting=None):
+    def calc_residual(
+        self, params: Parameters, weighting: str | None = None
+    ) -> np.ndarray:
         '''weighted difference between the measured pole figure
         intensities (pfdata) and the pole densities of the ODF of this
         phase, with the texture parameters taken from params.
@@ -2760,7 +2778,7 @@ class PhaseTransitionTextureView:
             return np.array([1e10])
         return residual
 
-    def _residual_hkls(self):
+    def _residual_hkls(self) -> list[tuple]:
         '''hkls used in the residual: the ones selected for the current fit
         (see calculate_harmonic_coefficients), otherwise all of pfdata'''
         hkls = getattr(self, '_fit_hkls', None)
@@ -2768,7 +2786,7 @@ class PhaseTransitionTextureView:
             hkls = list(self.intensities)
         return hkls
 
-    def _pf_residual(self, hkls, weighting):
+    def _pf_residual(self, hkls: list[tuple], weighting: str) -> np.ndarray:
         '''weighted residual of the pfdata of the given hkls for the
         current ODF (the caller syncs the ODF with params first).
 
@@ -2815,7 +2833,7 @@ class PhaseTransitionTextureView:
         residual = np.concatenate(out)
         return residual[np.isfinite(residual)]
 
-    def recalculated_pf(self, params):
+    def recalculated_pf(self, params: Parameters) -> None:
         '''pole densities of the ODF at the pfdata points, stored in
         self.intensities_recalc[tuple(hkl)]
         '''
@@ -2827,7 +2845,9 @@ class PhaseTransitionTextureView:
                 self.odf.pole_density(hc, g, antipodal=True)
             )
 
-    def calculate_harmonic_coefficients(self, params, hkls=None):
+    def calculate_harmonic_coefficients(
+        self, params: Parameters, hkls: list[tuple] | None = None
+    ) -> MinimizerResult | None:
         '''fit the texture parameters to the pole figure data (pfdata).
         the name and interface are the same as
         HarmonicModel.calculate_harmonic_coefficients so the Rietveld
@@ -2896,7 +2916,7 @@ class PhaseTransitionTextureView:
         return results
 
     @property
-    def num_pfs(self):
+    def num_pfs(self) -> int:
         """number of pole figures (read only)"""
         return len(self.pfdata)
 
@@ -2912,11 +2932,11 @@ class PhaseTransitionTextureView:
     """
 
     @property
-    def pfdata(self):
+    def pfdata(self) -> dict[tuple, np.ndarray]:
         return self._pfdata
 
     @pfdata.setter
-    def pfdata(self, val):
+    def pfdata(self, val: dict[tuple, np.ndarray] | None) -> None:
         self._pfdata = {}
         self._intensities = {}
         self._untextured = {}
@@ -2973,31 +2993,31 @@ class PhaseTransitionTextureView:
             self._weights_intensity_by_hkl = None
 
     @property
-    def has_untextured_intensities(self):
+    def has_untextured_intensities(self) -> bool:
         '''True if the pfdata holds the untextured intensities (5th
         column), which the intensity weighting needs'''
         return self._weights_intensity_by_hkl is not None
 
     @property
-    def untextured_intensities(self):
+    def untextured_intensities(self) -> dict[tuple, np.ndarray]:
         '''untextured intensity U of every pfdata point, by hkl (empty if
         the pfdata has no 5th column)'''
         return self._untextured
 
     @property
-    def gvecs(self):
+    def gvecs(self) -> dict[tuple, np.ndarray]:
         return self._gvecs
 
     @property
-    def angs(self):
+    def angs(self) -> dict[tuple, np.ndarray]:
         return self._angs
 
     @property
-    def intensities(self):
+    def intensities(self) -> dict[tuple, np.ndarray]:
         return self._intensities
 
     @property
-    def weights(self):
+    def weights(self) -> np.ndarray:
         return self._weights
 
 
